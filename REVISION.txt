@@ -1,0 +1,171 @@
+
+
+
+
+creo proyecto desde Project manager
+base de datos → APU → las tareas muestran una leyenda ( ya en el presupuesto ) no debería verse si aun no lo agrego
+
+en presupuesto aparece el wizard
+
+las tareas t1001 t t2001 no siguen la nomenclatura de tareas del resto de tareas cargadas, hay que normalizar.
+las tareas agregadas no se  ajustan a los rubros ya cargados previamente a la app y aparecen en la categoría otros en vez de aparecer en donde correspoden como tareas preliminares o mamposterías.
+
+no están normalizadas las unidades, muestr M2 m2 M3 m3 KG kg Kg etc
+
+la vista gannt no permite visualización completa del grafico
+
+
+paso 3 las tareas tiene  materialles y están los valores actulizados según la base de datos de costo de materiales.  no esta vacio.
+
+paso 4 persiste la información luego de loguot y también se ve desde otro usuario. persiste el cambio en presupuesto. No aparece el botón de guardar. se ve en disable y aparece leyenda de auto guardar.
+paso 5 cambio realizado
+
+la información del dashboard no muestra información actualizada.
+
+paso 6
+ la tarea sigue y persiste el cambio.
+
+paso 7 al volver a loguear persisten los datos.
+
+antes de pasar a carga masiva de datos te paso algunas cosas que apunte
+
+
+la vista seguimiento y control no ofrece opciones de visualización de zoom que si tiene el gannt , seria bueno al menos extender las que ya tiene gannt
+
+seria bueno incorporar drag and drop para  mover acomodar las tareas mas arriba o mas abajo en la lista. también la programación manual o automática de fechas. 
+
+ la tabla de planificación no permite vincular la predecesora o sucesora, 
+la ficha técnica de ingeniería muestra las opciones para nuevas relaciones , aparece pero 
+al seleccionar una opción y poner guardar ficha no funciona el botón de guardar y no se cargan las opciones seleccionadas.
+
+
+el dash board no muestra correctamente la información actualizada del presupuesto ni los demás modulos.
+
+
+El grafico de distribución por familia muestra información incompleta. 
+seria bueno agregar mas herramientas al dashboard y de ser requido poder configurar para mostrar mas opciones de formato de visualización  y coinfiguracion de la información que se desea ver.
+
+
+también seria bueno cambiar el orden en que se muestran las opciones en el panel lateral izquierdo. si va a ser una herramienta que se va a poder usar según planes, seria bueno segmentar que dispone cada tipo de acceso en por lo menos 3 niveles. El mas básico solo para computo y presupuesto , otro que sume  planificacion,  y otro donde se integren todas las herramientas. 
+
+Seria necesario trabajar en la generación de reportes , visualización e impresión de las distintas partes , hay modulos que aun no permiten generar reportes ni imprimir.
+
+que la generación de reportes permita realizar presentación tipo memoria de reporte donde aparece una caratula índice , referencias utilizadas etc.
+
+seria bueno agregar un modulo dedicado a las cuestiones normativas  y de seguridad e higiene. 
+
+
+
+
+Estamos en una app de gestión de obras con React + Supabase.
+
+Necesito que cierres completamente la normalización del catálogo de tareas para que el módulo de presupuesto sea consistente.
+
+PROBLEMAS DETECTADOS:
+
+1. Las tareas nuevas (ej: T1001, T2001) no coinciden con la nomenclatura del resto.
+2. Las tareas caen en la categoría "Otros" en vez de su rubro correcto.
+3. Las unidades no están normalizadas (M2, m2, M3, m3, KG, kg, etc).
+4. El sistema marca tareas como "ya en presupuesto" aunque no estén agregadas.
+5. selectedRubros no incluye categorías nuevas dinámicamente.
+
+OBJETIVO:
+
+Asegurar que:
+- todas las tareas se asignen correctamente a un rubro válido existente
+- nunca se pierdan en "Otros"
+- las unidades estén normalizadas (m2, m3, kg, un, etc en minúsculas)
+- los códigos de tarea sigan una convención consistente y que ya esta implementada en algunas tareas según el rubro  y tipo de tarea 03M-001 por ejemplo para maposteria 
+- el flag "ya en presupuesto" sea 100% confiable
+
+TAREAS A IMPLEMENTAR:
+
+1. Normalizar categorías:
+   - al cargar tasks, si category no existe en rubros → agregarla automáticamente
+   - eliminar fallback a 'Otros' o hacerlo visible en UI
+
+2. Normalizar unidades:
+   - crear función normalizeUnit(unit: string)
+   - mapear M2/m2 → m2, M3/m3 → m3, KG/kg → kg
+
+3. Códigos de tarea:
+   - definir formato estándar (ej: 02.01, 04.02, etc)
+   - adaptar tareas nuevas o mapearlas
+
+4. "ya en presupuesto":
+   - verificar contra project.items reales (no estado previo)
+   - evitar falsos positivos
+
+5. selectedRubros:
+   - actualizar dinámicamente si aparecen nuevas categorías
+
+ARCHIVOS A REVISAR:
+- BudgetEditor.tsx
+- ERPContext.tsx
+- tasksService.ts
+- cualquier selector de rubros
+
+IMPORTANTE:
+- no romper compatibilidad con datos existentes
+- no usar hardcode, usar lógica dinámica
+- agregar logs si algo no matchea
+
+ENTREGAR:
+- cambios de código listos
+- explicación breve de cada fix
+
+
+
+
+-------------
+
+Configuración del proyecto calendario
+No se muestra aun claramente cual es calendario seleccionado y utilizado en el actual proyecto, 
+
+días no laborables, al agregar un dia no laborable, lo carga pero no pone la fecha seleccionada correcta sino que lo hace un dia antes por ejemplo agregue 02/04/2026 y lo agrego como de fecha 01/04/2026
+
+
+
+agregar un modulo para registro de horas y jornadas laborales por operario y poder generar e imprimir reportes de asistencia, horas trabajadas y registros de horas, días no trabajados, y todo lo relativo a aportes patronales , de empleo y seguridad social y poder hacer liquidaciones diaria, semanal, quincenal y mensual de cada trabajador.
+
+desde planificación de obra seguimiento y control, no se permite aun modificar el estado real  de una tarea - si ha inciado que grado de avance para poder certificar  y verificar el calculo de desviación de costos 
+
+ 
+-------------------------------------
+
+1/4/26 - en la base de datos maestra aun no se cargan automáticamente los materiales por defecto. Se cargar con cos 0.00 
+
+seria bueno revisar la calculadora de materiales , los rendimientos y las conversiones, por ejemplo con el cemento, poner los kilos pero indicar en los materiales cuantas bolsas hay que comprar, y un criterio similar para los demás rubros
+
+al seoleccionar un materialdesde el listado, este no muestra el listado completo para poder elegir un material, solo muestra 3.
+la mano de obra si aparece pero se carga por defecto en cero sin tomar el valor de referencia de la base de datos
+
+al hacer logout se borra la configuración de plantel de obra que establecimos en configuración del proyecto. Se borran personal individual y cuadrillas.
+
+se oprime guardar  y dice un mensaje guardado pero aun asi el dato no persiste-
+
+las filas del presupuesto deberían admitir drag and drop para poder modificar el orden de las tareas fácilmente, podría haber un botón para sibir o bajar una tarea o con clic del mouse. 
+
+en presupuesto al agregar una nueva tareas aparecen tareas duplicadas y no aparece el listado actualizado desde base de datos. Tampoco muestra opciones para la configuración de los materiales o la mano de obra, una vez seleccionada debería mostrar opciones de la tareas en particular, si requie materiales, equipos, mano de obra, algún otro costo, poder visualizar los recursos que ya poposee la tarea por defecto
+
+
+
+luego de implementar todos los prompt en agregar una tarea siguen apareciendo tareas duplicadas.
+cuando modifico algo y le doy al botón guardar el botón dice error al guardar y no guarda.
+
+se rompió la persistencia de datos del presupuesto ahora borran al salir. tampoco se ve nada en el dashboard. 
+
+
+
+en presupuesto en visualización, al cambiar de la vista a de costo directo a Precio Venta, nose actualiza aun la vista en totales del total general ajustado a Precio venta sino que se ve el precio  según costo directo. 
+
+
+también note que en al hacer logout se pierte todavía el plantel de obra configurado, aunque haya apretado en guardar y me muestre que se guardo correctamente
+
+
+la comparación de costos aun no se puede previsualizar ni imprimir.
+
+el recalculo no muestra sobre que índices se actualiza ni permite seleccionar el indicador de costos que se quiere utilizar con CAC CER UVA Indice Clarin  u otros
+
+no se ven los gaston indirectos en el grafico de distribución por familia
+

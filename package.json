@@ -1,0 +1,49 @@
+{
+  "name": "construsoft-v1",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "seed:global": "tsx scripts/seedGlobalCatalog.ts",
+    "db:migrate": "supabase db push",
+    "db:migrate:status": "supabase migration list",
+    "db:seed:catalog": "tsx scripts/seedGlobalCatalog.ts",
+    "db:seed:indices": "tsx scripts/cost-versioning/seed-index-values.ts",
+    "db:snapshots": "tsx scripts/cost-versioning/generate-snapshots.ts",
+    "db:smoke": "tsx scripts/cost-versioning/smoke-test.ts",
+    "db:cv:setup": "npm run db:migrate && npm run db:seed:catalog && npm run db:seed:indices && npm run db:smoke",
+    "db:cv:monthly": "npm run db:snapshots && npm run db:smoke",
+    "db:verify": "tsx scripts/cost-versioning/verify-schema.ts",
+    "gen:snapshots": "tsx scripts/cost-versioning/runGenerateSnapshots.ts",
+    "demo:sb": "tsx scripts/demo/runSupabaseCostDemo.ts",
+    "demo:budget": "tsx scripts/demo/runBudgetRecalculation.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^1.39.0",
+    "@supabase/supabase-js": "^2.99.1",
+    "@tanstack/react-table": "8.10.7",
+    "docx-preview": "^0.3.7",
+    "lucide-react": "^0.562.0",
+    "mammoth": "^1.11.0",
+    "pdfjs-dist": "^5.5.207",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-zoom-pan-pinch": "^3.7.0",
+    "recharts": "^3.6.0",
+    "xlsx": "^0.18.5",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "vitest": "^4.1.0"
+  }
+}

@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculadora de Materiales — Metodología Chandías</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f172a;
+      --bg2:       #1e293b;
+      --bg3:       #334155;
+      --border:    #475569;
+      --text:      #f1f5f9;
+      --muted:     #94a3b8;
+      --accent:    #3b82f6;
+      --accent2:   #06b6d4;
+      --success:   #22c55e;
+      --warn:      #f59e0b;
+      --danger:    #ef4444;
+      --radius:    8px;
+      --font:      'Segoe UI', system-ui, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    #app-header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    #app-header .logo {
+      width: 40px; height: 40px;
+      background: var(--accent);
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    #app-header h1 { font-size: 18px; font-weight: 700; }
+    #app-header p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    #app-header .spacer { flex: 1; }
+    #app-header .btn-export {
+      padding: 7px 14px; border-radius: 6px; font-size: 12px; cursor: pointer;
+      border: 1px solid var(--border); background: var(--bg3); color: var(--text);
+      transition: background .15s;
+    }
+    #app-header .btn-export:hover { background: var(--border); }
+    #app-header .btn-export.primary {
+      background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600;
+    }
+    #app-header .btn-export.primary:hover { background: #2563eb; }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    #app-body {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 280px 1fr 340px;
+      overflow: hidden;
+      height: calc(100vh - 65px);
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────── */
+    #sidebar {
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    #sidebar-search {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    #sidebar-search input {
+      width: 100%;
+      padding: 8px 10px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+    }
+    #sidebar-search input::placeholder { color: var(--muted); }
+    #sidebar-search input:focus { outline: none; border-color: var(--accent); }
+    #sidebar-list {
+      flex: 1; overflow-y: auto; padding: 8px 0;
+    }
+    .cat-header {
+      padding: 6px 12px 4px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .rubro-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: all .12s;
+      font-size: 13px;
+    }
+    .rubro-item:hover { background: var(--bg3); border-left-color: var(--border); }
+    .rubro-item.active { background: rgba(59,130,246,.15); border-left-color: var(--accent); color: #93c5fd; }
+    .rubro-item .rid { font-size: 10px; color: var(--muted); margin-right: 6px; font-family: monospace; }
+    .rubro-item .runit { font-size: 10px; color: var(--muted); float: right; }
+
+    /* ── Centro ─────────────────────────────────────────── */
+    #content {
+      overflow-y: auto;
+      padding: 20px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+
+    .panel {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 12px 16px;
+      background: var(--bg3);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .panel-header h2 { font-size: 14px; font-weight: 600; }
+    .panel-header .badge {
+      font-size: 10px; padding: 2px 6px;
+      background: rgba(59,130,246,.2);
+      color: #93c5fd;
+      border-radius: 20px;
+    }
+    .panel-body { padding: 16px; }
+
+    /* Rubro info */
+    #rubro-info { display: none; }
+    #rubro-info.visible { display: block; }
+    #placeholder-msg {
+      text-align: center; padding: 60px 20px; color: var(--muted);
+    }
+    #placeholder-msg .icon { font-size: 48px; margin-bottom: 12px; }
+    #placeholder-msg p { font-size: 14px; }
+
+    .rubro-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .rubro-meta  { font-size: 12px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+    .rubro-meta span { display: flex; align-items: center; gap: 4px; }
+    .tag {
+      display: inline-block; padding: 2px 8px;
+      border-radius: 20px; font-size: 11px; font-weight: 600;
+    }
+    .tag-cat { background: rgba(6,182,212,.15); color: #67e8f9; }
+
+    /* Inputs grid */
+    .inputs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .input-group label {
+      display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; font-weight: 500;
+    }
+    .input-group .input-wrap {
+      display: flex; align-items: center;
+      background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+    }
+    .input-group input {
+      flex: 1; padding: 8px 10px;
+      background: transparent; border: none; color: var(--text); font-size: 14px;
+    }
+    .input-group input:focus { outline: none; }
+    .input-group .unit-badge {
+      padding: 0 10px; font-size: 11px; color: var(--muted);
+      background: var(--bg); border-left: 1px solid var(--border);
+      height: 100%; display: flex; align-items: center;
+    }
+    .input-group .input-wrap:focus-within { border-color: var(--accent); }
+
+    .calc-row {
+      margin-top: 14px; padding: 10px 14px;
+      background: rgba(59,130,246,.08);
+      border: 1px solid rgba(59,130,246,.2);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 13px;
+    }
+    .calc-row .qty { font-size: 20px; font-weight: 700; color: #93c5fd; }
+
+    .btn-add {
+      width: 100%; margin-top: 14px;
+      padding: 10px; border-radius: 6px;
+      background: var(--accent); border: none; color: #fff;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-add:hover { background: #2563eb; }
+    .btn-add:disabled { background: var(--bg3); color: var(--muted); cursor: not-allowed; }
+
+    /* Materials table */
+    .mat-table {
+      width: 100%; border-collapse: collapse; font-size: 13px;
+    }
+    .mat-table th {
+      text-align: left; padding: 8px 10px;
+      color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+    }
+    .mat-table td {
+      padding: 8px 10px; border-bottom: 1px solid rgba(71,85,105,.4);
+    }
+    .mat-table tr:last-child td { border-bottom: none; }
+    .mat-table .num { text-align: right; font-family: monospace; font-size: 13px; }
+    .mat-table .coef { color: var(--muted); font-size: 12px; }
+    .empty-mat {
+      text-align: center; padding: 20px; color: var(--muted); font-size: 13px;
+      font-style: italic;
+    }
+
+    /* ── Panel derecho — Listado y Resumen ──────────────── */
+    #resumen {
+      background: var(--bg2);
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    #resumen-tabs {
+      display: flex; border-bottom: 1px solid var(--border);
+    }
+    .tab-btn {
+      flex: 1; padding: 10px; font-size: 12px; font-weight: 600;
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all .12s;
+    }
+    .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+    .tab-pane { display: none; flex: 1; overflow-y: auto; }
+    .tab-pane.active { display: flex; flex-direction: column; }
+
+    /* Items list */
+    .item-entry {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(71,85,105,.4);
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .item-entry:hover { background: var(--bg3); }
+    .item-entry .ie-head { display: flex; justify-content: space-between; align-items: center; }
+    .item-entry .ie-name { font-size: 13px; font-weight: 600; }
+    .item-entry .ie-qty  { font-size: 12px; color: var(--accent2); font-family: monospace; }
+    .item-entry .ie-id   { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .item-entry .ie-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .btn-remove {
+      background: none; border: none; color: var(--danger); cursor: pointer;
+      padding: 2px 6px; border-radius: 4px; font-size: 14px;
+    }
+    .btn-remove:hover { background: rgba(239,68,68,.15); }
+    .empty-list {
+      padding: 32px 16px; text-align: center; color: var(--muted);
+    }
+    .empty-list .icon { font-size: 32px; margin-bottom: 8px; }
+    .empty-list p { font-size: 13px; }
+
+    /* Totales */
+    #totales-panel { padding: 14px; }
+    .total-mat-item {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 7px 0; border-bottom: 1px solid rgba(71,85,105,.4);
+      font-size: 13px;
+    }
+    .total-mat-item:last-child { border-bottom: none; }
+    .total-mat-item .mat-name { flex: 1; margin-right: 8px; }
+    .total-mat-item .mat-qty  { font-family: monospace; font-weight: 600; min-width: 70px; text-align: right; }
+    .total-mat-item .mat-unit { color: var(--muted); font-size: 11px; margin-left: 4px; min-width: 32px; }
+    .no-totales { padding: 32px 14px; text-align: center; color: var(--muted); font-size: 13px; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 20px; right: 20px;
+      background: var(--success); color: #fff;
+      padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      box-shadow: 0 4px 16px rgba(0,0,0,.4);
+      transform: translateY(60px); opacity: 0;
+      transition: all .25s;
+      z-index: 999;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div id="app-header">
+  <div class="logo">🏗️</div>
+  <div>
+    <h1>Calculadora de Materiales</h1>
+    <p>Metodología Chandías · 50 rubros de construcción</p>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn-export" onclick="CalculadoraMateriales.limpiar(); renderItems(); renderTotales();">🗑 Limpiar</button>
+  <button class="btn-export" onclick="CalculadoraMateriales.exportarCSV()">⬇ CSV</button>
+  <button class="btn-export primary" onclick="CalculadoraMateriales.exportarJSON()">⬇ JSON</button>
+</div>
+
+<div id="app-body">
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div id="sidebar-search">
+      <input type="text" id="search-input" placeholder="Buscar rubro..." oninput="filterRubros(this.value)">
+    </div>
+    <div id="sidebar-list"></div>
+  </div>
+
+  <!-- Centro -->
+  <div id="content">
+
+    <!-- Placeholder -->
+    <div id="placeholder-msg">
+      <div class="icon">📐</div>
+      <p>Seleccioná un rubro de la lista para comenzar</p>
+    </div>
+
+    <!-- Rubro seleccionado -->
+    <div id="rubro-info">
+      <div class="panel">
+        <div class="panel-header">
+          <h2 id="ri-id" style="font-family:monospace;color:var(--muted);font-size:12px"></h2>
+          <span id="ri-cat" class="tag tag-cat"></span>
+          <span class="spacer" style="flex:1"></span>
+          <span id="ri-unit" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+        <div class="panel-body">
+          <div class="rubro-title" id="ri-nombre"></div>
+          <div class="rubro-meta" style="margin-top:4px">
+            <span id="ri-desc" style="color:var(--muted);font-size:12px;font-style:italic"></span>
+          </div>
+
+          <div class="inputs-grid" id="ri-inputs"></div>
+
+          <div class="calc-row">
+            <span>Cantidad a presupuestar:</span>
+            <div style="display:flex;align-items:baseline;gap:6px">
+              <span class="qty" id="ri-qty">0.00</span>
+              <span style="font-size:12px;color:var(--muted)" id="ri-qty-unit"></span>
+            </div>
+          </div>
+
+          <input type="text" id="ri-desc-input"
+            placeholder="Descripción / ubicación (opcional)"
+            style="width:100%;margin-top:10px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+
+          <button class="btn-add" id="btn-add-rubro" onclick="addCurrentRubro()">
+            ➕ Agregar al presupuesto
+          </button>
+        </div>
+      </div>
+
+      <!-- Tabla de materiales del rubro -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Composición de materiales</h2>
+          <span class="badge" id="mat-count-badge">0 materiales</span>
+        </div>
+        <div class="panel-body" style="padding:0">
+          <div id="mat-table-wrap"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+
+  <!-- Panel derecho -->
+  <div id="resumen">
+    <div id="resumen-tabs">
+      <button class="tab-btn active" onclick="switchTab('items')">📋 Rubros agregados</button>
+      <button class="tab-btn"        onclick="switchTab('totales')">📦 Materiales totales</button>
+    </div>
+
+    <div class="tab-pane active" id="tab-items">
+      <div id="items-list"><div class="empty-list"><div class="icon">📋</div><p>Aún no agregaste rubros</p></div></div>
+    </div>
+    <div class="tab-pane" id="tab-totales">
+      <div id="totales-panel"><div class="no-totales">Agregá rubros para ver el consolidado de materiales</div></div>
+    </div>
+  </div>
+
+</div><!-- /app-body -->
+
+<div id="toast"></div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  BASE DE DATOS — 50 RUBROS (Metodología Chandías)              ║
+// ╚══════════════════════════════════════════════════════════════════╝
+const RUBROS_DB = [
+
+  // ── MOVIMIENTO DE SUELOS ──────────────────────────────────────────
+  {
+    id:'EXC-001', nombre:'Excavación a cielo abierto', categoria:'Movimiento de Suelos',
+    unidad:'m³', descripcion:'Excavación en tierra sin clasificar, manual o mecánica',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'},{id:'profundidad',label:'Profundidad',un:'m'}],
+    formula:'largo*ancho*profundidad',
+    materiales:[{nombre:'Puntas y barretas (amortiz.)',coef:0.05,un:'kg'}]
+  },
+  {
+    id:'EXC-002', nombre:'Excavación de zanjas para fundaciones', categoria:'Movimiento de Suelos',
+    unidad:'m³', descripcion:'Zanja a mano, profundidad hasta 1.50m',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'},{id:'profundidad',label:'Profundidad',un:'m'}],
+    formula:'largo*ancho*profundidad',
+    materiales:[{nombre:'Puntas y barretas (amortiz.)',coef:0.05,un:'kg'}]
+  },
+  {
+    id:'EXC-003', nombre:'Relleno y compactación con material propio', categoria:'Movimiento de Suelos',
+    unidad:'m³', descripcion:'Relleno en capas de 20cm con compactación manual',
+    dims:[{id:'volumen',label:'Volumen',un:'m³'}],
+    formula:'volumen',
+    materiales:[{nombre:'Agua para compactación',coef:0.12,un:'m³'}]
+  },
+  {
+    id:'EXC-004', nombre:'Nivelación y emparejamiento de terreno', categoria:'Movimiento de Suelos',
+    unidad:'m²', descripcion:'Limpieza y emparejamiento superficial',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[]
+  },
+  {
+    id:'EXC-005', nombre:'Hormigón de limpieza H-4 (e=5cm)', categoria:'Movimiento de Suelos',
+    unidad:'m²', descripcion:'Capa de regularización bajo fundaciones, e=5cm',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:7.5,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.025,un:'m³'},
+      {nombre:'Piedra partida 6/20',coef:0.037,un:'m³'},
+      {nombre:'Agua',coef:0.007,un:'m³'}
+    ]
+  },
+
+  // ── HORMIGONES ────────────────────────────────────────────────────
+  {
+    id:'HOR-001', nombre:'Hormigón en masa H-8', categoria:'Hormigones',
+    unidad:'m³', descripcion:'Para fundaciones corridas y mampostería en masa',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Sección ancho',un:'m'},{id:'alto',label:'Sección alto',un:'m'}],
+    formula:'largo*ancho*alto',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:150,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.55,un:'m³'},
+      {nombre:'Piedra partida 6/20',coef:0.85,un:'m³'},
+      {nombre:'Agua',coef:0.18,un:'m³'}
+    ]
+  },
+  {
+    id:'HOR-002', nombre:'Hormigón H-13 (dosaje 1:2:4)', categoria:'Hormigones',
+    unidad:'m³', descripcion:'Bases y zapatas, resistencia 13 MPa',
+    dims:[{id:'volumen',label:'Volumen',un:'m³'}],
+    formula:'volumen',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:200,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.55,un:'m³'},
+      {nombre:'Piedra partida 6/20',coef:0.85,un:'m³'},
+      {nombre:'Agua',coef:0.18,un:'m³'}
+    ]
+  },
+  {
+    id:'HOR-003', nombre:'Hormigón H-17 (dosaje 1:2:3)', categoria:'Hormigones',
+    unidad:'m³', descripcion:'Losas, vigas y columnas, resistencia 17 MPa',
+    dims:[{id:'volumen',label:'Volumen',un:'m³'}],
+    formula:'volumen',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:250,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.55,un:'m³'},
+      {nombre:'Piedra partida 6/20',coef:0.85,un:'m³'},
+      {nombre:'Agua',coef:0.18,un:'m³'}
+    ]
+  },
+  {
+    id:'HOR-004', nombre:'Hormigón H-21 (dosaje 1:1.5:3)', categoria:'Hormigones',
+    unidad:'m³', descripcion:'Estructura principal, resistencia 21 MPa',
+    dims:[{id:'volumen',label:'Volumen',un:'m³'}],
+    formula:'volumen',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:300,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.55,un:'m³'},
+      {nombre:'Piedra partida 6/20',coef:0.85,un:'m³'},
+      {nombre:'Agua',coef:0.18,un:'m³'},
+      {nombre:'Acero ADN 420 ø10mm',coef:50,un:'kg'}
+    ]
+  },
+  {
+    id:'HOR-005', nombre:'Losa de hormigón armado e=12cm', categoria:'Hormigones',
+    unidad:'m²', descripcion:'Losa maciza, armadura simple, e=12cm',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:36,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.079,un:'m³'},
+      {nombre:'Piedra partida 6/20',coef:0.12,un:'m³'},
+      {nombre:'Acero ADN 420 ø8mm',coef:8,un:'kg'},
+      {nombre:'Agua',coef:0.022,un:'m³'}
+    ]
+  },
+  {
+    id:'HOR-006', nombre:'Viga de hormigón armado 20×30cm', categoria:'Hormigones',
+    unidad:'ml', descripcion:'Viga principal 20×30cm con armadura',
+    dims:[{id:'largo',label:'Longitud total',un:'m'}],
+    formula:'largo',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:15,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.033,un:'m³'},
+      {nombre:'Piedra partida 6/20',coef:0.05,un:'m³'},
+      {nombre:'Acero ADN 420 ø12mm',coef:3.6,un:'kg'},
+      {nombre:'Alambre de atar N°18',coef:0.07,un:'kg'}
+    ]
+  },
+  {
+    id:'HOR-007', nombre:'Columna de hormigón armado 25×25cm', categoria:'Hormigones',
+    unidad:'ml', descripcion:'Columna estructural 25×25cm con armadura',
+    dims:[{id:'largo',label:'Altura total',un:'m'}],
+    formula:'largo',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:15.6,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.034,un:'m³'},
+      {nombre:'Piedra partida 6/20',coef:0.052,un:'m³'},
+      {nombre:'Acero ADN 420 ø12mm',coef:5.2,un:'kg'},
+      {nombre:'Alambre de atar N°18',coef:0.10,un:'kg'}
+    ]
+  },
+
+  // ── MAMPOSTERÍA ───────────────────────────────────────────────────
+  {
+    id:'MAM-001', nombre:'Muro ladrillo común e=0.30m', categoria:'Mampostería',
+    unidad:'m²', descripcion:'Muro portante, junta normal 1.5cm, mortero 1:1:6',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Ladrillo común 6×12×24cm',coef:70,un:'un'},
+      {nombre:'Cemento Portland CPN40',coef:12,un:'kg'},
+      {nombre:'Cal hidratada',coef:8,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.040,un:'m³'}
+    ]
+  },
+  {
+    id:'MAM-002', nombre:'Muro ladrillo común e=0.15m', categoria:'Mampostería',
+    unidad:'m²', descripcion:'Muro de cerramiento simple, junta normal',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Ladrillo común 6×12×24cm',coef:35,un:'un'},
+      {nombre:'Cemento Portland CPN40',coef:6,un:'kg'},
+      {nombre:'Cal hidratada',coef:4,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.020,un:'m³'}
+    ]
+  },
+  {
+    id:'MAM-003', nombre:'Muro ladrillo hueco e=0.20m', categoria:'Mampostería',
+    unidad:'m²', descripcion:'Cerramiento con ladrillo hueco 18×18×33cm',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Ladrillo hueco 18×18×33cm',coef:13,un:'un'},
+      {nombre:'Cemento Portland CPN40',coef:5,un:'kg'},
+      {nombre:'Cal hidratada',coef:3,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.020,un:'m³'}
+    ]
+  },
+  {
+    id:'MAM-004', nombre:'Muro ladrillo hueco e=0.15m', categoria:'Mampostería',
+    unidad:'m²', descripcion:'Muro intermedio con ladrillo hueco 12×18×33cm',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Ladrillo hueco 12×18×33cm',coef:18,un:'un'},
+      {nombre:'Cemento Portland CPN40',coef:4,un:'kg'},
+      {nombre:'Cal hidratada',coef:2.5,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.015,un:'m³'}
+    ]
+  },
+  {
+    id:'MAM-005', nombre:'Tabique ladrillo hueco e=0.08m', categoria:'Mampostería',
+    unidad:'m²', descripcion:'Tabique divisorio de poco espesor',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Ladrillo hueco 8×18×33cm',coef:20,un:'un'},
+      {nombre:'Cemento Portland CPN40',coef:3,un:'kg'},
+      {nombre:'Cal hidratada',coef:2,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.012,un:'m³'}
+    ]
+  },
+  {
+    id:'MAM-006', nombre:'Tabique ladrillo hueco e=0.10m', categoria:'Mampostería',
+    unidad:'m²', descripcion:'Tabique interior con ladrillo hueco 8×18×33cm doble hoja',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Ladrillo hueco 8×18×33cm',coef:32,un:'un'},
+      {nombre:'Cemento Portland CPN40',coef:3.5,un:'kg'},
+      {nombre:'Cal hidratada',coef:2.5,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.015,un:'m³'}
+    ]
+  },
+
+  // ── REVOQUES ──────────────────────────────────────────────────────
+  {
+    id:'REV-001', nombre:'Revoque grueso interior (1:2:9)', categoria:'Revoques',
+    unidad:'m²', descripcion:'Mortero cemento-cal-arena, e≈15mm, base para fino',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:4.5,un:'kg'},
+      {nombre:'Cal hidratada',coef:5,un:'kg'},
+      {nombre:'Arena fina cernida',coef:0.030,un:'m³'}
+    ]
+  },
+  {
+    id:'REV-002', nombre:'Revoque fino a la cal (enlucido)', categoria:'Revoques',
+    unidad:'m²', descripcion:'Yeso o pasta cal, acabado liso, e≈5mm',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Yeso común para construcción',coef:8,un:'kg'},
+      {nombre:'Cal hidratada',coef:2,un:'kg'}
+    ]
+  },
+  {
+    id:'REV-003', nombre:'Revoque exterior hidrófugo', categoria:'Revoques',
+    unidad:'m²', descripcion:'Mortero con hidrófugo de fraguado, e≈20mm',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:7,un:'kg'},
+      {nombre:'Arena media lavada',coef:0.030,un:'m³'},
+      {nombre:'Hidrófugo líquido integral',coef:0.20,un:'l'}
+    ]
+  },
+  {
+    id:'REV-004', nombre:'Revoque grueso exterior (1:3)', categoria:'Revoques',
+    unidad:'m²', descripcion:'Mezcla cemento-arena, para exteriores no hidrófugos',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:6,un:'kg'},
+      {nombre:'Cal hidratada',coef:3,un:'kg'},
+      {nombre:'Arena media lavada',coef:0.030,un:'m³'}
+    ]
+  },
+  {
+    id:'REV-005', nombre:'Enlucido bajo azulejo / porcelanato (1:4)', categoria:'Revoques',
+    unidad:'m²', descripcion:'Base cementosa para aplicación de revestimiento',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:8,un:'kg'},
+      {nombre:'Arena fina cernida',coef:0.025,un:'m³'}
+    ]
+  },
+
+  // ── CONTRAPISOS Y PISOS ───────────────────────────────────────────
+  {
+    id:'PIS-001', nombre:'Contrapiso de cascote s/terreno natural (e=12cm)', categoria:'Contrapisos y Pisos',
+    unidad:'m²', descripcion:'Base con cascote de ladrillo triturado, e=12cm',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Cascote de ladrillo',coef:0.12,un:'m³'},
+      {nombre:'Cemento Portland CPN40',coef:6,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.025,un:'m³'}
+    ]
+  },
+  {
+    id:'PIS-002', nombre:'Contrapiso hormigón pobre (e=10cm)', categoria:'Contrapisos y Pisos',
+    unidad:'m²', descripcion:'Contrapiso hormigón 1:4:8, e=10cm',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:22,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.050,un:'m³'},
+      {nombre:'Piedra partida 6/20',coef:0.075,un:'m³'}
+    ]
+  },
+  {
+    id:'PIS-003', nombre:'Piso de cemento alisado (e=3cm)', categoria:'Contrapisos y Pisos',
+    unidad:'m²', descripcion:'Mortero 1:3 cemento-arena, alisado con paleta',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:9,un:'kg'},
+      {nombre:'Arena fina cernida',coef:0.030,un:'m³'}
+    ]
+  },
+  {
+    id:'PIS-004', nombre:'Piso mosaico calcáreo 20×20cm', categoria:'Contrapisos y Pisos',
+    unidad:'m²', descripcion:'Mosaico sobre cama de mortero 1:4',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Mosaico calcáreo 20×20cm',coef:25,un:'un'},
+      {nombre:'Cemento Portland CPN40',coef:5,un:'kg'},
+      {nombre:'Arena fina cernida',coef:0.015,un:'m³'},
+      {nombre:'Pastina cementicia',coef:0.3,un:'kg'}
+    ]
+  },
+  {
+    id:'PIS-005', nombre:'Piso cerámico 30×30cm', categoria:'Contrapisos y Pisos',
+    unidad:'m²', descripcion:'Cerámica esmaltada, pegado con cemento cola',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Cerámica 30×30cm (c/5% desp.)',coef:11.7,un:'un'},
+      {nombre:'Cemento cola (bolsa 25kg)',coef:5,un:'kg'},
+      {nombre:'Pastina cementicia',coef:0.5,un:'kg'}
+    ]
+  },
+  {
+    id:'PIS-006', nombre:'Piso cerámico 45×45cm', categoria:'Contrapisos y Pisos',
+    unidad:'m²', descripcion:'Cerámica de alto tránsito, adhesivo gris',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Cerámica 45×45cm (c/5% desp.)',coef:5.5,un:'un'},
+      {nombre:'Cemento cola (bolsa 25kg)',coef:4.5,un:'kg'},
+      {nombre:'Pastina cementicia',coef:0.4,un:'kg'}
+    ]
+  },
+  {
+    id:'PIS-007', nombre:'Piso porcelanato 60×60cm', categoria:'Contrapisos y Pisos',
+    unidad:'m²', descripcion:'Porcelanato rectificado, adhesivo flexible',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Porcelanato 60×60cm (c/5% desp.)',coef:2.94,un:'un'},
+      {nombre:'Cemento cola flexible',coef:4,un:'kg'},
+      {nombre:'Pastina epoxi / cementicia',coef:0.3,un:'kg'}
+    ]
+  },
+  {
+    id:'PIS-008', nombre:'Solado de hormigón visto (e=8cm)', categoria:'Contrapisos y Pisos',
+    unidad:'m²', descripcion:'Hormigón 1:2:4 para solados exteriores, e=8cm',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Cemento Portland CPN40',coef:18,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.040,un:'m³'},
+      {nombre:'Piedra partida 6/20',coef:0.065,un:'m³'}
+    ]
+  },
+
+  // ── REVESTIMIENTOS ────────────────────────────────────────────────
+  {
+    id:'RVE-001', nombre:'Revestimiento azulejo 15×15cm', categoria:'Revestimientos',
+    unidad:'m²', descripcion:'Azulejo cerámico para baños y cocinas',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Azulejo 15×15cm (c/4% desp.)',coef:46,un:'un'},
+      {nombre:'Cemento cola blanca',coef:4,un:'kg'},
+      {nombre:'Pastina blanca fina',coef:0.4,un:'kg'}
+    ]
+  },
+  {
+    id:'RVE-002', nombre:'Revestimiento porcelanato 30×60cm', categoria:'Revestimientos',
+    unidad:'m²', descripcion:'Porcelanato pared, adhesivo blanco flexible',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Porcelanato 30×60cm (c/5% desp.)',coef:5.9,un:'un'},
+      {nombre:'Cemento cola blanca flexible',coef:5,un:'kg'},
+      {nombre:'Pastina cementicia blanca',coef:0.5,un:'kg'}
+    ]
+  },
+  {
+    id:'RVE-003', nombre:'Zócalo cerámico h=10cm', categoria:'Revestimientos',
+    unidad:'ml', descripcion:'Cenefa / rodapié cerámico',
+    dims:[{id:'largo',label:'Longitud',un:'m'}],
+    formula:'largo',
+    materiales:[
+      {nombre:'Zócalo cerámico 10×30cm (c/5%)',coef:3.5,un:'un'},
+      {nombre:'Cemento cola',coef:0.5,un:'kg'},
+      {nombre:'Pastina',coef:0.05,un:'kg'}
+    ]
+  },
+  {
+    id:'RVE-004', nombre:'Revestimiento laja de piedra natural', categoria:'Revestimientos',
+    unidad:'m²', descripcion:'Laja de piedra sobre mortero 1:4',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Laja de piedra (prov.)',coef:0.12,un:'m³'},
+      {nombre:'Cemento Portland CPN40',coef:8,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.025,un:'m³'}
+    ]
+  },
+
+  // ── CUBIERTAS ─────────────────────────────────────────────────────
+  {
+    id:'CUB-001', nombre:'Cubierta de chapa sinusoidal C25', categoria:'Cubiertas',
+    unidad:'m²', descripcion:'Chapa galvanizada C25, solape lateral y longitudinal',
+    dims:[{id:'largo',label:'Largo (proyección)',un:'m'},{id:'ancho',label:'Ancho (proyección)',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Chapa sinusoidal galv. C25',coef:1.15,un:'m²'},
+      {nombre:'Tornillos autoperforantes ø6×75mm',coef:7,un:'un'},
+      {nombre:'Burlete cierre de caballete',coef:0.5,un:'ml'},
+      {nombre:'Sellador siliconado neutro',coef:0.03,un:'l'}
+    ]
+  },
+  {
+    id:'CUB-002', nombre:'Cubierta de teja cerámica s/torta de barro', categoria:'Cubiertas',
+    unidad:'m²', descripcion:'Teja francesa o española sobre torta de barro+cal',
+    dims:[{id:'largo',label:'Largo (proyección)',un:'m'},{id:'ancho',label:'Ancho (proyección)',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Teja cerámica curva',coef:16,un:'un'},
+      {nombre:'Barro negro amasado',coef:0.030,un:'m³'},
+      {nombre:'Cal viva',coef:2,un:'kg'}
+    ]
+  },
+  {
+    id:'CUB-003', nombre:'Membrana asfáltica 4mm APP', categoria:'Cubiertas',
+    unidad:'m²', descripcion:'Membrana impermeabilizante termofusible, 2 capas',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Membrana asfáltica APP 4mm',coef:1.10,un:'m²'},
+      {nombre:'Imprimación asfáltica (fondo)',coef:0.35,un:'l'},
+      {nombre:'Sikaflex / sellador juntas',coef:0.05,un:'l'}
+    ]
+  },
+  {
+    id:'CUB-004', nombre:'Losa con viguetas pretensadas y bloques', categoria:'Cubiertas',
+    unidad:'m²', descripcion:'Sistema de losa alivianada 20+5cm de capa',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Vigueta pretensada 20cm',coef:1.4,un:'ml'},
+      {nombre:'Bloque cerámico 20×20×25cm',coef:4,un:'un'},
+      {nombre:'Cemento Portland CPN40',coef:18,un:'kg'},
+      {nombre:'Arena gruesa',coef:0.040,un:'m³'},
+      {nombre:'Acero ADN ø6mm (malla)',coef:1.5,un:'kg'}
+    ]
+  },
+
+  // ── AISLACIONES ───────────────────────────────────────────────────
+  {
+    id:'AIS-001', nombre:'Aislación hidrófuga horizontal bajo contrapiso', categoria:'Aislaciones',
+    unidad:'m²', descripcion:'Pintura asfáltica sobre tierra, 2 manos',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Pintura asfáltica al solvente',coef:0.50,un:'l'},
+      {nombre:'Aguarrás mineral',coef:0.08,un:'l'}
+    ]
+  },
+  {
+    id:'AIS-002', nombre:'Aislación térmica lana de vidrio e=50mm', categoria:'Aislaciones',
+    unidad:'m²', descripcion:'Panel de lana de vidrio 50mm con papel kraft',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Lana de vidrio 50mm c/kraft',coef:1.05,un:'m²'},
+      {nombre:'Cinta de sellado papel kraft',coef:0.20,un:'ml'},
+      {nombre:'Grampas / fijadores',coef:4,un:'un'}
+    ]
+  },
+  {
+    id:'AIS-003', nombre:'Barrera de vapor film polietileno 200µ', categoria:'Aislaciones',
+    unidad:'m²', descripcion:'Film polietileno negro bajo losa o entre capas',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Film polietileno 200µ',coef:1.10,un:'m²'},
+      {nombre:'Cinta adhesiva doble faz',coef:0.20,un:'ml'}
+    ]
+  },
+
+  // ── CIELORRASOS ───────────────────────────────────────────────────
+  {
+    id:'CIE-001', nombre:'Cielorraso revoque sobre losa', categoria:'Cielorrasos',
+    unidad:'m²', descripcion:'Enlucido yeso + cal sobre cara inferior de losa',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Yeso común para cielorraso',coef:8,un:'kg'},
+      {nombre:'Cal hidratada',coef:2,un:'kg'},
+      {nombre:'Arena fina cernida',coef:0.015,un:'m³'}
+    ]
+  },
+  {
+    id:'CIE-002', nombre:'Cielorraso suspendido en seco (Durlock)', categoria:'Cielorrasos',
+    unidad:'m²', descripcion:'Placa de yeso 12.5mm sobre estructura de perfiles',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Placa de yeso 12.5mm',coef:1.10,un:'m²'},
+      {nombre:'Perfil montante 70mm (par)',coef:1.2,un:'ml'},
+      {nombre:'Perfil solera 70mm',coef:0.8,un:'ml'},
+      {nombre:'Tornillos autoperforantes 3.5×25mm',coef:12,un:'un'},
+      {nombre:'Masilla para juntas (bolsa 20kg)',coef:0.35,un:'kg'},
+      {nombre:'Cinta de papel microperforada',coef:0.8,un:'ml'}
+    ]
+  },
+  {
+    id:'CIE-003', nombre:'Cielorraso madera machimbrada', categoria:'Cielorrasos',
+    unidad:'m²', descripcion:'Tablones machimbrados de pino 1a clavados a viguería',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Machimbre pino (c/10% desp.)',coef:1.15,un:'m²'},
+      {nombre:'Clavos de acero 2½" (tipo cielorraso)',coef:0.02,un:'kg'}
+    ]
+  },
+
+  // ── PINTURAS ──────────────────────────────────────────────────────
+  {
+    id:'PIN-001', nombre:'Pintura látex interior (2 manos)', categoria:'Pinturas',
+    unidad:'m²', descripcion:'Previo enduído y sellador, 2 manos de látex vinílico',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Pintura látex vinílico interior',coef:0.30,un:'l'},
+      {nombre:'Sellador acrílico fijador',coef:0.08,un:'l'},
+      {nombre:'Enduído plástico interior',coef:0.15,un:'kg'},
+      {nombre:'Lija al agua N°150',coef:0.10,un:'un'}
+    ]
+  },
+  {
+    id:'PIN-002', nombre:'Pintura látex exterior (2 manos)', categoria:'Pinturas',
+    unidad:'m²', descripcion:'Látex exterior acrílico con base fijadora',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Pintura látex acrílico exterior',coef:0.35,un:'l'},
+      {nombre:'Fijador acrílico para exteriores',coef:0.10,un:'l'}
+    ]
+  },
+  {
+    id:'PIN-003', nombre:'Pintura al cal (2 manos)', categoria:'Pinturas',
+    unidad:'m²', descripcion:'Lechada de cal para paredes de obra gruesa',
+    dims:[{id:'largo',label:'Largo',un:'m'},{id:'alto',label:'Alto',un:'m'}],
+    formula:'largo*alto',
+    materiales:[
+      {nombre:'Cal hidratada en polvo',coef:0.15,un:'kg'}
+    ]
+  },
+  {
+    id:'PIN-004', nombre:'Esmalte sintético s/carpintería de madera (2 manos)', categoria:'Pinturas',
+    unidad:'m²', descripcion:'Preparación + fondo + 2 manos de esmalte',
+    dims:[{id:'largo',label:'Largo (desarrollo)',un:'m'},{id:'ancho',label:'Ancho',un:'m'}],
+    formula:'largo*ancho',
+    materiales:[
+      {nombre:'Esmalte sintético brillante',coef:0.20,un:'l'},
+      {nombre:'Fondo anticorrosivo / sellador madera',coef:0.08,un:'l'},
+      {nombre:'Aguarrás mineral',coef:0.05,un:'l'},
+      {nombre:'Lija al agua N°180',coef:0.20,un:'un'}
+    ]
+  },
+
+  // ── INSTALACIONES ─────────────────────────────────────────────────
+  {
+    id:'INS-001', nombre:'Cañería agua fría PVC 3/4" (20mm)', categoria:'Instalaciones',
+    unidad:'ml', descripcion:'Caño PVC clase 6 con accesorios y sellado',
+    dims:[{id:'largo',label:'Longitud',un:'m'}],
+    formula:'largo',
+    materiales:[
+      {nombre:'Caño PVC clase 6 DN20mm (3/4")',coef:1.05,un:'ml'},
+      {nombre:'Pegamento PVC / sellador teflon',coef:0.012,un:'l'},
+      {nombre:'Accesorios PVC (codos, uniones) — estimado',coef:0.3,un:'un'}
+    ]
+  },
+  {
+    id:'INS-002', nombre:'Cañería cloacal PVC 110mm', categoria:'Instalaciones',
+    unidad:'ml', descripcion:'Caño PVC serie sanitaria DN110, sellado con adhesivo',
+    dims:[{id:'largo',label:'Longitud',un:'m'}],
+    formula:'largo',
+    materiales:[
+      {nombre:'Caño PVC sanitario DN110mm',coef:1.05,un:'ml'},
+      {nombre:'Adhesivo PVC / sellador cloacal',coef:0.020,un:'l'},
+      {nombre:'Accesorios PVC 110mm (codos, reduc.) — estim.',coef:0.25,un:'un'}
+    ]
+  }
+];
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  MOTOR DE CÁLCULO — clase CalculadoraMateriales                ║
+// ╚══════════════════════════════════════════════════════════════════╝
+class _CalculadoraMateriales {
+  constructor() {
+    this._calculos = [];   // Array de { id, rubroId, cantidad, dimensiones, descripcion, materiales }
+    this._nextId = 1;
+  }
+
+  // ── Obtener todos los rubros disponibles ──────────────────────────
+  obtenerRubros() {
+    return RUBROS_DB.map(r => ({
+      id: r.id, nombre: r.nombre, categoria: r.categoria,
+      unidad: r.unidad, descripcion: r.descripcion
+    }));
+  }
+
+  // ── Obtener un rubro por ID ───────────────────────────────────────
+  obtenerRubro(idRubro) {
+    return RUBROS_DB.find(r => r.id === idRubro) ?? null;
+  }
+
+  // ── Evaluar fórmula de dimensiones ───────────────────────────────
+  _evaluarFormula(formula, dims) {
+    const ctx = { ...dims };
+    try {
+      // eslint-disable-next-line no-new-func
+      return new Function(...Object.keys(ctx), `return ${formula};`)(...Object.values(ctx));
+    } catch { return 0; }
+  }
+
+  // ── Calcular materiales para un rubro + dimensiones ──────────────
+  calcularRubro(idRubro, dimensiones) {
+    const rubro = this.obtenerRubro(idRubro);
+    if (!rubro) throw new Error(`Rubro "${idRubro}" no encontrado`);
+
+    const cantidad = this._evaluarFormula(rubro.formula, dimensiones);
+    const materiales = rubro.materiales.map(m => ({
+      nombre: m.nombre,
+      unidad: m.un,
+      coeficiente: m.coef,
+      cantidad: +(m.coef * cantidad).toFixed(4)
+    }));
+
+    return {
+      rubroId: idRubro,
+      rubroNombre: rubro.nombre,
+      unidad: rubro.unidad,
+      cantidad: +cantidad.toFixed(4),
+      dimensiones,
+      materiales
+    };
+  }
+
+  // ── Agregar un cálculo a la lista de presupuesto ──────────────────
+  agregarRubro(idRubro, dimensiones, descripcion = '') {
+    const resultado = this.calcularRubro(idRubro, dimensiones);
+    const entrada = { ...resultado, id: this._nextId++, descripcion };
+    this._calculos.push(entrada);
+    return entrada;
+  }
+
+  // ── Quitar un cálculo por ID interno ─────────────────────────────
+  quitarRubro(idCalculo) {
+    const antes = this._calculos.length;
+    this._calculos = this._calculos.filter(c => c.id !== idCalculo);
+    return this._calculos.length < antes;
+  }
+
+  // ── Obtener todos los cálculos agregados ─────────────────────────
+  obtenerResultados() {
+    return JSON.parse(JSON.stringify(this._calculos));
+  }
+
+  // ── Consolidar materiales (suma total de todos los rubros) ────────
+  obtenerMaterialesConsolidados() {
+    const mapa = {};
+    this._calculos.forEach(c => {
+      c.materiales.forEach(m => {
+        const key = `${m.nombre}|${m.unidad}`;
+        if (!mapa[key]) mapa[key] = { nombre: m.nombre, unidad: m.unidad, cantidad: 0 };
+        mapa[key].cantidad += m.cantidad;
+      });
+    });
+    return Object.values(mapa)
+      .map(m => ({ ...m, cantidad: +m.cantidad.toFixed(4) }))
+      .sort((a, b) => a.nombre.localeCompare(a.nombre));
+  }
+
+  // ── Limpiar todos los cálculos ────────────────────────────────────
+  limpiar() {
+    this._calculos = [];
+    this._nextId = 1;
+  }
+
+  // ── Exportar JSON ─────────────────────────────────────────────────
+  exportarJSON() {
+    const payload = {
+      exportado: new Date().toISOString(),
+      version: '1.0',
+      rubros: this.obtenerResultados(),
+      consolidado: this.obtenerMaterialesConsolidados()
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = `materiales_${Date.now()}.json`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Exportar CSV ──────────────────────────────────────────────────
+  exportarCSV() {
+    const cons = this.obtenerMaterialesConsolidados();
+    if (!cons.length) { alert('No hay materiales calculados para exportar.'); return; }
+    const header = 'Material,Cantidad,Unidad\n';
+    const rows   = cons.map(m => `"${m.nombre}",${m.cantidad},"${m.unidad}"`).join('\n');
+    const blob   = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8' });
+    const url    = URL.createObjectURL(blob);
+    const a      = document.createElement('a');
+    a.href = url; a.download = `materiales_${Date.now()}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  }
+}
+
+// Exponer como API global
+window.CalculadoraMateriales = new _CalculadoraMateriales();
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  CONTROLADOR UI                                                ║
+// ╚══════════════════════════════════════════════════════════════════╝
+let activeRubroId = null;
+
+// ── Renderizar sidebar ────────────────────────────────────────────
+function renderSidebar(filter = '') {
+  const fl = filter.toLowerCase();
+  const cats = {};
+
+  RUBROS_DB.forEach(r => {
+    if (fl && !r.nombre.toLowerCase().includes(fl) &&
+              !r.id.toLowerCase().includes(fl) &&
+              !r.categoria.toLowerCase().includes(fl)) return;
+    if (!cats[r.categoria]) cats[r.categoria] = [];
+    cats[r.categoria].push(r);
+  });
+
+  const list = document.getElementById('sidebar-list');
+  list.innerHTML = '';
+
+  if (!Object.keys(cats).length) {
+    list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">Sin resultados</div>';
+    return;
+  }
+
+  Object.entries(cats).forEach(([cat, rubros]) => {
+    const h = document.createElement('div');
+    h.className = 'cat-header'; h.textContent = cat;
+    list.appendChild(h);
+
+    rubros.forEach(r => {
+      const el = document.createElement('div');
+      el.className = 'rubro-item' + (r.id === activeRubroId ? ' active' : '');
+      el.dataset.id = r.id;
+      el.innerHTML = `<span class="rid">${r.id}</span>${r.nombre}<span class="runit">${r.unidad}</span>`;
+      el.onclick = () => selectRubro(r.id);
+      list.appendChild(el);
+    });
+  });
+}
+
+// ── Seleccionar rubro ─────────────────────────────────────────────
+function selectRubro(id) {
+  activeRubroId = id;
+  renderSidebar(document.getElementById('search-input').value);
+
+  const rubro = CalculadoraMateriales.obtenerRubro(id);
+  if (!rubro) return;
+
+  document.getElementById('placeholder-msg').style.display = 'none';
+  document.getElementById('rubro-info').classList.add('visible');
+
+  document.getElementById('ri-id').textContent = rubro.id;
+  document.getElementById('ri-cat').textContent = rubro.categoria;
+  document.getElementById('ri-nombre').textContent = rubro.nombre;
+  document.getElementById('ri-desc').textContent = rubro.descripcion || '';
+  document.getElementById('ri-unit').textContent = 'Unidad: ' + rubro.unidad;
+  document.getElementById('ri-qty-unit').textContent = rubro.unidad;
+  document.getElementById('ri-desc-input').value = '';
+
+  // Inputs
+  const grid = document.getElementById('ri-inputs');
+  grid.innerHTML = '';
+  rubro.dims.forEach(d => {
+    const div = document.createElement('div');
+    div.className = 'input-group';
+    div.innerHTML = `
+      <label>${d.label}</label>
+      <div class="input-wrap">
+        <input type="number" id="dim-${d.id}" min="0" step="0.01" value="0"
+          oninput="recalcQty()" placeholder="0">
+        <span class="unit-badge">${d.un}</span>
+      </div>`;
+    grid.appendChild(div);
+  });
+
+  recalcQty();
+  renderMatTable(rubro, 0);
+}
+
+// ── Recalcular cantidad ───────────────────────────────────────────
+function recalcQty() {
+  if (!activeRubroId) return;
+  const rubro = CalculadoraMateriales.obtenerRubro(activeRubroId);
+  if (!rubro) return;
+
+  const dims = {};
+  let valid = true;
+  rubro.dims.forEach(d => {
+    const el = document.getElementById('dim-' + d.id);
+    const v = parseFloat(el?.value) || 0;
+    dims[d.id] = v;
+    if (v < 0) valid = false;
+  });
+
+  let qty = 0;
+  try { qty = CalculadoraMateriales._evaluarFormula(rubro.formula, dims); } catch {}
+  qty = Math.max(0, qty);
+
+  document.getElementById('ri-qty').textContent = formatNum(qty);
+  document.getElementById('btn-add-rubro').disabled = qty <= 0;
+
+  renderMatTable(rubro, qty);
+}
+
+// ── Renderizar tabla de materiales ────────────────────────────────
+function renderMatTable(rubro, qty) {
+  const wrap = document.getElementById('mat-table-wrap');
+  const badge = document.getElementById('mat-count-badge');
+
+  if (!rubro.materiales.length) {
+    badge.textContent = '0 materiales';
+    wrap.innerHTML = '<div class="empty-mat">Este rubro no requiere materiales (solo mano de obra)</div>';
+    return;
+  }
+
+  badge.textContent = rubro.materiales.length + ' material' + (rubro.materiales.length !== 1 ? 'es' : '');
+
+  const rows = rubro.materiales.map(m => {
+    const total = m.coef * qty;
+    return `<tr>
+      <td>${m.nombre}</td>
+      <td class="num coef">${m.coef}</td>
+      <td class="num" style="color:var(--accent2);font-weight:600">${qty > 0 ? formatNum(total) : '—'}</td>
+      <td class="num" style="color:var(--muted)">${m.un}</td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <table class="mat-table">
+      <thead><tr>
+        <th>Material</th>
+        <th class="num">Coeficiente</th>
+        <th class="num">Cantidad</th>
+        <th class="num">Unidad</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ── Agregar rubro actual al presupuesto ───────────────────────────
+function addCurrentRubro() {
+  if (!activeRubroId) return;
+  const rubro = CalculadoraMateriales.obtenerRubro(activeRubroId);
+  if (!rubro) return;
+
+  const dims = {};
+  rubro.dims.forEach(d => {
+    const el = document.getElementById('dim-' + d.id);
+    dims[d.id] = parseFloat(el?.value) || 0;
+  });
+
+  const descInput = document.getElementById('ri-desc-input');
+  const desc = descInput.value.trim();
+
+  const entrada = CalculadoraMateriales.agregarRubro(activeRubroId, dims, desc);
+  if (entrada.cantidad <= 0) return;
+
+  renderItems();
+  renderTotales();
+  switchTab('items');
+  showToast(`"${rubro.nombre}" agregado ✓`);
+}
+
+// ── Renderizar lista de items agregados ───────────────────────────
+function renderItems() {
+  const resultados = CalculadoraMateriales.obtenerResultados();
+  const el = document.getElementById('items-list');
+
+  if (!resultados.length) {
+    el.innerHTML = '<div class="empty-list"><div class="icon">📋</div><p>Aún no agregaste rubros</p></div>';
+    return;
+  }
+
+  el.innerHTML = resultados.map(c => `
+    <div class="item-entry">
+      <div class="ie-head">
+        <span class="ie-name">${c.rubroNombre}</span>
+        <button class="btn-remove" onclick="removeItem(${c.id})" title="Quitar">✕</button>
+      </div>
+      <div class="ie-id">${c.rubroId} · ${formatNum(c.cantidad)} ${c.unidad}</div>
+      ${c.descripcion ? `<div class="ie-desc">${c.descripcion}</div>` : ''}
+      <div style="margin-top:4px;font-size:11px;color:var(--muted)">
+        ${c.materiales.slice(0,3).map(m => `${m.nombre.split(' ').slice(0,4).join(' ')}: <b style="color:var(--text)">${formatNum(m.cantidad)} ${m.unidad}</b>`).join(' · ')}
+        ${c.materiales.length > 3 ? ` <span style="color:var(--accent)">+${c.materiales.length - 3} más</span>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+// ── Quitar un item ────────────────────────────────────────────────
+function removeItem(id) {
+  CalculadoraMateriales.quitarRubro(id);
+  renderItems();
+  renderTotales();
+}
+
+// ── Renderizar totales consolidados ───────────────────────────────
+function renderTotales() {
+  const cons = CalculadoraMateriales.obtenerMaterialesConsolidados();
+  const el   = document.getElementById('totales-panel');
+
+  if (!cons.length) {
+    el.innerHTML = '<div class="no-totales">Agregá rubros para ver el consolidado de materiales</div>';
+    return;
+  }
+
+  const sorted = [...cons].sort((a,b) => a.nombre.localeCompare(b.nombre));
+  el.innerHTML = `
+    <div style="padding:10px 14px 4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">
+      ${sorted.length} materiales consolidados
+    </div>` +
+    sorted.map(m => `
+    <div class="total-mat-item" style="padding:7px 14px">
+      <span class="mat-name">${m.nombre}</span>
+      <span class="mat-qty">${formatNum(m.cantidad)}</span>
+      <span class="mat-unit">${m.unidad}</span>
+    </div>`).join('');
+}
+
+// ── Switch tabs ───────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    b.classList.toggle('active', (i === 0 && tab === 'items') || (i === 1 && tab === 'totales'));
+  });
+  document.getElementById('tab-items').classList.toggle('active', tab === 'items');
+  document.getElementById('tab-totales').classList.toggle('active', tab === 'totales');
+}
+
+// ── Filtrar sidebar ───────────────────────────────────────────────
+function filterRubros(val) { renderSidebar(val); }
+
+// ── Utilidades ────────────────────────────────────────────────────
+function formatNum(n) {
+  if (typeof n !== 'number' || isNaN(n)) return '0';
+  return n % 1 === 0 ? n.toLocaleString('es-AR') : n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:4});
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+renderSidebar();
+</script>
+</body>
+</html>
