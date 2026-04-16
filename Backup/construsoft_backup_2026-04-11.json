@@ -1,0 +1,2412 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-04-11T13:51:44.255Z",
+  "data": {
+    "allMaterials": [
+      {
+        "id": "aefd6075-ff13-4c20-a0f5-e8fbf77ee174",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Acero Aletado conform. de 10 mm",
+        "unit": "Kg",
+        "cost": 1.85,
+        "category": "HIERROS"
+      },
+      {
+        "id": "48598360-432b-4b27-85a7-6e199410604d",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Acero Aletado conform. de 6 mm",
+        "unit": "Kg",
+        "cost": 1.85,
+        "category": "HIERROS"
+      },
+      {
+        "id": "bd20cbed-20b5-4380-99fe-70676e2ce088",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Acero Aletado conform. de 8 mm",
+        "unit": "Kg",
+        "cost": 1.85,
+        "category": "HIERROS"
+      },
+      {
+        "id": "56577d56-f9e6-4f02-8f8c-d4b2e0596a42",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Alambre negro N° 14",
+        "unit": "Kg",
+        "cost": 2.1,
+        "category": "HIERROS"
+      },
+      {
+        "id": "mat_mmrud3gg",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Arena",
+        "unit": "m3",
+        "cost": 42000,
+        "family": "MATERIAL"
+      },
+      {
+        "id": "8d6fbddb-6f9e-414d-b7c7-83da2f7d5fc1",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Arena fina",
+        "unit": "M³",
+        "cost": 28.5,
+        "category": "ÁRIDOS"
+      },
+      {
+        "id": "dcc7fadf-5b66-48fe-872e-a45df0763c32",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Bidet blanco 3 agujeros",
+        "unit": "U",
+        "cost": 78,
+        "category": "SANITARIOS Y GRIFERÍA"
+      },
+      {
+        "id": "f9a2e5bc-afb5-4cb3-a58f-a6a6bb37b617",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Bloque de hormigón 19x19x39",
+        "unit": "U",
+        "cost": 980,
+        "category": "MAMPOSTERÍA"
+      },
+      {
+        "id": "a2f499c9-b797-4b67-86e0-7574429f6f66",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Cal Hidratada Bolsa x 25 kg",
+        "unit": "U",
+        "cost": 15500,
+        "category": "CEMENTO Y CALES"
+      },
+      {
+        "id": "1edb4026-5973-443a-a2ad-cefaa554106e",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Cascote molido",
+        "unit": "M³",
+        "cost": 18.5,
+        "category": "ÁRIDOS"
+      },
+      {
+        "id": "98f0de65-8feb-4d37-bc60-8ed61ecf2e55",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Cemento Blanco Bolsa x 25 kg",
+        "unit": "U",
+        "cost": 15.2,
+        "category": "CEMENTO Y CALES"
+      },
+      {
+        "id": "62fad6b8-2b47-449e-a269-7774363edca0",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Cemento Loma Negra",
+        "unit": "Kg",
+        "cost": 270,
+        "category": "CEMENTO Y CALES",
+        "family": "MATERIAL"
+      },
+      {
+        "id": "4903c4d5-02d0-43d3-ae68-ad19f082fc95",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "CEMENTO PORTLAND",
+        "unit": "KG",
+        "cost": 13500,
+        "category": "CEMENTO Y CALES",
+        "family": "MATERIAL"
+      },
+      {
+        "id": "bec9249c-61e5-40c0-9388-5b1e3ede8dc5",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Cemento Portland Bolsa x 50 kg",
+        "unit": "U",
+        "cost": 8.95,
+        "category": "CEMENTO Y CALES"
+      },
+      {
+        "id": "mmru0r47-a66c171f6024",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Clavos",
+        "unit": "KG",
+        "cost": 1500,
+        "category": "CLAVOS"
+      },
+      {
+        "id": "cd3cc811-b7cd-4a73-b3dc-d799abf07d44",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Clavos punta París",
+        "unit": "Kg",
+        "cost": 2.3,
+        "category": "HIERROS"
+      },
+      {
+        "id": "63dee402-3557-40df-9f3c-126c9d1e3530",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Depósito de apoyo blanco",
+        "unit": "U",
+        "cost": 55,
+        "category": "SANITARIOS Y GRIFERÍA"
+      },
+      {
+        "id": "b3d3e5ac-b32e-4241-9e5d-e532a761e6b7",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Enduido plástico x 20 Lts",
+        "unit": "U",
+        "cost": 25,
+        "category": "PINTURAS"
+      },
+      {
+        "id": "57df9fbe-b405-4285-9fe7-382fb61f2af8",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Esmalte sintético x 4 Lts",
+        "unit": "U",
+        "cost": 32,
+        "category": "PINTURAS"
+      },
+      {
+        "id": "59fd865b-fb3c-40ba-bc4c-05c06bb6b849",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Fenólico 18mm 1.22 x 2.44",
+        "unit": "U",
+        "cost": 5400,
+        "category": "MADERA"
+      },
+      {
+        "id": "1f726483-4767-4269-a582-1b4526ed0263",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Grifería lavatorio cromo",
+        "unit": "U",
+        "cost": 65,
+        "category": "SANITARIOS Y GRIFERÍA"
+      },
+      {
+        "id": "32f7f338-24e9-4291-aee7-113bfe18fd06",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "hh",
+        "unit": "",
+        "cost": 0
+      },
+      {
+        "id": "a6543479-ec40-4cf6-9578-4269a4dab027",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Inodoro largo blanco",
+        "unit": "U",
+        "cost": 95,
+        "category": "SANITARIOS Y GRIFERÍA"
+      },
+      {
+        "id": "79c96be6-cfbd-485b-840a-ce1c42667917",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Ladrillo cerámico hueco 12x18x33",
+        "unit": "U",
+        "cost": 620,
+        "category": "MAMPOSTERÍA"
+      },
+      {
+        "id": "f4718976-ba48-45f8-a798-82ca1cb0daf1",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Ladrillo cerámico hueco 18x18x33",
+        "unit": "U",
+        "cost": 850,
+        "category": "MAMPOSTERÍA"
+      },
+      {
+        "id": "00766901-337f-48d0-b242-dcb80f5b5472",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Ladrillo común",
+        "unit": "U",
+        "cost": 110,
+        "category": "MAMPOSTERÍA"
+      },
+      {
+        "id": "52116415-8567-4f2e-a33b-340317384984",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Látex exterior x 20 Lts",
+        "unit": "U",
+        "cost": 18500,
+        "category": "PINTURAS"
+      },
+      {
+        "id": "f8b54abb-7d87-4207-a2e4-02b2a8d5efcb",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Látex interior x 20 Lts",
+        "unit": "U",
+        "cost": 45,
+        "category": "PINTURAS"
+      },
+      {
+        "id": "06c49fbf-1a6e-44c4-8496-7cf8f033ed78",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Machimbre Pino 1/2\" x 4\"",
+        "unit": "M²",
+        "cost": 1850,
+        "category": "MADERA"
+      },
+      {
+        "id": "61f27dee-6123-4a8d-94c2-c75e11101712",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Piedra partida",
+        "unit": "M³",
+        "cost": 31.2,
+        "category": "ÁRIDOS"
+      },
+      {
+        "id": "95d6cc8f-4eab-4346-8214-487827451833",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Tirante Pino Paraná 2\" x 6\"",
+        "unit": "ML",
+        "cost": 9800,
+        "category": "MADERA"
+      },
+      {
+        "id": "88034681-6c55-404c-8c19-3dce1bea05a6",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Yeso París Bolsa x 40 kg",
+        "unit": "U",
+        "cost": 6.5,
+        "category": "CEMENTO Y CALES"
+      }
+    ],
+    "allTasks": [
+      {
+        "id": "471e7477-c5c8-4bdc-b7a4-db7df3d7a880",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Limpieza de terreno y desmalezamiento",
+        "unit": "m2",
+        "laborCost": 4006.8,
+        "dailyYield": 40,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "CAP-0003",
+        "specifications": "",
+        "masterTaskId": "5fee3826-5943-4f34-beb8-d525bc1a46e0"
+      },
+      {
+        "id": "c00b2d92-3156-4c76-b687-e88667f09c32",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Mamposteria de ladrilos 18x18x33",
+        "unit": "m2",
+        "laborCost": 11448,
+        "dailyYield": 15,
+        "category": "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+        "fixedCost": 1550,
+        "fixedCostDescription": "",
+        "code": "CAP-0001",
+        "specifications": "",
+        "masterTaskId": "7cb6bf1b-2051-4c91-9e3c-dda77a1b0857"
+      },
+      {
+        "id": "71c069f0-c606-4454-a3f3-a8a1ceefeb75",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Limpieza de terreno con retiro de suelo vegetal",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 40,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "02T-001",
+        "specifications": "",
+        "masterTaskId": "3ba19c82-9111-4a65-8285-5b120cf73672"
+      },
+      {
+        "id": "af704936-746f-4a86-b308-b81e50ecc2c4",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Mamposteria 0,18m",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 15,
+        "category": "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "06M-001",
+        "specifications": "",
+        "masterTaskId": "57dead10-b0c5-4c8b-a79d-e05d8f68cf8b"
+      },
+      {
+        "id": "ac8b8489-4cb8-4ac0-b0f2-3d9b9c3d4da2",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Limpieza de terreno con retiro de suelo vegetal",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 40,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "02T-001",
+        "specifications": "",
+        "masterTaskId": "3ba19c82-9111-4a65-8285-5b120cf73672"
+      },
+      {
+        "id": "8d3a89dc-741b-44b8-93c7-f559d9395a24",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Mamposteria 0,18m",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 15,
+        "category": "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "06M-001",
+        "specifications": "",
+        "masterTaskId": "57dead10-b0c5-4c8b-a79d-e05d8f68cf8b"
+      },
+      {
+        "id": "867ba2fc-f1f9-4602-95c7-e35feb1d9314",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Limpieza de terreno con retiro de suelo vegetal",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 40,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "02T-001",
+        "specifications": "",
+        "masterTaskId": "3ba19c82-9111-4a65-8285-5b120cf73672"
+      },
+      {
+        "id": "63614e49-4d73-4806-ab3e-d8fcaa646afb",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Mamposteria 0,18m",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 15,
+        "category": "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "06M-001",
+        "specifications": "",
+        "masterTaskId": "57dead10-b0c5-4c8b-a79d-e05d8f68cf8b"
+      },
+      {
+        "id": "42cd45fa-43ac-477a-8005-bc331d0bbc92",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Limpieza de terreno con retiro de suelo vegetal",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 40,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "02T-001",
+        "specifications": "",
+        "masterTaskId": "3ba19c82-9111-4a65-8285-5b120cf73672"
+      },
+      {
+        "id": "e9154a89-6cbe-4a6d-9ceb-b6362c885781",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Mamposteria 0,18m",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 15,
+        "category": "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "06M-001",
+        "specifications": "",
+        "masterTaskId": "57dead10-b0c5-4c8b-a79d-e05d8f68cf8b"
+      },
+      {
+        "id": "537b64f3-1ea4-4f05-ab31-2e8171ccbca2",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Limpieza de terreno con retiro de suelo vegetal",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 40,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "02T-001",
+        "specifications": "",
+        "masterTaskId": "3ba19c82-9111-4a65-8285-5b120cf73672"
+      },
+      {
+        "id": "272655c1-7518-436a-a05e-987de7504599",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Mamposteria 0,18m",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 15,
+        "category": "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "06M-001",
+        "specifications": "",
+        "masterTaskId": "57dead10-b0c5-4c8b-a79d-e05d8f68cf8b"
+      },
+      {
+        "id": "e20c166f-54fd-4129-90cd-1079fd091fe4",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Limpieza de terreno con retiro de suelo vegetal",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 40,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "02T-001",
+        "specifications": "",
+        "masterTaskId": "3ba19c82-9111-4a65-8285-5b120cf73672"
+      },
+      {
+        "id": "4e15fa96-25d0-4f9c-afdc-e7a8d0be9173",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Mamposteria 0,18m",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 15,
+        "category": "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "06M-001",
+        "specifications": "",
+        "masterTaskId": "57dead10-b0c5-4c8b-a79d-e05d8f68cf8b"
+      },
+      {
+        "id": "995119de-378d-4158-9cc1-b64e9d79d124",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Excavacion manual de zanjas",
+        "unit": "m3",
+        "laborCost": 0,
+        "dailyYield": 6,
+        "category": "03 MOVIMIENTO DE SUELOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "03M-002",
+        "specifications": "",
+        "masterTaskId": "2b5df8a0-625e-4258-90ba-35363aef6b1e"
+      },
+      {
+        "id": "4b047e6f-8a32-43bd-9332-b4d7bdcfee5d",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "EXCAVACION DE POZOS",
+        "unit": "m3",
+        "laborCost": 0,
+        "dailyYield": 8,
+        "category": "03 MOVIMIENTO DE SUELOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "03M-003",
+        "specifications": "",
+        "masterTaskId": "887c3453-283b-4c73-bb29-fb1622b19ca4"
+      },
+      {
+        "id": "76b99c1d-8714-47ea-b1e6-b109004e6083",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Limpieza de terreno con retiro de suelo vegetal",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 40,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "02T-001",
+        "specifications": "",
+        "masterTaskId": "3ba19c82-9111-4a65-8285-5b120cf73672"
+      },
+      {
+        "id": "08b1e6f3-9572-474c-b7ef-e320eeac6143",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Mamposteria 0,18m",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 15,
+        "category": "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "06M-001",
+        "specifications": "",
+        "masterTaskId": "57dead10-b0c5-4c8b-a79d-e05d8f68cf8b"
+      },
+      {
+        "id": "f975d99a-7e78-488a-a25a-0e8c360d3094",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Casilla Habitable",
+        "unit": "m2",
+        "laborCost": 171720,
+        "dailyYield": 1,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 400000,
+        "fixedCostDescription": "",
+        "code": "T1001",
+        "specifications": "",
+        "masterTaskId": "37244228-49ee-4088-9c95-3087184b9cf1"
+      },
+      {
+        "id": "9e8c7471-e130-4cb7-9c62-af351b29d6c1",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Excavacion manual de zanjas",
+        "unit": "m3",
+        "laborCost": 0,
+        "dailyYield": 6,
+        "category": "03 MOVIMIENTO DE SUELOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "03M-002",
+        "specifications": "",
+        "masterTaskId": "2b5df8a0-625e-4258-90ba-35363aef6b1e"
+      },
+      {
+        "id": "4f1d4de0-4280-49ab-b56f-11743307b698",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Limpieza de terreno con retiro de suelo vegetal",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 40,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "02T-001",
+        "specifications": "",
+        "masterTaskId": "3ba19c82-9111-4a65-8285-5b120cf73672"
+      },
+      {
+        "id": "ad678406-cdce-4731-8ead-18e148ebbd70",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Mamposteria 0,18m",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 15,
+        "category": "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "06M-001",
+        "specifications": "",
+        "masterTaskId": "57dead10-b0c5-4c8b-a79d-e05d8f68cf8b"
+      },
+      {
+        "id": "50f3c048-fd18-43c0-864f-68732ee91408",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Excavacion de bases . ",
+        "unit": "m3",
+        "laborCost": 0,
+        "dailyYield": 5,
+        "category": "03 MOVIMIENTO DE SUELOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "03M-001",
+        "specifications": "",
+        "masterTaskId": "9d1a5bf3-9a28-4a74-8bb2-67109735a3ad"
+      },
+      {
+        "id": "14a28300-b707-474c-9280-c84cdd352c8c",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Excavacion manual de zanjas",
+        "unit": "m3",
+        "laborCost": 0,
+        "dailyYield": 6,
+        "category": "03 MOVIMIENTO DE SUELOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "03M-002",
+        "specifications": "",
+        "masterTaskId": "2b5df8a0-625e-4258-90ba-35363aef6b1e"
+      },
+      {
+        "id": "565fa998-1654-4567-b694-651f35e8f1b9",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Limpieza de terreno con retiro de suelo vegetal",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 40,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "02T-001",
+        "specifications": "",
+        "masterTaskId": "3ba19c82-9111-4a65-8285-5b120cf73672"
+      },
+      {
+        "id": "605ca074-cbdd-4b0d-8203-f2f074c2d837",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "EXCAVACION DE POZOS",
+        "unit": "m3",
+        "laborCost": 10017,
+        "dailyYield": 8,
+        "category": "03 MOVIMIENTO DE SUELOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "03M-003",
+        "specifications": "",
+        "masterTaskId": "887c3453-283b-4c73-bb29-fb1622b19ca4"
+      },
+      {
+        "id": "a4958ccb-a53f-4b1c-9a68-5569e9cff22e",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Limpieza de terreno con retiro de suelo vegetal",
+        "unit": "m2",
+        "laborCost": 2003.4,
+        "dailyYield": 40,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "02T-001",
+        "specifications": "",
+        "masterTaskId": "3ba19c82-9111-4a65-8285-5b120cf73672"
+      },
+      {
+        "id": "1454f10b-d5cc-4f5f-87a1-f9f7156b9fb0",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Mamposteria 0,18m",
+        "unit": "m2",
+        "laborCost": 11448,
+        "dailyYield": 15,
+        "category": "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "06M-001",
+        "specifications": "",
+        "masterTaskId": "57dead10-b0c5-4c8b-a79d-e05d8f68cf8b"
+      },
+      {
+        "id": "27de2166-53ef-4529-8f14-75506d09290a",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Limpieza de terreno con retiro de suelo vegetal",
+        "unit": "m2",
+        "laborCost": 6296.4,
+        "dailyYield": 40,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "02T-001",
+        "specifications": "",
+        "masterTaskId": "3ba19c82-9111-4a65-8285-5b120cf73672"
+      },
+      {
+        "id": "8f36f434-e458-4bc4-af15-8ca03ebe8e65",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Excavacion de bases . ",
+        "unit": "m3",
+        "laborCost": 16027.2,
+        "dailyYield": 5,
+        "category": "03 MOVIMIENTO DE SUELOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "03M-001",
+        "specifications": "",
+        "masterTaskId": "9d1a5bf3-9a28-4a74-8bb2-67109735a3ad"
+      },
+      {
+        "id": "51c4e248-b31a-4732-a6a6-34de4dd69559",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "CASILLA HABITABLE",
+        "unit": "m2",
+        "laborCost": 251856,
+        "dailyYield": 1,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 400000,
+        "fixedCostDescription": "",
+        "code": "T1001",
+        "specifications": "",
+        "masterTaskId": "37244228-49ee-4088-9c95-3087184b9cf1"
+      },
+      {
+        "id": "9f50170c-d19d-4997-a926-b4870f842b3c",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "MAMPOSTERIA",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 10,
+        "category": "OBRA GRUESA",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "T2001",
+        "specifications": "",
+        "masterTaskId": "465e6b1e-f4fe-48ba-bcbf-68dd564effab"
+      },
+      {
+        "id": "c29080bb-6fd8-426b-91ee-04f8f8aa57f1",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "MAMPOSTERIA",
+        "unit": "m2",
+        "laborCost": 8013.6,
+        "dailyYield": 10,
+        "category": "OBRA GRUESA",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "T2001",
+        "specifications": "",
+        "masterTaskId": "465e6b1e-f4fe-48ba-bcbf-68dd564effab"
+      },
+      {
+        "id": "ed376a98-d124-4c7a-97e6-ca31f8259171",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Mamposteria 0,18m",
+        "unit": "m2",
+        "laborCost": 11448,
+        "dailyYield": 15,
+        "category": "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "06M-001",
+        "specifications": "",
+        "masterTaskId": "57dead10-b0c5-4c8b-a79d-e05d8f68cf8b"
+      },
+      {
+        "id": "a60f04e9-0442-43f0-a103-83fbc2779568",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Excavacion de bases . ",
+        "unit": "m3",
+        "laborCost": 16027.2,
+        "dailyYield": 5,
+        "category": "03 MOVIMIENTO DE SUELOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "03M-001",
+        "specifications": "",
+        "masterTaskId": "9d1a5bf3-9a28-4a74-8bb2-67109735a3ad"
+      },
+      {
+        "id": "592fa83f-6390-4414-a896-7b3deb012a46",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "CASILLA HABITABLE",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 1,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 400000,
+        "fixedCostDescription": "",
+        "code": "T1001",
+        "specifications": "",
+        "masterTaskId": "37244228-49ee-4088-9c95-3087184b9cf1"
+      },
+      {
+        "id": "b7ead3cf-b893-40e4-b513-df99f1a8a56b",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Demolicion de muro de ladrillos 0.20m",
+        "unit": "m2",
+        "laborCost": 4006.8,
+        "dailyYield": 40,
+        "category": "01 DEMOLICIONES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "CAP-0002",
+        "specifications": "",
+        "masterTaskId": "c5766368-9fda-41ae-aaac-a2b42afd28f3"
+      },
+      {
+        "id": "f0447d57-5647-4a49-a942-38a3e2fe4693",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Excavacion manual de zanjas",
+        "unit": "m3",
+        "laborCost": 0,
+        "dailyYield": 6,
+        "category": "03 MOVIMIENTO DE SUELOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "03M-002",
+        "specifications": "",
+        "masterTaskId": "2b5df8a0-625e-4258-90ba-35363aef6b1e"
+      },
+      {
+        "id": "5af3d986-2f29-4963-863a-c13c5b3f6ca2",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "CASILLA HABITABLE",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 1,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 400000,
+        "fixedCostDescription": "",
+        "code": "T1001",
+        "specifications": "",
+        "masterTaskId": "37244228-49ee-4088-9c95-3087184b9cf1"
+      },
+      {
+        "id": "bc28fed9-5e75-4e32-96a4-7e09805ad00c",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Excavacion de bases . ",
+        "unit": "m3",
+        "laborCost": 0,
+        "dailyYield": 5,
+        "category": "03 MOVIMIENTO DE SUELOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "03M-001",
+        "specifications": "",
+        "masterTaskId": "9d1a5bf3-9a28-4a74-8bb2-67109735a3ad"
+      },
+      {
+        "id": "fb1faee7-f675-4cc6-92a6-c64e5467e32b",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "EXCAVACION DE POZOS",
+        "unit": "m3",
+        "laborCost": 0,
+        "dailyYield": 8,
+        "category": "03 MOVIMIENTO DE SUELOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "03M-003",
+        "specifications": "",
+        "masterTaskId": "887c3453-283b-4c73-bb29-fb1622b19ca4"
+      },
+      {
+        "id": "f160a7bb-0689-4f38-9385-babe25182050",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Limpieza de terreno con retiro de suelo vegetal",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 40,
+        "category": "02 TRABAJOS PRELIMINARES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "02T-001",
+        "specifications": "",
+        "masterTaskId": "3ba19c82-9111-4a65-8285-5b120cf73672"
+      },
+      {
+        "id": "22785d13-69ac-4421-ac94-619f74cb2766",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "MAMPOSTERIA",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 10,
+        "category": "OBRA GRUESA",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "T2001",
+        "specifications": "",
+        "masterTaskId": "465e6b1e-f4fe-48ba-bcbf-68dd564effab"
+      },
+      {
+        "id": "66476fdf-06a7-4af3-94fb-a7c947234f9d",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Mamposteria 0,18m",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 15,
+        "category": "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "06M-001",
+        "specifications": "",
+        "masterTaskId": "57dead10-b0c5-4c8b-a79d-e05d8f68cf8b"
+      },
+      {
+        "id": "620a4343-440e-4f45-afe5-b47e25673413",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "REVOQUE",
+        "unit": "m2",
+        "laborCost": 0,
+        "dailyYield": 8,
+        "category": "TERMINACIONES",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "T3001",
+        "specifications": "",
+        "masterTaskId": "75a44220-8c0d-4eef-99a0-c10317ff156f"
+      },
+      {
+        "id": "441f2b1e-5426-48cd-a30e-ea1b74be766e",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Mamposteria 0,18m",
+        "unit": "m2",
+        "laborCost": 11448,
+        "dailyYield": 15,
+        "category": "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "code": "06M-001",
+        "specifications": "",
+        "masterTaskId": "57dead10-b0c5-4c8b-a79d-e05d8f68cf8b"
+      }
+    ],
+    "allTools": [
+      {
+        "id": "mmru4euh-60dba39bd2bf",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Andamio 1 Cuerpo ",
+        "category": "HERRAMIENTAS",
+        "costPerHour": 2880
+      },
+      {
+        "id": "mmrut950-5cc7228452d1",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Carretilla",
+        "category": "HERRAMIENTAS",
+        "costPerHour": 1880
+      },
+      {
+        "id": "mmru41l5-3fcf9b1b642c",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Hormigonera 130L",
+        "category": "MAQUINAS",
+        "costPerHour": 1550
+      },
+      {
+        "id": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Pala ",
+        "category": "HERRAMIENTA",
+        "costPerHour": 1220
+      },
+      {
+        "id": "mmrutsmt-f500643834d7",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Vibrador H°",
+        "category": "MAQUINAS",
+        "costPerHour": 3500
+      },
+      {
+        "id": "mmrutgbg-a59b5ec63f2d",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Volquete",
+        "category": "HERRAMIENTA",
+        "costPerHour": 5900
+      }
+    ],
+    "allLaborCategories": [
+      {
+        "id": "mmru2nug-548eeaaba8a8",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "role": "AYUDANTE ",
+        "basicHourlyRate": 4200,
+        "socialChargesPercent": 95,
+        "insurancePercent": 17
+      },
+      {
+        "id": "mmru25av-169697edb97d",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "role": "OFICIAL",
+        "basicHourlyRate": 4800,
+        "socialChargesPercent": 95,
+        "insurancePercent": 17
+      },
+      {
+        "id": "mmruy4vk-836161cec3e6",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "role": "OFICIAL ESPECIALIZADO H° A",
+        "basicHourlyRate": 5500,
+        "socialChargesPercent": 95,
+        "insurancePercent": 17
+      }
+    ],
+    "allCrews": [
+      {
+        "id": "mmrur8gj-5a0be9d53e86",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Albañileria",
+        "description": "Para trabajos generales como el levantamiento de muros ladrillos  o de block, aplanados o firmes, la composición más común es de 1 Oficial Albañil + 1 Ayudante. Sin embargo, para tareas que demandan un mayor volumen de trabajo y menos especialización, como los vaciados masivos de concreto, la cuadrilla puede expandirse a 1 Oficial Albañil + 5 Ayudantes/Peones",
+        "composition": [
+          {
+            "count": 1,
+            "participation": 100,
+            "laborCategoryId": "mmru25av-169697edb97d"
+          },
+          {
+            "count": 1,
+            "participation": 100,
+            "laborCategoryId": "mmru2nug-548eeaaba8a8"
+          }
+        ]
+      },
+      {
+        "id": "crew_27748476-14c5-4f4a-9922-46ba52955273",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Cuadrilla de Fierreros ",
+        "description": "El trabajo de habilitado y armado de acero de refuerzo es crítico para la integridad estructural de la edificación. La cuadrilla estándar para esta labor es de 1 Oficial Fierrero + 1 Ayudante, un equipo que combina la pericia del oficial para interpretar planos y armar las estructuras con el apoyo del ayudante para cortes y amarres.",
+        "composition": [
+          {
+            "count": 1,
+            "participation": 100,
+            "laborCategoryId": "mmru25av-169697edb97d"
+          },
+          {
+            "count": 1,
+            "participation": 100,
+            "laborCategoryId": "mmru2nug-548eeaaba8a8"
+          }
+        ]
+      }
+    ],
+    "allProjects": [
+      {
+        "id": "95aaf862-7f03-4b69-a009-f726a60a4226",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "EDIFICIO 7",
+        "client": "Indio Solari",
+        "currency": "$",
+        "startDate": "2026-04-10",
+        "status": "planning",
+        "items": [],
+        "address": "Calle Gulp N° 1984",
+        "companyName": "Constructora Ejemplo S.A.",
+        "surface": 120,
+        "constructionSystem": "Tradicional (Mampostería Portante)",
+        "structureType": "Hormigón Armado in Situ",
+        "foundationType": "Zapata Corrida",
+        "dependencies": [],
+        "workdayHours": 9,
+        "workdayStartTime": "08:00",
+        "workdayEndTime": "17:00",
+        "lunchBreakDuration": 60,
+        "workingDays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "nonWorkingDates": [],
+        "laborForce": [],
+        "assignedCrews": [],
+        "pricing": {
+          "taxPercent": 21,
+          "profitPercent": 10,
+          "generalExpensesPercent": 15,
+          "financialExpensesPercent": 3
+        }
+      },
+      {
+        "id": "84f6b009-051b-4ac9-a14a-344b584ff871",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "torre 2",
+        "client": "David Gilmore",
+        "currency": "$",
+        "startDate": "2026-03-27",
+        "status": "planning",
+        "items": [],
+        "businessConfig": {
+          "ggdPct": 0.08,
+          "ggiPct": 0.07,
+          "profitPct": 0.1,
+          "taxPct": 0.21
+        },
+        "address": "Wall 123",
+        "companyName": "Constructora Ejemplo S.A.",
+        "surface": 120,
+        "constructionSystem": "Tradicional (Mampostería Portante)",
+        "structureType": "Hormigón Armado in Situ",
+        "foundationType": "Zapata Corrida",
+        "dependencies": [],
+        "workdayHours": 9,
+        "workingDays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "nonWorkingDates": []
+      },
+      {
+        "id": "67fa2125-ef5e-4d89-8dbc-81f59772cf72",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Caso prueba 6",
+        "client": "Sapo Pepe",
+        "currency": "$",
+        "startDate": "2026-03-26",
+        "status": "planning",
+        "items": [],
+        "businessConfig": {
+          "ggdPct": 0.075,
+          "ggiPct": 0.105,
+          "profitPct": 0.1,
+          "taxPct": 0.21
+        },
+        "address": "Habana 123",
+        "companyName": "Constructora Ejemplo S.A.",
+        "surface": 120,
+        "constructionSystem": "Tradicional (Mampostería Portante)",
+        "structureType": "Hormigón Armado in Situ",
+        "foundationType": "Zapata Corrida",
+        "dependencies": [],
+        "workdayHours": 9,
+        "workingDays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "nonWorkingDates": []
+      },
+      {
+        "id": "d306cf34-c4f5-4932-a0a3-065e554e7fb9",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "CASA 4",
+        "client": "PEPU",
+        "currency": "$",
+        "startDate": "2026-03-17",
+        "status": "planning",
+        "items": [],
+        "businessConfig": {
+          "ggdPct": 0.1,
+          "ggiPct": 0.105,
+          "profitPct": 0.12,
+          "taxPct": 0.13
+        },
+        "address": "SIGA 123",
+        "companyName": "Constructora Ejemplo S.A.",
+        "surface": 120,
+        "constructionSystem": "Tradicional (Mampostería Portante)",
+        "structureType": "Hormigón Armado in Situ",
+        "foundationType": "Zapata Corrida",
+        "dependencies": [],
+        "workdayHours": 9,
+        "workingDays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "nonWorkingDates": []
+      },
+      {
+        "id": "b34f7a17-54b9-420d-836a-6a701c28e5b2",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "CASA 3",
+        "client": "SILVIA",
+        "currency": "$",
+        "startDate": "2026-03-17",
+        "status": "planning",
+        "items": [],
+        "businessConfig": {
+          "ggdPct": 0.01005,
+          "ggiPct": 0.105,
+          "profitPct": 0.25,
+          "taxPct": 0.21
+        },
+        "address": "121 Y 15",
+        "companyName": "Constructora Ejemplo S.A.",
+        "surface": 60,
+        "constructionSystem": "Tradicional (Mampostería Portante)",
+        "structureType": "Hormigón Armado in Situ",
+        "foundationType": "Zapata Corrida",
+        "dependencies": [],
+        "workdayHours": 9,
+        "workingDays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "nonWorkingDates": []
+      },
+      {
+        "id": "1af93c24-dc03-427d-bffc-866247a82470",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "luca house",
+        "client": "Luca prodan",
+        "currency": "$",
+        "startDate": "2026-03-26",
+        "status": "planning",
+        "items": [],
+        "businessConfig": {
+          "ggdPct": 0.06,
+          "ggiPct": 0.08,
+          "profitPct": 0.2,
+          "taxPct": 0.105
+        },
+        "address": "Cuba 123",
+        "companyName": "COCO Construccion",
+        "surface": 100,
+        "constructionSystem": "Tradicional (Mampostería Portante)",
+        "structureType": "Hormigón Armado in Situ",
+        "foundationType": "Bases Aisladas y Vigas de Riostra",
+        "dependencies": [
+          {
+            "id": "59bdec25-9b4e-4456-90e7-0a8f2f61172c",
+            "lag": 0,
+            "type": "FC",
+            "toTaskId": "7044e234-9a15-4eb7-9045-b6d590350749",
+            "fromTaskId": "d86d3851-f349-4611-98f7-05e7f290666f"
+          },
+          {
+            "id": "adbd43f7-053e-4787-bc28-cbbaf9b470bf",
+            "lag": 0,
+            "type": "FC",
+            "toTaskId": "e5681a45-dea9-4db1-a4ff-4a0a47da9f2e",
+            "fromTaskId": "b85eb79e-a1d2-4c4a-90d0-180242ed9706"
+          },
+          {
+            "id": "65c1ee82-2ba0-4ed8-bb69-cb10e22b23a3",
+            "lag": 0,
+            "type": "FC",
+            "toTaskId": "09b212b7-6b7f-4745-a7eb-277954069e70",
+            "fromTaskId": "d86d3851-f349-4611-98f7-05e7f290666f"
+          },
+          {
+            "id": "becb5b26-9dfb-426f-9711-6d985b6fef5e",
+            "lag": 0,
+            "type": "FC",
+            "toTaskId": "f852f1b2-7a06-4581-ae1c-d271d1f03cbe",
+            "fromTaskId": "d86d3851-f349-4611-98f7-05e7f290666f"
+          },
+          {
+            "id": "aaf09249-7fa1-4de6-90f9-cac4c34baa10",
+            "lag": 0,
+            "type": "FC",
+            "toTaskId": "b85eb79e-a1d2-4c4a-90d0-180242ed9706",
+            "fromTaskId": "f852f1b2-7a06-4581-ae1c-d271d1f03cbe"
+          },
+          {
+            "id": "2f5cdde0-cf77-43c5-bf1b-34a74523219b",
+            "lag": 0,
+            "type": "FC",
+            "toTaskId": "4209dc68-ba74-4fcb-aee0-dd039e07843c",
+            "fromTaskId": "d86d3851-f349-4611-98f7-05e7f290666f"
+          },
+          {
+            "id": "0ef9b658-dbd5-4a57-90b2-0f5b089fe133",
+            "lag": 0,
+            "type": "FC",
+            "toTaskId": "acc58ca0-bea1-4189-9d4b-1ed2ec656d35",
+            "fromTaskId": "e34693b6-3d8f-4275-b9ba-266c61a1e3a9"
+          }
+        ],
+        "workdayHours": 9,
+        "workingDays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "nonWorkingDates": []
+      },
+      {
+        "id": "59e32edf-9e57-4490-9449-dfc1831ac782",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Casa Pinamar",
+        "client": "Angel Di Maria",
+        "currency": "$",
+        "startDate": "2026-03-10",
+        "status": "planning",
+        "items": [],
+        "address": "",
+        "companyName": "",
+        "surface": 450,
+        "constructionSystem": "Tradicional (Mampostería Portante)",
+        "structureType": "Hormigón Armado in Situ",
+        "foundationType": "Platea de Fundación",
+        "dependencies": [],
+        "workdayHours": 9,
+        "workdayStartTime": "08:00",
+        "workdayEndTime": "17:00",
+        "lunchBreakDuration": 60,
+        "workingDays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "nonWorkingDates": [],
+        "laborForce": [],
+        "assignedCrews": [],
+        "pricing": {
+          "taxPercent": 21,
+          "profitPercent": 10,
+          "generalExpensesPercent": 15,
+          "financialExpensesPercent": 3
+        }
+      }
+    ],
+    "allBudgetItems": [
+      {
+        "id": "d9e20974-c64a-4bb8-8ff9-b76605e91449",
+        "projectId": "b34f7a17-54b9-420d-836a-6a701c28e5b2",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "taskId": "8f36f434-e458-4bc4-af15-8ca03ebe8e65",
+        "quantity": 30,
+        "status": "pending",
+        "dependencies": [
+          {
+            "lag": 0,
+            "type": "FC",
+            "predecessorId": "ce3d2ed6-4347-49e2-9d99-2dfe193682f3"
+          }
+        ],
+        "progress": 0,
+        "crewsAssigned": 1
+      },
+      {
+        "id": "67f4494c-9c7e-40e2-a13a-5dc5d5f7120b",
+        "projectId": "b34f7a17-54b9-420d-836a-6a701c28e5b2",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "taskId": "605ca074-cbdd-4b0d-8203-f2f074c2d837",
+        "quantity": 33,
+        "status": "pending",
+        "dependencies": [
+          {
+            "lag": 0,
+            "type": "FC",
+            "predecessorId": "ce3d2ed6-4347-49e2-9d99-2dfe193682f3"
+          }
+        ],
+        "progress": 0,
+        "crewsAssigned": 1
+      },
+      {
+        "id": "15d2d547-f0d1-479a-81be-dbe4f18b108e",
+        "projectId": "b34f7a17-54b9-420d-836a-6a701c28e5b2",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "taskId": "9e8c7471-e130-4cb7-9c62-af351b29d6c1",
+        "quantity": 26,
+        "status": "pending",
+        "dependencies": [
+          {
+            "lag": 0,
+            "type": "FC",
+            "predecessorId": "ce3d2ed6-4347-49e2-9d99-2dfe193682f3"
+          }
+        ],
+        "progress": 0,
+        "crewsAssigned": 1
+      },
+      {
+        "id": "ce3d2ed6-4347-49e2-9d99-2dfe193682f3",
+        "projectId": "b34f7a17-54b9-420d-836a-6a701c28e5b2",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "taskId": "4f1d4de0-4280-49ab-b56f-11743307b698",
+        "quantity": 194,
+        "status": "pending",
+        "dependencies": [],
+        "progress": 0,
+        "crewsAssigned": 1
+      },
+      {
+        "id": "e40a365b-44f1-490a-b979-b852b047b070",
+        "projectId": "b34f7a17-54b9-420d-836a-6a701c28e5b2",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "taskId": "ad678406-cdce-4731-8ead-18e148ebbd70",
+        "quantity": 170,
+        "status": "pending",
+        "dependencies": [
+          {
+            "lag": 0,
+            "type": "FC",
+            "predecessorId": "67f4494c-9c7e-40e2-a13a-5dc5d5f7120b"
+          }
+        ],
+        "progress": 0,
+        "crewsAssigned": 1
+      },
+      {
+        "id": "32d28fde-14b6-4c85-934b-bccb19a53839",
+        "projectId": "b34f7a17-54b9-420d-836a-6a701c28e5b2",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "taskId": "f975d99a-7e78-488a-a25a-0e8c360d3094",
+        "quantity": 1,
+        "status": "pending",
+        "dependencies": [],
+        "progress": 0,
+        "crewsAssigned": 1
+      }
+    ],
+    "yields": [
+      {
+        "taskId": "08b1e6f3-9572-474c-b7ef-e320eeac6143",
+        "materialId": "62fad6b8-2b47-449e-a269-7774363edca0",
+        "quantity": 0.7,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "08b1e6f3-9572-474c-b7ef-e320eeac6143",
+        "materialId": "mat_mmrud3gg",
+        "quantity": 0.04,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "1454f10b-d5cc-4f5f-87a1-f9f7156b9fb0",
+        "materialId": "mat_mmrud3gg",
+        "quantity": 0.04,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "1454f10b-d5cc-4f5f-87a1-f9f7156b9fb0",
+        "materialId": "62fad6b8-2b47-449e-a269-7774363edca0",
+        "quantity": 0.7,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "1454f10b-d5cc-4f5f-87a1-f9f7156b9fb0",
+        "materialId": "f4718976-ba48-45f8-a798-82ca1cb0daf1",
+        "quantity": 16,
+        "wastePercent": 5,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "ad678406-cdce-4731-8ead-18e148ebbd70",
+        "materialId": "62fad6b8-2b47-449e-a269-7774363edca0",
+        "quantity": 0.7,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "ad678406-cdce-4731-8ead-18e148ebbd70",
+        "materialId": "mat_mmrud3gg",
+        "quantity": 0.04,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "9f50170c-d19d-4997-a926-b4870f842b3c",
+        "materialId": "62fad6b8-2b47-449e-a269-7774363edca0",
+        "quantity": 1,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "9f50170c-d19d-4997-a926-b4870f842b3c",
+        "materialId": "mat_mmrud3gg",
+        "quantity": 1,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "ed376a98-d124-4c7a-97e6-ca31f8259171",
+        "materialId": "62fad6b8-2b47-449e-a269-7774363edca0",
+        "quantity": 0.7,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "ed376a98-d124-4c7a-97e6-ca31f8259171",
+        "materialId": "mat_mmrud3gg",
+        "quantity": 0.04,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "592fa83f-6390-4414-a896-7b3deb012a46",
+        "materialId": "4903c4d5-02d0-43d3-ae68-ad19f082fc95",
+        "quantity": 10,
+        "wastePercent": 5,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "c29080bb-6fd8-426b-91ee-04f8f8aa57f1",
+        "materialId": "mat_mmrud3gg",
+        "quantity": 0.04,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "c29080bb-6fd8-426b-91ee-04f8f8aa57f1",
+        "materialId": "62fad6b8-2b47-449e-a269-7774363edca0",
+        "quantity": 35,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "b7ead3cf-b893-40e4-b513-df99f1a8a56b",
+        "materialId": "mat_mmrud3gg",
+        "quantity": 0.02,
+        "wastePercent": 5,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "f975d99a-7e78-488a-a25a-0e8c360d3094",
+        "materialId": "4903c4d5-02d0-43d3-ae68-ad19f082fc95",
+        "quantity": 10,
+        "wastePercent": 5,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "51c4e248-b31a-4732-a6a6-34de4dd69559",
+        "materialId": "4903c4d5-02d0-43d3-ae68-ad19f082fc95",
+        "quantity": 10,
+        "wastePercent": 5,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "5af3d986-2f29-4963-863a-c13c5b3f6ca2",
+        "materialId": "62fad6b8-2b47-449e-a269-7774363edca0",
+        "quantity": 1,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "bc28fed9-5e75-4e32-96a4-7e09805ad00c",
+        "materialId": "mat_mmrud3gg",
+        "quantity": 1,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "bc28fed9-5e75-4e32-96a4-7e09805ad00c",
+        "materialId": "62fad6b8-2b47-449e-a269-7774363edca0",
+        "quantity": 1,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "22785d13-69ac-4421-ac94-619f74cb2766",
+        "materialId": "62fad6b8-2b47-449e-a269-7774363edca0",
+        "quantity": 0.7,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "22785d13-69ac-4421-ac94-619f74cb2766",
+        "materialId": "mat_mmrud3gg",
+        "quantity": 0.04,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "66476fdf-06a7-4af3-94fb-a7c947234f9d",
+        "materialId": "62fad6b8-2b47-449e-a269-7774363edca0",
+        "quantity": 0.7,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "66476fdf-06a7-4af3-94fb-a7c947234f9d",
+        "materialId": "mat_mmrud3gg",
+        "quantity": 0.04,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "620a4343-440e-4f45-afe5-b47e25673413",
+        "materialId": "mat_mmrud3gg",
+        "quantity": 0.04,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "620a4343-440e-4f45-afe5-b47e25673413",
+        "materialId": "62fad6b8-2b47-449e-a269-7774363edca0",
+        "quantity": 0.7,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "441f2b1e-5426-48cd-a30e-ea1b74be766e",
+        "materialId": "62fad6b8-2b47-449e-a269-7774363edca0",
+        "quantity": 7,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "441f2b1e-5426-48cd-a30e-ea1b74be766e",
+        "materialId": "mat_mmrud3gg",
+        "quantity": 0.04,
+        "wastePercent": 0,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "441f2b1e-5426-48cd-a30e-ea1b74be766e",
+        "materialId": "f4718976-ba48-45f8-a798-82ca1cb0daf1",
+        "quantity": 16,
+        "wastePercent": 5,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      }
+    ],
+    "toolYields": [
+      {
+        "taskId": "08b1e6f3-9572-474c-b7ef-e320eeac6143",
+        "toolId": "mmru41l5-3fcf9b1b642c",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "1454f10b-d5cc-4f5f-87a1-f9f7156b9fb0",
+        "toolId": "mmru41l5-3fcf9b1b642c",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "1454f10b-d5cc-4f5f-87a1-f9f7156b9fb0",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "14a28300-b707-474c-9280-c84cdd352c8c",
+        "toolId": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "14a28300-b707-474c-9280-c84cdd352c8c",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "27de2166-53ef-4529-8f14-75506d09290a",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "27de2166-53ef-4529-8f14-75506d09290a",
+        "toolId": "mmrutgbg-a59b5ec63f2d",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "441f2b1e-5426-48cd-a30e-ea1b74be766e",
+        "toolId": "mmru41l5-3fcf9b1b642c",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "4b047e6f-8a32-43bd-9332-b4d7bdcfee5d",
+        "toolId": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "4b047e6f-8a32-43bd-9332-b4d7bdcfee5d",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "4f1d4de0-4280-49ab-b56f-11743307b698",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "4f1d4de0-4280-49ab-b56f-11743307b698",
+        "toolId": "mmrutgbg-a59b5ec63f2d",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "50f3c048-fd18-43c0-864f-68732ee91408",
+        "toolId": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "50f3c048-fd18-43c0-864f-68732ee91408",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "565fa998-1654-4567-b694-651f35e8f1b9",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "565fa998-1654-4567-b694-651f35e8f1b9",
+        "toolId": "mmrutgbg-a59b5ec63f2d",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "592fa83f-6390-4414-a896-7b3deb012a46",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 9,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "605ca074-cbdd-4b0d-8203-f2f074c2d837",
+        "toolId": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "605ca074-cbdd-4b0d-8203-f2f074c2d837",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "620a4343-440e-4f45-afe5-b47e25673413",
+        "toolId": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "620a4343-440e-4f45-afe5-b47e25673413",
+        "toolId": "mmru41l5-3fcf9b1b642c",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "620a4343-440e-4f45-afe5-b47e25673413",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "66476fdf-06a7-4af3-94fb-a7c947234f9d",
+        "toolId": "mmru41l5-3fcf9b1b642c",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "76b99c1d-8714-47ea-b1e6-b109004e6083",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "76b99c1d-8714-47ea-b1e6-b109004e6083",
+        "toolId": "mmrutgbg-a59b5ec63f2d",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "8f36f434-e458-4bc4-af15-8ca03ebe8e65",
+        "toolId": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "8f36f434-e458-4bc4-af15-8ca03ebe8e65",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "995119de-378d-4158-9cc1-b64e9d79d124",
+        "toolId": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "995119de-378d-4158-9cc1-b64e9d79d124",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "9e8c7471-e130-4cb7-9c62-af351b29d6c1",
+        "toolId": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "9e8c7471-e130-4cb7-9c62-af351b29d6c1",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "a4958ccb-a53f-4b1c-9a68-5569e9cff22e",
+        "toolId": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "a4958ccb-a53f-4b1c-9a68-5569e9cff22e",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "a4958ccb-a53f-4b1c-9a68-5569e9cff22e",
+        "toolId": "mmrutgbg-a59b5ec63f2d",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "a60f04e9-0442-43f0-a103-83fbc2779568",
+        "toolId": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "a60f04e9-0442-43f0-a103-83fbc2779568",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "ad678406-cdce-4731-8ead-18e148ebbd70",
+        "toolId": "mmru41l5-3fcf9b1b642c",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "b7ead3cf-b893-40e4-b513-df99f1a8a56b",
+        "toolId": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "b7ead3cf-b893-40e4-b513-df99f1a8a56b",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 0.2,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "b7ead3cf-b893-40e4-b513-df99f1a8a56b",
+        "toolId": "mmrutgbg-a59b5ec63f2d",
+        "hoursPerUnit": 0.5,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "bc28fed9-5e75-4e32-96a4-7e09805ad00c",
+        "toolId": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "bc28fed9-5e75-4e32-96a4-7e09805ad00c",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "ed376a98-d124-4c7a-97e6-ca31f8259171",
+        "toolId": "mmru41l5-3fcf9b1b642c",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "f0447d57-5647-4a49-a942-38a3e2fe4693",
+        "toolId": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "f0447d57-5647-4a49-a942-38a3e2fe4693",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "f160a7bb-0689-4f38-9385-babe25182050",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "f160a7bb-0689-4f38-9385-babe25182050",
+        "toolId": "mmrutgbg-a59b5ec63f2d",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "fb1faee7-f675-4cc6-92a6-c64e5467e32b",
+        "toolId": "8b62607e-3cab-4efa-81f8-36fe5ce43124",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "fb1faee7-f675-4cc6-92a6-c64e5467e32b",
+        "toolId": "mmrut950-5cc7228452d1",
+        "hoursPerUnit": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      }
+    ],
+    "taskCrewYields": [],
+    "taskLaborYields": [
+      {
+        "taskId": "76b99c1d-8714-47ea-b1e6-b109004e6083",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "08b1e6f3-9572-474c-b7ef-e320eeac6143",
+        "laborCategoryId": "mmru25av-169697edb97d",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "08b1e6f3-9572-474c-b7ef-e320eeac6143",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "a4958ccb-a53f-4b1c-9a68-5569e9cff22e",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "1454f10b-d5cc-4f5f-87a1-f9f7156b9fb0",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "1454f10b-d5cc-4f5f-87a1-f9f7156b9fb0",
+        "laborCategoryId": "mmru25av-169697edb97d",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "995119de-378d-4158-9cc1-b64e9d79d124",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "4b047e6f-8a32-43bd-9332-b4d7bdcfee5d",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "9e8c7471-e130-4cb7-9c62-af351b29d6c1",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "4f1d4de0-4280-49ab-b56f-11743307b698",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "ad678406-cdce-4731-8ead-18e148ebbd70",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "ad678406-cdce-4731-8ead-18e148ebbd70",
+        "laborCategoryId": "mmru25av-169697edb97d",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "50f3c048-fd18-43c0-864f-68732ee91408",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "14a28300-b707-474c-9280-c84cdd352c8c",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "565fa998-1654-4567-b694-651f35e8f1b9",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "9f50170c-d19d-4997-a926-b4870f842b3c",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "ed376a98-d124-4c7a-97e6-ca31f8259171",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "ed376a98-d124-4c7a-97e6-ca31f8259171",
+        "laborCategoryId": "mmru25av-169697edb97d",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "c29080bb-6fd8-426b-91ee-04f8f8aa57f1",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "a60f04e9-0442-43f0-a103-83fbc2779568",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "b7ead3cf-b893-40e4-b513-df99f1a8a56b",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 2,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "f975d99a-7e78-488a-a25a-0e8c360d3094",
+        "laborCategoryId": "mmru25av-169697edb97d",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "f975d99a-7e78-488a-a25a-0e8c360d3094",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "605ca074-cbdd-4b0d-8203-f2f074c2d837",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "8f36f434-e458-4bc4-af15-8ca03ebe8e65",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "51c4e248-b31a-4732-a6a6-34de4dd69559",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 2,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "51c4e248-b31a-4732-a6a6-34de4dd69559",
+        "laborCategoryId": "mmru25av-169697edb97d",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "bc28fed9-5e75-4e32-96a4-7e09805ad00c",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "fb1faee7-f675-4cc6-92a6-c64e5467e32b",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "f0447d57-5647-4a49-a942-38a3e2fe4693",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "f160a7bb-0689-4f38-9385-babe25182050",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "22785d13-69ac-4421-ac94-619f74cb2766",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "66476fdf-06a7-4af3-94fb-a7c947234f9d",
+        "laborCategoryId": "mmru25av-169697edb97d",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "66476fdf-06a7-4af3-94fb-a7c947234f9d",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "620a4343-440e-4f45-afe5-b47e25673413",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "441f2b1e-5426-48cd-a30e-ea1b74be766e",
+        "laborCategoryId": "mmru2nug-548eeaaba8a8",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      },
+      {
+        "taskId": "441f2b1e-5426-48cd-a30e-ea1b74be766e",
+        "laborCategoryId": "mmru25av-169697edb97d",
+        "quantity": 1,
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f"
+      }
+    ],
+    "rubros": [
+      "01 DEMOLICIONES",
+      "02 TRABAJOS PRELIMINARES",
+      "03 MOVIMIENTO DE SUELOS",
+      "04 FUNDACIONES",
+      "05 ESTRUCTURAS RESISTENTES",
+      "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+      "07 AISLACIONES EN MUROS",
+      "08 REVOQUES",
+      "09 CONTRAPISOS",
+      "10 CARPETAS",
+      "11 PISOS",
+      "12 ZOCALOS",
+      "13 CIELORRASOS",
+      "14 REVESTIMIENTOS",
+      "15 YESERIA",
+      "16 CUBIERTAS",
+      "17 CARPINTERÍA METÁLICA Y DE PVC",
+      "18 CARPINTERÍA DE MADERA",
+      "19 HERRERÍA",
+      "20 CORTINAS DE ENROLLAR",
+      "21 HERRAJES Y CERRAJERÍA",
+      "22 CONDUCTOS Y VENTILACIONES",
+      "23 INSTALACIÓN SANITARIA",
+      "24 INSTALACIÓN CONTRA INCENDIO",
+      "25 INSTALACIÓN DE GAS",
+      "26 INSTALACIÓN ELÉCTRICA",
+      "27 INSTALACIÓN DE ELECTROMECANICAS",
+      "28 CALEFACCIÓN",
+      "29 AIRE ACONDICIONADO",
+      "30 EQUIPAMIENTO",
+      "31 AMOBLAMIENTO",
+      "32 TERMINACIONES ESPECIALES",
+      "33 VIDRIOS, CRISTALES, ESPEJOS",
+      "34 PINTURA",
+      "35 OBRAS EXTERIORES",
+      "36 SISTEMAS DE COMUNICACIONES",
+      "37 SISTEMAS ELECTRÓNICOS Y DE SEGURIDAD",
+      "38 DOCUMENTOS CONFORME A OBRA",
+      "90 AUXILIARES",
+      "91 MEZCLAS",
+      "92 HORMIGONES",
+      "93 AISLACIONES Y MEMBRANAS",
+      "94 SELLADORES Y JUNTAS",
+      "95 COSTO OPERATIVO EQUIPOS",
+      "OBRA GRUESA",
+      "OBRA GRUESA",
+      "TERMINACIONES",
+      "TERMINACIONES"
+    ],
+    "calendarPresets": [
+      {
+        "id": "cal_standard",
+        "name": "Estándar Administración (L-V)",
+        "workdayHours": 9,
+        "workdayStartTime": "08:00",
+        "workdayEndTime": "17:00",
+        "lunchBreakDuration": 60,
+        "workingDays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "nonWorkingDates": []
+      },
+      {
+        "id": "cal_construction",
+        "name": "Obra Extendida (L-S)",
+        "workdayHours": 9,
+        "workdayStartTime": "07:30",
+        "workdayEndTime": "17:30",
+        "lunchBreakDuration": 60,
+        "workingDays": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "nonWorkingDates": []
+      }
+    ],
+    "allDocuments": [],
+    "allMeasurementSheets": [],
+    "allQualityProtocols": [
+      {
+        "id": "qp_hormigon",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Control de Hormigonado",
+        "category": "05 ESTRUCTURAS RESISTENTES",
+        "checks": [
+          {
+            "id": "ch1",
+            "description": "Asentamiento (Slump)",
+            "type": "variable",
+            "unit": "cm",
+            "minValue": 10,
+            "maxValue": 15,
+            "acceptanceCriteria": "Según especificación"
+          },
+          {
+            "id": "ch2",
+            "description": "Temperatura de Colocación",
+            "type": "variable",
+            "unit": "°C",
+            "maxValue": 30,
+            "acceptanceCriteria": "< 30°C"
+          },
+          {
+            "id": "ch3",
+            "description": "Limpieza de Encofrados",
+            "type": "attribute",
+            "acceptanceCriteria": "Sin residuos"
+          },
+          {
+            "id": "ch4",
+            "description": "Posición de Armaduras (Recubrimiento)",
+            "type": "variable",
+            "unit": "cm",
+            "minValue": 2,
+            "acceptanceCriteria": "Respetar Planos"
+          },
+          {
+            "id": "ch5",
+            "description": "Vibrado Correcto",
+            "type": "attribute",
+            "acceptanceCriteria": "Sin nidos de abeja visibles"
+          }
+        ]
+      },
+      {
+        "id": "qp_mamposteria",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "name": "Control de Mampostería",
+        "category": "06 MAMPOSTERÍA, Y OTROS CERRAMIENTOS",
+        "checks": [
+          {
+            "id": "cm1",
+            "description": "Plomo Vertical",
+            "type": "variable",
+            "unit": "mm/m",
+            "maxValue": 3,
+            "acceptanceCriteria": "Tol: 3mm por metro"
+          },
+          {
+            "id": "cm2",
+            "description": "Nivelada Horizontal",
+            "type": "attribute",
+            "acceptanceCriteria": "Hiladas horizontales"
+          },
+          {
+            "id": "cm3",
+            "description": "Trabazón de Ladrillos",
+            "type": "attribute",
+            "acceptanceCriteria": "Correcta"
+          },
+          {
+            "id": "cm4",
+            "description": "Espesor de Juntas",
+            "type": "variable",
+            "unit": "cm",
+            "minValue": 1,
+            "maxValue": 2,
+            "acceptanceCriteria": "1.5 +/- 0.5 cm"
+          }
+        ]
+      }
+    ],
+    "allQualityInspections": [],
+    "allNonConformities": [],
+    "allProjectCertificates": [
+      {
+        "id": "9b6889cd-bf49-4d93-8f0a-de3c31897325",
+        "organizationId": "3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f",
+        "projectId": "1af93c24-dc03-427d-bffc-866247a82470",
+        "number": 1,
+        "period": "2026-04",
+        "date": "2026-04-11T12:37:56.208Z",
+        "items": [
+          {
+            "budgetItemId": "d86d3851-f349-4611-98f7-05e7f290666f",
+            "taskId": "27de2166-53ef-4529-8f14-75506d09290a",
+            "description": "Limpieza de terreno con retiro de suelo vegetal",
+            "unit": "m2",
+            "quantity": 200,
+            "unitPrice": 14076.4,
+            "totalBudgeted": 2815280,
+            "progressPercent": 100,
+            "amountCertified": 2815280
+          },
+          {
+            "budgetItemId": "e5681a45-dea9-4db1-a4ff-4a0a47da9f2e",
+            "taskId": "441f2b1e-5426-48cd-a30e-ea1b74be766e",
+            "description": "Mamposteria 0,18m",
+            "unit": "m2",
+            "quantity": 36,
+            "unitPrice": 37728,
+            "totalBudgeted": 1358208,
+            "progressPercent": 50,
+            "amountCertified": 679104
+          },
+          {
+            "budgetItemId": "09b212b7-6b7f-4745-a7eb-277954069e70",
+            "taskId": "b7ead3cf-b893-40e4-b513-df99f1a8a56b",
+            "description": "Demolicion de muro de ladrillos 0.20m",
+            "unit": "m2",
+            "quantity": 150,
+            "unitPrice": 9392.8,
+            "totalBudgeted": 1408920,
+            "progressPercent": 100,
+            "amountCertified": 1408920
+          },
+          {
+            "budgetItemId": "f852f1b2-7a06-4581-ae1c-d271d1f03cbe",
+            "taskId": "995119de-378d-4158-9cc1-b64e9d79d124",
+            "description": "Excavacion manual de zanjas",
+            "unit": "m3",
+            "quantity": 52,
+            "unitPrice": 16456,
+            "totalBudgeted": 855712,
+            "progressPercent": 23,
+            "amountCertified": 196813.76
+          },
+          {
+            "budgetItemId": "b85eb79e-a1d2-4c4a-90d0-180242ed9706",
+            "taskId": "4b047e6f-8a32-43bd-9332-b4d7bdcfee5d",
+            "description": "EXCAVACION DE POZOS",
+            "unit": "m3",
+            "quantity": 80,
+            "unitPrice": 13117,
+            "totalBudgeted": 1049360,
+            "progressPercent": 22,
+            "amountCertified": 230859.2
+          },
+          {
+            "budgetItemId": "e34693b6-3d8f-4275-b9ba-266c61a1e3a9",
+            "taskId": "51c4e248-b31a-4732-a6a6-34de4dd69559",
+            "description": "CASILLA HABITABLE",
+            "unit": "m2",
+            "quantity": 3,
+            "unitPrice": 786856,
+            "totalBudgeted": 2360568,
+            "progressPercent": 100,
+            "amountCertified": 2360568
+          },
+          {
+            "budgetItemId": "acc58ca0-bea1-4189-9d4b-1ed2ec656d35",
+            "taskId": "9f50170c-d19d-4997-a926-b4870f842b3c",
+            "description": "MAMPOSTERIA",
+            "unit": "m2",
+            "quantity": 75,
+            "unitPrice": 63513.6,
+            "totalBudgeted": 4763520,
+            "progressPercent": 0,
+            "amountCertified": 0
+          },
+          {
+            "budgetItemId": "4209dc68-ba74-4fcb-aee0-dd039e07843c",
+            "taskId": "a60f04e9-0442-43f0-a103-83fbc2779568",
+            "description": "Excavacion de bases . ",
+            "unit": "m3",
+            "quantity": 25,
+            "unitPrice": 19127.2,
+            "totalBudgeted": 478180,
+            "progressPercent": 33,
+            "amountCertified": 157799.4
+          },
+          {
+            "budgetItemId": "7044e234-9a15-4eb7-9045-b6d590350749",
+            "taskId": "51c4e248-b31a-4732-a6a6-34de4dd69559",
+            "description": "CASILLA HABITABLE",
+            "unit": "m2",
+            "quantity": 1,
+            "unitPrice": 786856,
+            "totalBudgeted": 786856,
+            "progressPercent": 80,
+            "amountCertified": 629484.8
+          }
+        ],
+        "totalBudgeted": 15876604,
+        "totalCertified": 8478829.16,
+        "previouslyCertified": 0,
+        "thisPeriodAmount": 8478829.16,
+        "status": "issued"
+      }
+    ]
+  }
+}

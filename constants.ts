@@ -22,6 +22,17 @@ export const COST_FAMILIES: CostFamily[] = [
     'COSTO INDIRECTO'
 ];
 
+// --- PARÁMETROS GLOBALES DE MOVIMIENTO DE SUELOS (Chandías) ---
+// Coeficientes de transformación de volumen aplicables a APUs de excavación y relleno.
+// Fuente: planilla Chandías normalizada. No son datos de tenant → no van a DB.
+// Uso futuro: earthMovementService.ts los importa para cálculos de APU.
+export const EARTH_MOVEMENT_COEFFS = {
+  /** Factor de esponjamiento: volumen suelto = volumen neto × COEF_ESPONJ */
+  COEF_ESPONJ: 1.30,
+  /** Factor de recompactación: volumen compactado = volumen neto × COEF_RECOMP */
+  COEF_RECOMP: 1.10,
+} as const;
+
 // --- CHANDIAS KNOWLEDGE BASE ---
 export const CHANDIAS_DB = {
   MASONRY_COMMON_015: {

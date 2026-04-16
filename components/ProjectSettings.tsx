@@ -251,7 +251,7 @@ export const ProjectSettings: React.FC = () => {
       } else {
           addCrew({
               ...editingCrew as Crew,
-              id: `crew_${generateId()}`,
+              id: generateId(),
               composition: editingCrew.composition || []
           });
       }
@@ -563,7 +563,7 @@ export const ProjectSettings: React.FC = () => {
                                 {nonWorkingDates.length === 0 && <p className="text-xs text-slate-400 italic text-center">Sin feriados configurados.</p>}
                                 {nonWorkingDates.map((h, i) => (
                                     <div key={i} className="flex justify-between items-center text-xs bg-white p-2 rounded border border-slate-100">
-                                        <span className="font-bold text-slate-700">{new Date(h.date).toLocaleDateString()}</span>
+                                        <span className="font-bold text-slate-700">{new Date(h.date + 'T12:00:00').toLocaleDateString()}</span>
                                         <span className="text-slate-500 flex-1 ml-2">{h.description}</span>
                                         <button onClick={() => removeHoliday(h.date)} className="text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
                                     </div>

@@ -19,11 +19,12 @@ function budgetItemFromRow(row: Record<string, any>): BudgetItem {
     crewsAssigned: row.crews_assigned ?? undefined,
     efficiencyFactor: row.efficiency_factor ?? undefined,
     allowancePercent: row.allowance_percent ?? undefined,
+    sortOrder: row.sort_order ?? undefined,
   };
 }
 
 function budgetItemToRow(item: BudgetItem): Record<string, any> {
-  return {
+  const row: Record<string, any> = {
     id: item.id,
     project_id: item.projectId,
     organization_id: item.organizationId ?? null,
@@ -39,10 +40,14 @@ function budgetItemToRow(item: BudgetItem): Record<string, any> {
     efficiency_factor: item.efficiencyFactor ?? null,
     allowance_percent: item.allowancePercent ?? null,
   };
+  // sort_order solo se incluye si tiene valor — la columna puede no existir hasta ejecutar migración 014
+  if (item.sortOrder != null) row.sort_order = item.sortOrder;
+  return row;
 }
 
 function buildUpdateRow(updates: Partial<BudgetItem>): Record<string, any> {
   const row: Record<string, any> = {};
+  if (updates.taskId !== undefined)           row.task_id           = updates.taskId;
   if (updates.quantity !== undefined)         row.quantity          = updates.quantity;
   if (updates.startDate !== undefined)        row.start_date        = updates.startDate;
   if (updates.endDate !== undefined)          row.end_date          = updates.endDate;
@@ -53,6 +58,7 @@ function buildUpdateRow(updates: Partial<BudgetItem>): Record<string, any> {
   if (updates.crewsAssigned !== undefined)    row.crews_assigned    = updates.crewsAssigned;
   if (updates.efficiencyFactor !== undefined) row.efficiency_factor = updates.efficiencyFactor;
   if (updates.allowancePercent !== undefined) row.allowance_percent = updates.allowancePercent;
+  if (updates.sortOrder !== undefined)        row.sort_order        = updates.sortOrder ?? null;
   return row;
 }
 
@@ -61,19 +67,35 @@ function buildUpdateRow(updates: Partial<BudgetItem>): Record<string, any> {
 export const budgetItemsService = {
 
   async listForProject(projectId: string): Promise<BudgetItem[]> {
+    // Intenta con sort_order (post-migración 014). Si la columna no existe aún, cae al fallback.
+    const primary = await supabase
+      .from('budget_items')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true });
+
+    if (!primary.error) {
+      const rows = primary.data ?? [];
+      console.log(`[BI:list] ✓ ${rows.length} items para proyecto ${projectId}`,
+        rows.length ? `task_ids: [${rows.slice(0,3).map((r:any) => r.task_id?.slice(0,8)).join(', ')}...]` : '← DB VACÍO');
+      return rows.map(budgetItemFromRow);
+    }
+
+    // Migración 014 todavía no aplicada → sort_order no existe → fallback sin esa columna
+    console.warn('[budgetItemsService.list] sort_order ordering falló, usando fallback (ejecutar migración 014):', primary.error.message);
     const { data, error } = await supabase
       .from('budget_items')
       .select('*')
       .eq('project_id', projectId)
       .order('created_at', { ascending: true });
+
     if (error) {
       console.error('[budgetItemsService.list] Error al cargar budget_items:', {
         message: error.message, code: error.code, hint: error.hint, projectId,
       });
       return [];
     }
-    console.log(`[BI:list] ✓ ${(data ?? []).length} items en DB para proyecto ${projectId}`,
-      data?.length ? `task_ids: [${data.slice(0,3).map((r:any) => r.task_id?.slice(0,8)).join(', ')}...]` : '← DB VACÍO');
     return (data ?? []).map(budgetItemFromRow);
   },
 

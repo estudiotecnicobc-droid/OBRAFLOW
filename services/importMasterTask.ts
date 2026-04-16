@@ -16,6 +16,7 @@
 
 import {
   MasterTask,
+  MasterMaterial,
   Task,
   TaskYield,
   TaskLaborYield,
@@ -26,6 +27,7 @@ import {
   Tool,
 } from '../types';
 import { generateId } from '../utils/generateId';
+import { normalizeUnit } from '../utils/normalizeUnit';
 
 // ── Tipos de retorno ──────────────────────────────────────────────────────────
 
@@ -33,6 +35,10 @@ export interface ImportMasterTaskPayload {
   task: Task;
   /** Materiales nuevos a crear en el proyecto (no existían por nombre). */
   materialsToCreate: Material[];
+  /** Materiales que ya existían con cost=0 y ahora tienen un precio resuelto. */
+  materialsToUpdate: Array<{ id: string; cost: number }>;
+  /** Categorías de MO con basicHourlyRate=0 que tienen tarifa en el snapshot de la tarea maestra. */
+  laborCategoriesToUpdate: Array<{ id: string; basicHourlyRate: number }>;
   taskYields: TaskYield[];
   laborYields: TaskLaborYield[];
   toolYields: TaskToolYield[];
@@ -55,6 +61,11 @@ export interface ImportMasterTaskPayload {
  * @param laborCategoriesMap  Mapa id→LaborCategory disponible en el proyecto
  * @param toolsMap            Mapa id→Tool disponible en el proyecto
  * @param projectMaterials    Lista actual de Material del proyecto (para lookup por nombre)
+ * @param masterMaterialsMap  Mapa id→MasterMaterial de la org (para precio vivo). Opcional.
+ *                            Si se provee, el precio del material se resuelve con prioridad:
+ *                            1. masterMaterialsMap[masterMaterialId].unitPrice  (precio vivo)
+ *                            2. mtm.lastKnownUnitPrice                          (snapshot DB)
+ *                            3. 0 con warning en consola
  */
 export function buildImportPayload(
   masterTask: MasterTask,
@@ -64,6 +75,7 @@ export function buildImportPayload(
   laborCategoriesMap: Record<string, LaborCategory>,
   toolsMap: Record<string, Tool>,
   projectMaterials: Material[] = [],
+  masterMaterialsMap: Record<string, MasterMaterial> = {},
 ): ImportMasterTaskPayload {
   // ── ID de la Task nueva ────────────────────────────────────────────────────
   const newTaskId = generateId();
@@ -76,7 +88,7 @@ export function buildImportPayload(
     id: newTaskId,
     organizationId,
     name: masterTask.name,
-    unit: masterTask.unit,
+    unit: normalizeUnit(masterTask.unit),
     dailyYield,
     laborCost: 0,
     category: masterTask.category ?? '',
@@ -97,9 +109,30 @@ export function buildImportPayload(
   );
 
   const materialsToCreate: Material[] = [];
+  // Materiales existentes cuyo costo necesita actualización (cost estaba en 0).
+  const materialsToUpdate: Array<{ id: string; cost: number }> = [];
   const taskYields: TaskYield[] = [];
 
   for (const mtm of masterTask.materials) {
+    // ── Resolver precio con prioridad: vivo > snapshot > 0 con warning ──────
+    const livePrice = mtm.masterMaterialId
+      ? masterMaterialsMap[mtm.masterMaterialId]?.unitPrice
+      : undefined;
+    const resolvedCost = livePrice != null && livePrice > 0
+      ? livePrice
+      : (mtm.lastKnownUnitPrice != null && mtm.lastKnownUnitPrice > 0
+          ? mtm.lastKnownUnitPrice
+          : undefined);
+
+    if (resolvedCost == null) {
+      console.warn(
+        '[buildImportPayload] Material sin precio resolvible — se usará 0.',
+        { materialName: mtm.materialName, masterMaterialId: mtm.masterMaterialId },
+      );
+    }
+
+    const cost = resolvedCost ?? 0;
+
     let material = localMaterialsMap.get(mtm.materialName);
 
     if (!material) {
@@ -107,12 +140,17 @@ export function buildImportPayload(
         id: generateId(),
         organizationId,
         name: mtm.materialName,
-        unit: mtm.unit,
-        cost: mtm.lastKnownUnitPrice ?? 0,
+        unit: normalizeUnit(mtm.unit),
+        cost,
         family: 'MATERIAL',
       };
       materialsToCreate.push(material);
       // Registrar en el mapa local para deduplicar dentro de esta misma llamada
+      localMaterialsMap.set(material.name, material);
+    } else if (material.cost === 0 && cost > 0) {
+      // Material existente con costo 0: actualizar con el precio resuelto
+      material = { ...material, cost };
+      materialsToUpdate.push({ id: material.id, cost });
       localMaterialsMap.set(material.name, material);
     }
 
@@ -126,17 +164,30 @@ export function buildImportPayload(
 
   // ── TaskLaborYield — filtrar FKs inválidas ─────────────────────────────────
   const skippedLabor: string[] = [];
+  const laborCategoriesToUpdate: Array<{ id: string; basicHourlyRate: number }> = [];
+  const seenLaborIds = new Set<string>();
   const laborYields: TaskLaborYield[] = masterTask.labor
     .filter(l => {
       if (laborCategoriesMap[l.laborCategoryId]) return true;
       skippedLabor.push(l.laborCategoryName);
       return false;
     })
-    .map(l => ({
-      taskId: newTaskId,
-      laborCategoryId: l.laborCategoryId,
-      quantity: l.quantity,
-    }));
+    .map(l => {
+      const cat = laborCategoriesMap[l.laborCategoryId];
+      if (
+        cat.basicHourlyRate === 0 &&
+        l.snapshotHourlyRate != null && l.snapshotHourlyRate > 0 &&
+        !seenLaborIds.has(l.laborCategoryId)
+      ) {
+        laborCategoriesToUpdate.push({ id: l.laborCategoryId, basicHourlyRate: l.snapshotHourlyRate });
+        seenLaborIds.add(l.laborCategoryId);
+      }
+      return {
+        taskId: newTaskId,
+        laborCategoryId: l.laborCategoryId,
+        quantity: l.quantity,
+      };
+    });
 
   // ── TaskToolYield — filtrar FKs inválidas ─────────────────────────────────
   const skippedTools: string[] = [];
@@ -162,5 +213,5 @@ export function buildImportPayload(
     progress: 0,
   };
 
-  return { task, materialsToCreate, taskYields, laborYields, toolYields, budgetItem, skippedLabor, skippedTools };
+  return { task, materialsToCreate, materialsToUpdate, laborCategoriesToUpdate, taskYields, laborYields, toolYields, budgetItem, skippedLabor, skippedTools };
 }

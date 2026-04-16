@@ -7,6 +7,7 @@ function toolFromRow(row: Record<string, any>): Tool {
   return {
     id:             row.id,
     organizationId: row.organization_id,
+    code:           row.code ?? undefined,
     name:           row.name,
     category:       row.category ?? '',
     costPerHour:    row.cost_per_hour ?? 0,
@@ -18,6 +19,7 @@ function toolToRow(t: Tool): Record<string, any> {
   return {
     id:              t.id,
     organization_id: t.organizationId,
+    code:            t.code ?? null,
     name:            t.name,
     category:        t.category,
     cost_per_hour:   t.costPerHour,
@@ -27,6 +29,7 @@ function toolToRow(t: Tool): Record<string, any> {
 
 function buildUpdateRow(updates: Partial<Tool>): Record<string, any> {
   const row: Record<string, any> = {};
+  if (updates.code         !== undefined) row.code          = updates.code ?? null;
   if (updates.name         !== undefined) row.name          = updates.name;
   if (updates.category     !== undefined) row.category      = updates.category;
   if (updates.costPerHour  !== undefined) row.cost_per_hour = updates.costPerHour;

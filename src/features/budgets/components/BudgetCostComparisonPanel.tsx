@@ -239,7 +239,7 @@ export function BudgetCostComparisonPanel({ projectId, organizationId }: Props) 
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {result.items.map(item => (
-                    <ItemRow key={item.key} item={item} />
+                    <ItemRow key={item.key} item={item as ComparisonItem} />
                   ))}
                 </tbody>
                 <tfoot>

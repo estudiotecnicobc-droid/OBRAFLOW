@@ -13,7 +13,7 @@ import { ProjectWizard } from './ProjectWizard';
 const COLORS = ['#0ea5e9', '#22c55e', '#9333ea', '#eab308', '#f97316', '#ef4444'];
 
 export const Dashboard: React.FC = () => {
-  const { project, tasks, materials, yields, tools, toolYields, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, receptions, snapshots } = useERP();
+  const { project, tasks, materials, yields, tools, toolYields, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, receptions, snapshots, laborCategoriesMap, taskLaborYieldsIndex, taskCrewYieldsIndex, crewsMap, budgetItemsLoading, tasksLoaded } = useERP();
   const [activeView, setActiveView] = useState<'stats' | 'reports'>('stats');
 
   // --- Wizard State ---
@@ -45,40 +45,55 @@ export const Dashboard: React.FC = () => {
     let totalMaterialCost = 0;
     let totalLaborCost = 0;
     let totalToolCost = 0;
-    let totalFixedCost = 0; // Subcontrato
+    let totalFixedCost = 0;
     let totalDurationDays = 0;
+    const byRubro: Record<string, number> = {}; // costo directo agrupado por rubro/categoría
+    let discarded = 0;
 
     project.items.forEach(item => {
       const task = tasks.find(t => t.id === item.taskId);
-      if (task) {
-        // Optimized Calculation using Maps
-        const unitAnalysis = calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap);
-        totalCost += unitAnalysis.totalUnitCost * item.quantity;
-        totalMaterialCost += unitAnalysis.materialCost * item.quantity;
-        totalLaborCost += unitAnalysis.laborCost * item.quantity;
-        totalToolCost += unitAnalysis.toolCost * item.quantity;
-        totalFixedCost += unitAnalysis.fixedCost * item.quantity; // Sumar costos fijos (subcontrato)
-        
-        const duration = item.manualDuration || (task.dailyYield > 0 ? (item.quantity / task.dailyYield) : 1);
-        totalDurationDays += duration;
+      if (!task) {
+        discarded++;
+        return;
       }
+      const unitAnalysis = calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap, 9, taskLaborYieldsIndex);
+      const itemTotal = unitAnalysis.totalUnitCost * item.quantity;
+
+      totalCost          += itemTotal;
+      totalMaterialCost  += unitAnalysis.materialCost * item.quantity;
+      totalLaborCost     += unitAnalysis.laborCost    * item.quantity;
+      totalToolCost      += unitAnalysis.toolCost     * item.quantity;
+      totalFixedCost     += unitAnalysis.fixedCost    * item.quantity;
+
+      const rubro = task.category?.trim() || 'Sin categoría';
+      byRubro[rubro] = (byRubro[rubro] || 0) + itemTotal;
+
+      const duration = item.manualDuration || (task.dailyYield > 0 ? item.quantity / task.dailyYield : 1);
+      totalDurationDays += duration;
     });
 
-    // Calculate Indirect Cost based on Project Settings
-    const indirectCost = totalCost * (project.pricing ? project.pricing.generalExpensesPercent / 100 : 0.15);
+    if (discarded > 0) {
+      console.warn(`[Dashboard] ${discarded}/${project.items.length} ítems descartados: task no encontrada. Tasks disponibles: ${tasks.length}`);
+    }
+
+    // Costo indirecto: usa el % configurado en el proyecto. Fallback: 15%.
+    // Nota: solo se aplica sobre costo directo (totalCost), nunca sobre sí mismo.
+    const indirectPct = (project.pricing?.generalExpensesPercent ?? 15) / 100;
+    const indirectCost = totalCost * indirectPct;
     const totalCostWithIndirects = totalCost + indirectCost;
 
-    return { 
-        totalCost, // Direct Cost Total
-        totalCostWithIndirects,
-        totalMaterialCost, 
-        totalLaborCost, 
-        totalToolCost, 
-        totalFixedCost, // Subcontract
-        indirectCost,
-        totalDurationDays 
+    return {
+      totalCost,
+      totalCostWithIndirects,
+      totalMaterialCost,
+      totalLaborCost,
+      totalToolCost,
+      totalFixedCost,
+      indirectCost,
+      totalDurationDays,
+      byRubro,
     };
-  }, [project, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap]);
+  }, [project, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, laborCategoriesMap, taskLaborYieldsIndex, taskCrewYieldsIndex, crewsMap]);
 
   // --- REPORT S-CURVE CALCULATION ---
   const sCurveData = useMemo(() => {
@@ -103,7 +118,7 @@ export const Dashboard: React.FC = () => {
             const task = tasks.find(t => t.id === item.taskId);
             if (!task) return acc;
             // Use current unit prices for consistent "Physical Progress" valuation
-            const analysis = calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap);
+            const analysis = calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap, 9, taskLaborYieldsIndex);
             return acc + (analysis.totalUnitCost * item.quantity * (item.progress || 0) / 100);
         }, 0);
         return { date: new Date(s.date), value: earnedValue };
@@ -113,7 +128,7 @@ export const Dashboard: React.FC = () => {
     const currentEarnedValue = project.items.reduce((acc, item) => {
         const task = tasks.find(t => t.id === item.taskId);
         if (!task) return acc;
-        const analysis = calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap);
+        const analysis = calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap, 9, taskLaborYieldsIndex);
         return acc + (analysis.totalUnitCost * item.quantity * (item.progress || 0) / 100);
     }, 0);
     progressHistory.push({ date: new Date(), value: currentEarnedValue });
@@ -162,7 +177,7 @@ export const Dashboard: React.FC = () => {
         });
     }
     return points;
-  }, [project, tasks, receptions, yieldsIndex, materialsMap, stats, snapshots]);
+  }, [project, tasks, receptions, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, laborCategoriesMap, taskLaborYieldsIndex, taskCrewYieldsIndex, crewsMap, stats, snapshots]);
 
   // Calculate current EVM metrics
   const currentMetrics = useMemo(() => {
@@ -195,7 +210,7 @@ export const Dashboard: React.FC = () => {
           const task = tasks.find(t => t.id === item.taskId);
           if (!task) return;
 
-          const analysis = calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap);
+          const analysis = calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap, 9, taskLaborYieldsIndex);
           const duration = item.manualDuration || (task.dailyYield > 0 ? Math.ceil(item.quantity / task.dailyYield) : 1);
           
           // Determine cost based on selected type
@@ -232,7 +247,7 @@ export const Dashboard: React.FC = () => {
           });
       }
       return chartData;
-  }, [detailModalType, project, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap]);
+  }, [detailModalType, project, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, laborCategoriesMap, taskLaborYieldsIndex, taskCrewYieldsIndex, crewsMap]);
 
   // --- RESOURCE BREAKDOWN (PARETO) ---
   const resourceBreakdownData = useMemo(() => {
@@ -276,7 +291,7 @@ export const Dashboard: React.FC = () => {
           .sort((a, b) => b.value - a.value)
           .slice(0, 6);
 
-  }, [detailModalType, project, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap]);
+  }, [detailModalType, project, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, laborCategoriesMap, taskLaborYieldsIndex, taskCrewYieldsIndex, crewsMap]);
 
 
   // 2. Reporte: Consolidado de Materiales (Explosión de Insumos)
@@ -325,16 +340,16 @@ export const Dashboard: React.FC = () => {
         tools: itemTools
       };
     });
-  }, [project, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap]);
+  }, [project, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, laborCategoriesMap, taskLaborYieldsIndex, taskCrewYieldsIndex, crewsMap]);
 
-  // Updated to include 5 Families
+  // Pie de familias: solo costos directos (COSTO INDIRECTO se muestra en tarjeta KPI aparte).
+  // Así la suma del pie = totalCost (costo directo total), sin inflación por indirectos.
   const costData = [
-    { name: 'MATERIAL', value: stats.totalMaterialCost },
-    { name: 'MANO DE OBRA', value: stats.totalLaborCost },
-    { name: 'EQUIPOS', value: stats.totalToolCost },
-    { name: 'SUBCONTRATO', value: stats.totalFixedCost },
-    { name: 'COSTO INDIRECTO', value: stats.indirectCost },
-  ];
+    { name: 'MATERIAL',     value: stats.totalMaterialCost },
+    { name: 'MANO DE OBRA', value: stats.totalLaborCost    },
+    { name: 'EQUIPOS',      value: stats.totalToolCost     },
+    { name: 'SUBCONTRATO',  value: stats.totalFixedCost    },
+  ].filter(d => d.value > 0);
 
   const exportCSV = (data: any[], filename: string) => {
     if (data.length === 0) return;
@@ -363,6 +378,14 @@ export const Dashboard: React.FC = () => {
 
   // Check trigger for wizard (e.g., accessed via a specific action or initial state)
   const handleOpenWizard = () => setShowWizard(true);
+
+  if (budgetItemsLoading || !tasksLoaded) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-sm text-slate-400 animate-pulse">Cargando datos del proyecto...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
@@ -515,25 +538,22 @@ export const Dashboard: React.FC = () => {
 
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                 <h3 className="text-sm font-bold mb-6 text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <BarChart2 size={16} /> Incidencia Económica por Tarea
+                    <BarChart2 size={16} /> Costo Directo por Rubro
                 </h3>
                 <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart
-                            data={project.items.slice(0, 8).map(item => {
-                                const t = tasks.find(t => t.id === item.taskId);
-                                const analysis = t ? calculateUnitPrice(t, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap) : { totalUnitCost: 0 };
-                                return {
-                                    name: t?.name.substring(0, 10) + '...',
-                                    Costo: analysis.totalUnitCost * item.quantity
-                                };
-                            })}
+                            data={Object.entries(stats.byRubro)
+                                .sort((a, b) => b[1] - a[1])
+                                .map(([name, value]) => ({ name, Costo: Math.round(value) }))}
+                            layout="vertical"
+                            margin={{ left: 8, right: 16 }}
                         >
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="name" fontSize={10} axisLine={false} tickLine={false} />
-                            <YAxis fontSize={10} axisLine={false} tickLine={false} />
-                            <Tooltip cursor={{fill: '#f8fafc'}} formatter={(value: number) => `$${value.toLocaleString()}`} />
-                            <Bar dataKey="Costo" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
+                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                            <XAxis type="number" fontSize={10} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${(v/1000).toFixed(0)}k`} />
+                            <YAxis type="category" dataKey="name" fontSize={10} axisLine={false} tickLine={false} width={90} />
+                            <Tooltip cursor={{fill: '#f8fafc'}} formatter={(value: number) => [`$${value.toLocaleString()}`, 'Costo directo']} />
+                            <Bar dataKey="Costo" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={18} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>

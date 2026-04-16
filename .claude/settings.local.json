@@ -7,7 +7,15 @@
       "Bash(grep:*)",
       "Bash(npx tsc:*)",
       "Bash(npx vitest:*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(test:*)",
+      "Bash(node:*)",
+      "Bash(ls:*)",
+      "Bash(python:*)",
+      "Bash(npx vite:*)",
+      "Bash(npx supabase:*)",
+      "Bash(echo:*)",
+      "Bash(winget upgrade:*)"
     ]
   }
 }

@@ -22,6 +22,10 @@ function fromRow(row: Record<string, any>): MasterMaterial {
     lastPriceUpdate: row.last_price_update ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    // Unidad comercial y factor de conversión (migration 021)
+    // Se leen de forma segura: si las columnas no existen, row.x = undefined → undefined
+    commercialUnit:   row.commercial_unit   ?? undefined,
+    conversionFactor: row.conversion_factor != null ? Number(row.conversion_factor) : undefined,
   };
 }
 

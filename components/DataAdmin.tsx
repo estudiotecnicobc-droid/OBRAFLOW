@@ -4,7 +4,7 @@ import { calculateUnitPrice } from '../services/calculationService';
 import {
   Upload, FileText, CheckCircle, AlertTriangle, RefreshCcw,
   Database, Wrench, Package, ListChecks, Plus, Trash2, Edit2, Save, X, Users, Clock, BarChart3, Tags, ClipboardCopy, ArrowRight, Calculator, FileSpreadsheet, Settings, Hammer, AlertCircle, HardHat, Info, Printer, PieChart as PieChartIcon, Activity,
-  ZoomOut, ZoomIn, DollarSign, Percent, LayoutGrid, Truck, CheckSquare, Square, Check, Bot, Sparkles, TrendingUp, Search, Download, ShieldCheck, ChevronDown, ChevronRight, ArrowUp, ArrowDown, BookOpen
+  ZoomOut, ZoomIn, DollarSign, Percent, LayoutGrid, Truck, CheckSquare, Square, Check, Bot, Sparkles, TrendingUp, Search, Download, ShieldCheck, ChevronDown, ChevronRight, ArrowUp, ArrowDown, BookOpen, Globe, Ruler
 } from 'lucide-react';
 import { INITIAL_MATERIALS, INITIAL_TOOLS, INITIAL_LABOR_CATEGORIES } from '../constants';
 import { generateId } from '../utils/generateId';
@@ -15,6 +15,14 @@ import { MasterMaterialsPanel } from './MasterMaterialsPanel';
 import { MasterTasksPanel } from './MasterTasksPanel';
 import { BudgetTemplatesPanel } from './BudgetTemplatesPanel';
 import { UsersPanel } from './UsersPanel';
+import { MaterialsCalculator } from './MaterialsCalculator';
+import { CalcErrorBoundary } from './CalcErrorBoundary';
+import { useAuth } from '../context/AuthContext';
+import { seedDemoData, type SeedResult } from '../services/seedDemoData';
+import { ReportsPanel } from '../src/features/reports/ReportsPanel';
+import { GlobalResourcesPanel } from './GlobalResourcesPanel';
+import { ChandiasCalculator } from '../src/features/material-calculator/ChandiasCalculator';
+import { ParametricCalculator } from '../src/features/parametric-calculator/ParametricCalculator';
 
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -36,7 +44,9 @@ const InfoTooltip = ({ text, formula }: { text: string, formula?: string }) => (
 );
 
 export const DataAdmin: React.FC = () => {
-  const { 
+  const { user, activeOrganizationId } = useAuth();
+  const organizationId = activeOrganizationId ?? user?.organizationId ?? '';
+  const {
     materials, tasks, tools, laborCategories, rubros, rubroPresets, crews, project, yields, toolYields, 
     importData, resetData, updateProjectSettings,
     addMaterial, updateMaterial, removeMaterial,
@@ -53,7 +63,7 @@ export const DataAdmin: React.FC = () => {
     yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, laborCategoriesMap, taskCrewYieldsIndex, crewsMap, taskLaborYieldsIndex
   } = useERP();
   
-  const [activeSubTab, setActiveSubTab] = useState<'materials' | 'tasks' | 'tools' | 'labor' | 'rubros' | 'apu' | 'crews' | 'system' | 'master' | 'master-tasks' | 'templates'>('materials');
+  const [activeSubTab, setActiveSubTab] = useState<'materials' | 'tasks' | 'tools' | 'labor' | 'rubros' | 'apu' | 'crews' | 'system' | 'master' | 'master-tasks' | 'templates' | 'calculator' | 'chandias' | 'computo' | 'reports' | 'resources'>('materials');
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -110,6 +120,9 @@ export const DataAdmin: React.FC = () => {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [aiProposedUpdates, setAiProposedUpdates] = useState<any[]>([]);
   const [aiExplanation, setAiExplanation] = useState('');
+
+  const [seedLoading, setSeedLoading] = useState(false);
+  const [seedResult, setSeedResult] = useState<SeedResult | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const backupInputRef = useRef<HTMLInputElement>(null); // For system restore
@@ -885,10 +898,28 @@ export const DataAdmin: React.FC = () => {
           <BookOpen size={18} /> Analisis de Precios (APU)
         </button>
         <button
+          onClick={() => { setActiveSubTab('resources'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
+          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'resources' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-slate-500 hover:bg-slate-50'}`}
+        >
+          <Globe size={18} /> Catálogo Global
+        </button>
+        <button
           onClick={() => { setActiveSubTab('templates'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'templates' ? 'bg-violet-600 text-white shadow-md shadow-violet-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
           <LayoutGrid size={18} /> Plantillas
+        </button>
+        <button
+          onClick={() => { setActiveSubTab('computo'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
+          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'computo' || activeSubTab === 'calculator' || activeSubTab === 'chandias' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-500 hover:bg-slate-50'}`}
+        >
+          <Ruler size={18} /> Cómputo
+        </button>
+        <button
+          onClick={() => { setActiveSubTab('reports'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
+          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'reports' ? 'bg-blue-700 text-white shadow-md shadow-blue-200' : 'text-slate-500 hover:bg-slate-50'}`}
+        >
+          <BarChart3 size={18} /> Reportes
         </button>
         <button
           onClick={() => { setActiveSubTab('system'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
@@ -910,6 +941,66 @@ export const DataAdmin: React.FC = () => {
                   <Users className="text-slate-600" size={20} /> Usuarios y Permisos
               </h3>
               <UsersPanel />
+          </div>
+
+          {/* Datos de Prueba */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden p-8">
+              <h3 className="text-xl font-bold text-slate-800 mb-2 flex items-center gap-2">
+                  <Database className="text-emerald-600" size={20} /> Datos de Prueba
+              </h3>
+              <p className="text-sm text-slate-500 mb-6">
+                  Carga un set de materiales, herramientas, categorías de MO y APU de demo para poder probar presupuesto,
+                  planificación y mediciones desde una obra nueva. La operación es idempotente: omite registros que ya
+                  existan con el mismo nombre.
+              </p>
+
+              <div className="flex items-center gap-4 flex-wrap">
+                  <button
+                      onClick={async () => {
+                          const orgId = user?.organizationId;
+                          if (!orgId) { alert('No hay organización activa.'); return; }
+                          setSeedLoading(true);
+                          setSeedResult(null);
+                          try {
+                              const r = await seedDemoData(orgId);
+                              setSeedResult(r);
+                          } catch (e) {
+                              setSeedResult({ materials: { created: 0, skipped: 0 }, tools: { created: 0, skipped: 0 }, laborCategories: { created: 0, skipped: 0 }, masterTasks: { created: 0, skipped: 0 }, errors: [(e as Error).message] });
+                          } finally {
+                              setSeedLoading(false);
+                          }
+                      }}
+                      disabled={seedLoading}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-lg shadow transition-colors flex items-center gap-2"
+                  >
+                      {seedLoading ? <RefreshCcw size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                      {seedLoading ? 'Cargando…' : 'Cargar datos de prueba'}
+                  </button>
+                  {seedResult && (
+                      <button onClick={() => setSeedResult(null)} className="text-xs text-slate-400 hover:text-slate-600">
+                          Limpiar
+                      </button>
+                  )}
+              </div>
+
+              {seedResult && (
+                  <div className={`mt-4 p-4 rounded-lg border text-sm ${seedResult.errors.length > 0 ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                      <p className="font-semibold text-slate-700 mb-2">
+                          {seedResult.errors.length === 0 ? '✓ Carga completada' : '⚠ Carga con advertencias'}
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-600">
+                          <span>Materiales: <strong className="text-emerald-700">{seedResult.materials.created} creados</strong> / {seedResult.materials.skipped} omitidos</span>
+                          <span>Herramientas: <strong className="text-emerald-700">{seedResult.tools.created} creadas</strong> / {seedResult.tools.skipped} omitidas</span>
+                          <span>Cat. MO: <strong className="text-emerald-700">{seedResult.laborCategories.created} creadas</strong> / {seedResult.laborCategories.skipped} omitidas</span>
+                          <span>APU: <strong className="text-emerald-700">{seedResult.masterTasks.created} creadas</strong> / {seedResult.masterTasks.skipped} omitidas</span>
+                      </div>
+                      {seedResult.errors.length > 0 && (
+                          <ul className="mt-2 space-y-0.5 text-amber-700 text-xs">
+                              {seedResult.errors.map((e, i) => <li key={i}>• {e}</li>)}
+                          </ul>
+                      )}
+                  </div>
+              )}
           </div>
 
           {/* Respaldo y Recuperación */}
@@ -999,11 +1090,32 @@ export const DataAdmin: React.FC = () => {
       {/* APU Maestro — Base Maestra de Tareas (localStorage) */}
       {activeSubTab === 'master-tasks' && <MasterTasksPanel />}
 
+      {/* Catálogo Global de Recursos */}
+      {activeSubTab === 'resources' && <GlobalResourcesPanel />}
+
       {/* Plantillas de Presupuesto */}
       {activeSubTab === 'templates' && <BudgetTemplatesPanel />}
 
+      {/* Calculadora de Materiales */}
+      {activeSubTab === 'calculator' && organizationId && (
+        <CalcErrorBoundary>
+          <MaterialsCalculator organizationId={organizationId} />
+        </CalcErrorBoundary>
+      )}
+
+      {/* Reportes de Ingeniería */}
+      {activeSubTab === 'reports' && <ReportsPanel />}
+
+      {/* Calculadora Chandías (legacy — mantenido para backward compat) */}
+      {activeSubTab === 'chandias' && <ChandiasCalculator />}
+
+      {/* Cómputo Paramétrico — módulo unificado */}
+      {activeSubTab === 'computo' && organizationId && (
+        <ParametricCalculator organizationId={organizationId} />
+      )}
+
       {/* Main Table Content (Only for data tabs) */}
-      {activeSubTab !== 'system' && activeSubTab !== 'master' && activeSubTab !== 'master-tasks' && activeSubTab !== 'templates' && (
+      {activeSubTab !== 'system' && activeSubTab !== 'master' && activeSubTab !== 'master-tasks' && activeSubTab !== 'templates' && activeSubTab !== 'calculator' && activeSubTab !== 'chandias' && activeSubTab !== 'computo' && activeSubTab !== 'reports' && activeSubTab !== 'resources' && (
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden min-h-[400px]">
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">

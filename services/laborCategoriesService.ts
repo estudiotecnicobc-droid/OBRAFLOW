@@ -7,6 +7,7 @@ function laborCategoryFromRow(row: Record<string, any>): LaborCategory {
   return {
     id:                   row.id,
     organizationId:       row.organization_id,
+    code:                 row.code ?? undefined,
     role:                 row.role,
     basicHourlyRate:      row.basic_hourly_rate ?? 0,
     socialChargesPercent: row.social_charges_percent ?? 0,
@@ -20,6 +21,7 @@ function laborCategoryToRow(lc: LaborCategory): Record<string, any> {
   return {
     id:                    lc.id,
     organization_id:       lc.organizationId,
+    code:                  lc.code ?? null,
     role:                  lc.role,
     basic_hourly_rate:     lc.basicHourlyRate,
     social_charges_percent: lc.socialChargesPercent,
@@ -31,6 +33,7 @@ function laborCategoryToRow(lc: LaborCategory): Record<string, any> {
 
 function buildUpdateRow(updates: Partial<LaborCategory>): Record<string, any> {
   const row: Record<string, any> = {};
+  if (updates.code                 !== undefined) row.code                  = updates.code ?? null;
   if (updates.role                 !== undefined) row.role                  = updates.role;
   if (updates.basicHourlyRate      !== undefined) row.basic_hourly_rate     = updates.basicHourlyRate;
   if (updates.socialChargesPercent !== undefined) row.social_charges_percent = updates.socialChargesPercent;

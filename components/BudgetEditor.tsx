@@ -6,16 +6,18 @@ import { useERP } from '../context/ERPContext';
 import { calculateUnitPrice } from '../services/calculationService';
 import {
   Trash2, Plus, Search, Settings, CheckSquare, Square,
-  ArrowRight, Printer, Calculator, ChevronDown, ChevronRight,
+  ArrowRight, Printer, Calculator, ChevronDown, ChevronRight, ChevronUp,
   Info, RefreshCcw, DollarSign, Clock, X, Package, Hammer, Edit3, AlertCircle, PenTool, Sparkles,
   BookOpen, LayoutGrid,
 } from 'lucide-react';
 import { BusinessConfig, Task, ProjectTemplate, MasterTaskMaterial, MasterTaskLabor, MasterTaskEquipment } from '../types';
 import { useBudgetTemplates } from '../hooks/useBudgetTemplates';
 import { BudgetCostComparisonPanel } from '../src/features/budgets/components/BudgetCostComparisonPanel';
+import { BudgetStalenessAlert } from './BudgetStalenessAlert';
 import { PROJECT_TEMPLATES } from '../constants';
 import { APUBuilder } from './APUBuilder';
 import { useMasterTasks } from '../hooks/useMasterTasks';
+import { useMasterMaterials } from '../hooks/useMasterMaterials';
 import { buildRubroImportPayloads } from '../services/importMasterRubro';
 import { buildImportPayload } from '../services/importMasterTask';
 import { BudgetBusinessPanel } from './BudgetBusinessPanel';
@@ -28,8 +30,8 @@ export const BudgetEditor: React.FC = () => {
     project, tasks, rubros, rubroPresets,
     materials: projectMaterials,
     addBudgetItem, removeBudgetItem, updateBudgetItem, updateTask, addTask,
-    addMaterial, addTaskYield, addTaskLaborYield, addTaskToolYield,
-    addRubroPreset, removeRubroPreset,
+    addMaterial, updateMaterial, updateLaborCategory, addTaskYield, addTaskLaborYield, addTaskToolYield,
+    addRubroPreset, removeRubroPreset, addRubro,
     yieldsIndex, materialsMap, toolYieldsIndex, toolsMap,
     taskCrewYieldsIndex, crewsMap, laborCategoriesMap, taskLaborYieldsIndex,
     loadTemplate,
@@ -61,6 +63,9 @@ export const BudgetEditor: React.FC = () => {
 
   // Ref para awaitar el INSERT de tarea nueva antes de insertar el budget_item (evita FK violation).
   const pendingTaskRef = useRef<Promise<void> | null>(null);
+  // Guard síncrono contra doble-click: en React 18 el state batching no previene que dos eventos
+  // rápidos entren al handler antes del primer re-render con saveStatus='saving'.
+  const isSavingRef = useRef(false);
 
   // --- CONFIG PANEL STATE (Quick Add/Edit Item) ---
   const [configPanel, setConfigPanel] = useState<{
@@ -92,6 +97,8 @@ export const BudgetEditor: React.FC = () => {
   // el BudgetItem, evitando la violación de FK que causaba pérdida de datos en recarga.
   const writePayload = async (p: ReturnType<typeof buildImportPayload>): Promise<void> => {
     p.materialsToCreate.forEach(m => addMaterial(m));
+    p.materialsToUpdate.forEach(({ id, cost }) => updateMaterial(id, { cost }));
+    p.laborCategoriesToUpdate.forEach(({ id, basicHourlyRate }) => updateLaborCategory(id, { basicHourlyRate }));
     try {
       await addTask(p.task); // espera confirmación Supabase antes de linkar el budget_item
     } catch (err) {
@@ -103,14 +110,18 @@ export const BudgetEditor: React.FC = () => {
     p.taskYields.forEach(ty => addTaskYield(ty));
     p.laborYields.forEach(ly => addTaskLaborYield(ly));
     p.toolYields.forEach(ty => addTaskToolYield(ty));
-    addBudgetItem(p.budgetItem);
+    try {
+      await addBudgetItem(p.budgetItem);
+    } catch (err) {
+      console.error('[writePayload] Falló el insert de budget_item — tarea importada pero sin ítem de presupuesto:', err);
+    }
   };
 
   const handleWizardRubroImport = async () => {
     if (project.id === '__phantom__' || !wizardSelectedRubro) return;
     const { payloads } = buildRubroImportPayloads(
       wizardSelectedRubro, masterTasks, project.organizationId, project.id,
-      laborCategoriesMap, toolsMap, projectMaterials,
+      laborCategoriesMap, toolsMap, projectMaterials, masterMaterialsMap,
     );
     // for...of para serializar: cada task persiste antes de que empiece la siguiente.
     for (const p of payloads) {
@@ -125,7 +136,7 @@ export const BudgetEditor: React.FC = () => {
     for (const masterTask of masterTasks) {
       const p = buildImportPayload(
         masterTask, project.organizationId, project.id, 1,
-        laborCategoriesMap, toolsMap, runningMaterials,
+        laborCategoriesMap, toolsMap, runningMaterials, masterMaterialsMap,
       );
       runningMaterials = [...runningMaterials, ...p.materialsToCreate];
       await writePayload(p);
@@ -136,6 +147,11 @@ export const BudgetEditor: React.FC = () => {
   // --- MASTER TASKS & TEMPLATES ---
   const { add: addToMaster, tasks: masterTasks } = useMasterTasks(project.organizationId);
   const { templates: budgetTemplates } = useBudgetTemplates(project.organizationId);
+  const { items: masterMaterials } = useMasterMaterials(project.organizationId);
+  const masterMaterialsMap = useMemo(
+    () => Object.fromEntries(masterMaterials.map(m => [m.id, m])),
+    [masterMaterials],
+  );
 
   const handleWizardTemplateImport = async () => {
     if (project.id === '__phantom__' || !wizardSelectedTemplateId) return;
@@ -157,7 +173,7 @@ export const BudgetEditor: React.FC = () => {
       const qty = item.quantity ?? 1;
       const p = buildImportPayload(
         masterTask, project.organizationId, project.id, qty,
-        laborCategoriesMap, toolsMap, runningMaterials,
+        laborCategoriesMap, toolsMap, runningMaterials, masterMaterialsMap,
       );
       runningMaterials = [...runningMaterials, ...p.materialsToCreate];
       await writePayload(p);
@@ -315,8 +331,15 @@ export const BudgetEditor: React.FC = () => {
         return;
       }
 
-      const category = task.category && selectedRubros.has(task.category) ? task.category : 'Otros';
-      
+      // Fix: usar la categoría real de la tarea; crear bucket dinámico si no existe.
+      // Antes: caía en 'Otros' si la categoría no estaba en selectedRubros.
+      const category = task.category?.trim() || 'Otros';
+      if (!grouped[category]) {
+        grouped[category] = [];
+        categoryTotals[category] = { mat: 0, lab: 0, total: 0 };
+        console.info('[BudgetEditor] Bucket dinámico creado para categoría:', category);
+      }
+
       const analysis = calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap, 9, taskLaborYieldsIndex);
       
       const unitMatEq = analysis.materialCost + analysis.toolCost + analysis.fixedCost;
@@ -351,6 +374,16 @@ export const BudgetEditor: React.FC = () => {
         `[BudgetEditor] ⚠ ${discardedCount}/${project.items.length} budget_items DESCARTADOS por task no encontrada.`,
         `Tasks disponibles: ${tasks.length}. Causa probable: INSERT de task falló o task.organizationId ≠ orgId.`,
       );
+    }
+
+    // Ordenar cada grupo por sortOrder (NULLS LAST). Items sin sort_order mantienen
+    // el orden de inserción (por created_at, que es el orden en que llegaron de DB).
+    for (const cat of Object.keys(grouped)) {
+      grouped[cat].sort((a: any, b: any) => {
+        const ao = a.item.sortOrder ?? Infinity;
+        const bo = b.item.sortOrder ?? Infinity;
+        return ao - bo;
+      });
     }
 
     return { grouped, categoryTotals };
@@ -420,6 +453,49 @@ export const BudgetEditor: React.FC = () => {
     }
   }, [budgetData.grouped]);
 
+  // ── Fix 1: Auto-agregar categorías de tareas que no existen en rubros ─────────
+  // Corre cuando las tareas terminan de cargar. Evita loop usando ref para rubros.
+  const rubrosRef = useRef(rubros);
+  rubrosRef.current = rubros;
+  useEffect(() => {
+    if (!tasksLoaded) return;
+    const currentRubros = rubrosRef.current;
+    const unknown = [
+      ...new Set(
+        tasks
+          .map(t => t.category?.trim())
+          .filter((c): c is string => !!c && !currentRubros.includes(c)),
+      ),
+    ];
+    if (unknown.length > 0) {
+      console.info('[BudgetEditor] Categorías de tarea sin rubro registrado — agregando dinámicamente:', unknown);
+      unknown.forEach(cat => addRubro(cat));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, tasksLoaded]);
+
+  // ── Fix 2: Sincronizar selectedRubros cuando rubros crece con entradas nuevas ──
+  // Solo auto-selecciona rubros NUEVOS; respeta deselecciones manuales del usuario.
+  const seenRubrosRef = useRef(new Set(rubros));
+  useEffect(() => {
+    const newEntries = rubros.filter(r => !seenRubrosRef.current.has(r));
+    if (newEntries.length > 0) {
+      newEntries.forEach(r => seenRubrosRef.current.add(r));
+      setSelectedRubros(prev => new Set([...prev, ...newEntries]));
+      setExpandedRubros(prev => new Set([...prev, ...newEntries]));
+    }
+  }, [rubros]);
+
+  // ── Todos los rubros a mostrar en sidebar = ERPContext + categorías dinámicas ──
+  const allSidebarRubros = useMemo(() => {
+    const extra = new Set<string>();
+    tasks.forEach(t => {
+      const cat = t.category?.trim();
+      if (cat && !rubros.includes(cat)) extra.add(cat);
+    });
+    return extra.size > 0 ? [...rubros, ...[...extra].sort()] : rubros;
+  }, [rubros, tasks]);
+
   // --- HANDLERS ---
 
   const toggleRubroSelection = (rubro: string) => {
@@ -436,8 +512,42 @@ export const BudgetEditor: React.FC = () => {
       setExpandedRubros(newSet);
   };
 
-  const selectAllRubros = () => setSelectedRubros(new Set(rubros));
+  const selectAllRubros = () => setSelectedRubros(new Set(allSidebarRubros));
   const clearRubros = () => setSelectedRubros(new Set());
+
+  // ── Reordenamiento de ítems dentro de un rubro ────────────────────────────
+  const handleMoveItem = (category: string, rowIndex: number, direction: 'up' | 'down') => {
+    const categoryItems = budgetData.grouped[category];
+    if (!categoryItems) return;
+    const targetIndex = direction === 'up' ? rowIndex - 1 : rowIndex + 1;
+    if (targetIndex < 0 || targetIndex >= categoryItems.length) return;
+
+    const movingRow = categoryItems[rowIndex] as any;
+    const swapRow   = categoryItems[targetIndex] as any;
+
+    // Verificar si algún ítem del proyecto carece de sort_order (primera operación).
+    const allProjectRows: any[] = Object.values(budgetData.grouped).flat();
+    const needsInit = allProjectRows.some((r: any) => r.item.sortOrder == null);
+
+    if (needsInit) {
+      // Asignar sort_order = (posición global + 1) × 10 a todos los ítems,
+      // intercalando el swap pedido para que quede reflejado en esta inicialización.
+      const movingId = movingRow.item.id;
+      const swapId   = swapRow.item.id;
+      const movingGlobal = allProjectRows.findIndex((r: any) => r.item.id === movingId);
+      const swapGlobal   = allProjectRows.findIndex((r: any) => r.item.id === swapId);
+      allProjectRows.forEach((row: any, i: number) => {
+        let order = (i + 1) * 10;
+        if (row.item.id === movingId) order = (swapGlobal   + 1) * 10;
+        else if (row.item.id === swapId)   order = (movingGlobal + 1) * 10;
+        updateBudgetItem(row.item.id, { sortOrder: order });
+      });
+    } else {
+      // Intercambio simple de sort_orders ya asignados.
+      updateBudgetItem(movingRow.item.id, { sortOrder: swapRow.item.sortOrder });
+      updateBudgetItem(swapRow.item.id,   { sortOrder: movingRow.item.sortOrder });
+    }
+  };
 
   // Quick Add Handler
   const handleQuickAddTask = (category: string) => {
@@ -465,55 +575,65 @@ export const BudgetEditor: React.FC = () => {
   };
 
   const handleSavePanel = async () => {
+      // Guard síncrono: previene doble-INSERT aunque React 18 batching retrase el re-render
+      if (isSavingRef.current) return;
       if (!configPanel.selectedTaskId) return;
+      isSavingRef.current = true;
 
-      if (configPanel.mode === 'add') {
-          // Si hay una tarea nueva pendiente, esperarla y abortar si falló (evita FK violation).
-          if (pendingTaskRef.current) {
-              let taskOk = true;
-              try {
-                  await pendingTaskRef.current;
-              } catch {
-                  taskOk = false;
-                  console.error('[handleSavePanel] addTask falló — budget_item cancelado');
-              } finally {
-                  pendingTaskRef.current = null;
+      try {
+          if (configPanel.mode === 'add') {
+              // Deshabilitar el botón ANTES del primer await para evitar que un doble-click
+              // mientras pendingTaskRef está en vuelo llame addBudgetItem dos veces.
+              setSaveStatus('saving');
+
+              // Si hay una tarea nueva pendiente, esperarla y abortar si falló (evita FK violation).
+              if (pendingTaskRef.current) {
+                  let taskOk = true;
+                  try {
+                      await pendingTaskRef.current;
+                  } catch {
+                      taskOk = false;
+                      console.error('[handleSavePanel] addTask falló — budget_item cancelado');
+                  } finally {
+                      pendingTaskRef.current = null;
+                  }
+                  if (!taskOk) {
+                      setSaveStatus('error');
+                      setTimeout(() => setSaveStatus('idle'), 2500);
+                      return;
+                  }
               }
-              if (!taskOk) {
+              try {
+                  await addBudgetItem({
+                      id: generateId(),
+                      taskId: configPanel.selectedTaskId,
+                      quantity: configPanel.quantity,
+                      progress: 0,
+                  });
+                  setSaveStatus('ok');
+                  setTimeout(() => {
+                      setSaveStatus('idle');
+                      setConfigPanel(prev => ({ ...prev, isOpen: false }));
+                  }, 900);
+              } catch {
                   setSaveStatus('error');
                   setTimeout(() => setSaveStatus('idle'), 2500);
-                  return;
               }
-          }
-
-          setSaveStatus('saving');
-          try {
-              await addBudgetItem({
-                  id: generateId(),
+          } else if (configPanel.mode === 'edit' && configPanel.itemId) {
+              setSaveStatus('saving');
+              updateBudgetItem(configPanel.itemId, {
                   taskId: configPanel.selectedTaskId,
                   quantity: configPanel.quantity,
-                  progress: 0,
               });
               setSaveStatus('ok');
               setTimeout(() => {
                   setSaveStatus('idle');
                   setConfigPanel(prev => ({ ...prev, isOpen: false }));
               }, 900);
-          } catch {
-              setSaveStatus('error');
-              setTimeout(() => setSaveStatus('idle'), 2500);
           }
-      } else if (configPanel.mode === 'edit' && configPanel.itemId) {
-          setSaveStatus('saving');
-          updateBudgetItem(configPanel.itemId, {
-              taskId: configPanel.selectedTaskId,
-              quantity: configPanel.quantity,
-          });
-          setSaveStatus('ok');
-          setTimeout(() => {
-              setSaveStatus('idle');
-              setConfigPanel(prev => ({ ...prev, isOpen: false }));
-          }, 900);
+      } finally {
+          // Siempre liberar el guard (incluye early returns de taskOk=false)
+          isSavingRef.current = false;
       }
   };
 
@@ -777,7 +897,7 @@ export const BudgetEditor: React.FC = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              {rubros.map((rubro, idx) => {
+              {allSidebarRubros.map((rubro, idx) => {
                   const isSelected = selectedRubros.has(rubro);
                   const hasItems = budgetData.grouped[rubro]?.length > 0;
                   
@@ -857,6 +977,16 @@ export const BudgetEditor: React.FC = () => {
               </div>
           )}
 
+          {/* STALENESS ALERT */}
+          {!showComparison && project.id && project.id !== '__phantom__' && project.organizationId && (
+              <div className="px-6 pt-3">
+                  <BudgetStalenessAlert
+                      projectId={project.id}
+                      organizationId={project.organizationId}
+                  />
+              </div>
+          )}
+
           {/* TABLE CONTENT */}
           {!showComparison && <div className="flex-1 overflow-auto bg-slate-50/50 p-6">
               <div className="bg-white border border-slate-200 shadow-sm rounded-lg overflow-hidden">
@@ -886,8 +1016,14 @@ export const BudgetEditor: React.FC = () => {
                       <tbody>
                           {[
                               ...Array.from(selectedRubros),
-                              // 'Otros' no está en selectedRubros pero puede tener items
-                              // cuya task.category no matchea ningún rubro activo.
+                              // Categorías dinámicas con ítems, aún no en selectedRubros
+                              // (estado transitorio antes de que el useEffect sincronice).
+                              ...Object.keys(budgetData.grouped).filter(cat =>
+                                cat !== 'Otros' &&
+                                !selectedRubros.has(cat) &&
+                                (budgetData.grouped[cat]?.length ?? 0) > 0,
+                              ),
+                              // 'Otros': tareas sin categoría o con categoría vacía.
                               ...(budgetData.grouped['Otros']?.length > 0 ? ['Otros'] : []),
                           ].map((rubro: string) => {
                               const items = budgetData.grouped[rubro] || [];
@@ -936,7 +1072,7 @@ export const BudgetEditor: React.FC = () => {
                                                   </tr>
                                               ) : (
                                                   <>
-                                                    {items.map((row) => (
+                                                    {items.map((row, rowIndex) => (
                                                         <tr key={row.item.id} className="border-b border-slate-100 hover:bg-blue-50/30 transition-colors group">
                                                             {/* Description */}
                                                             <td className="p-2 pl-8">
@@ -1004,6 +1140,22 @@ export const BudgetEditor: React.FC = () => {
                                                             <td className="p-2 text-center">
                                                                 <div className="flex justify-center gap-1">
                                                                     <button
+                                                                        onClick={() => handleMoveItem(rubro, rowIndex, 'up')}
+                                                                        disabled={rowIndex === 0}
+                                                                        className="p-1 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors disabled:opacity-0 disabled:cursor-default"
+                                                                        title="Subir"
+                                                                    >
+                                                                        <ChevronUp size={14} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleMoveItem(rubro, rowIndex, 'down')}
+                                                                        disabled={rowIndex === items.length - 1}
+                                                                        className="p-1 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors disabled:opacity-0 disabled:cursor-default"
+                                                                        title="Bajar"
+                                                                    >
+                                                                        <ChevronDown size={14} />
+                                                                    </button>
+                                                                    <button
                                                                         onClick={() => handleEditItem(row.item)}
                                                                         className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                                                                         title="Cambiar Cantidad / Tarea"
@@ -1017,7 +1169,7 @@ export const BudgetEditor: React.FC = () => {
                                                                     >
                                                                         <PenTool size={14} />
                                                                     </button>
-                                                                    <button 
+                                                                    <button
                                                                         onClick={() => removeBudgetItem(row.item.id)}
                                                                         className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                                                                         title="Eliminar"
@@ -1135,6 +1287,98 @@ export const BudgetEditor: React.FC = () => {
                                 </p>
                               )}
                           </div>
+
+                          {/* Task Resource Composition — visible al seleccionar una tarea */}
+                          {configPanel.selectedTaskId && (() => {
+                              const selTask   = tasks.find(t => t.id === configPanel.selectedTaskId);
+                              const mats      = yieldsIndex[configPanel.selectedTaskId]          ?? [];
+                              const labors    = taskLaborYieldsIndex[configPanel.selectedTaskId] ?? [];
+                              const equips    = toolYieldsIndex[configPanel.selectedTaskId]      ?? [];
+                              const hasData   = mats.length > 0 || labors.length > 0 || equips.length > 0 || !!selTask?.fixedCost;
+                              if (!hasData) return (
+                                  <div className="pt-4 border-t border-slate-100">
+                                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
+                                          <AlertCircle size={13}/> Esta tarea no tiene recursos APU cargados.
+                                      </p>
+                                  </div>
+                              );
+                              return (
+                                  <div className="space-y-3 pt-4 border-t border-slate-100">
+                                      <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                                          <Calculator size={12} className="text-blue-400"/> Composición APU
+                                      </label>
+
+                                      {mats.length > 0 && (
+                                          <div>
+                                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                                  <Package size={10}/> Materiales ({mats.length})
+                                              </p>
+                                              <div className="space-y-0.5">
+                                                  {mats.map((y, i) => {
+                                                      const mat = materialsMap[y.materialId];
+                                                      return (
+                                                          <div key={i} className="flex justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
+                                                              <span className="truncate">{mat?.name ?? y.materialId}</span>
+                                                              <span className="ml-2 font-mono text-slate-400 shrink-0">{y.quantity} {mat?.unit ?? ''}</span>
+                                                          </div>
+                                                      );
+                                                  })}
+                                              </div>
+                                          </div>
+                                      )}
+
+                                      {labors.length > 0 && (
+                                          <div>
+                                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                                  <Hammer size={10}/> Mano de Obra ({labors.length})
+                                              </p>
+                                              <div className="space-y-0.5">
+                                                  {labors.map((ly, i) => {
+                                                      const cat = laborCategoriesMap[ly.laborCategoryId];
+                                                      return (
+                                                          <div key={i} className="flex justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
+                                                              <span className="truncate">{cat?.name ?? ly.laborCategoryId}</span>
+                                                              <span className="ml-2 font-mono text-slate-400 shrink-0">{ly.quantity} op</span>
+                                                          </div>
+                                                      );
+                                                  })}
+                                              </div>
+                                          </div>
+                                      )}
+
+                                      {equips.length > 0 && (
+                                          <div>
+                                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                                  <Settings size={10}/> Equipos ({equips.length})
+                                              </p>
+                                              <div className="space-y-0.5">
+                                                  {equips.map((ty, i) => {
+                                                      const tool = toolsMap[ty.toolId];
+                                                      return (
+                                                          <div key={i} className="flex justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
+                                                              <span className="truncate">{tool?.name ?? ty.toolId}</span>
+                                                              <span className="ml-2 font-mono text-slate-400 shrink-0">{ty.hoursPerUnit} h/u</span>
+                                                          </div>
+                                                      );
+                                                  })}
+                                              </div>
+                                          </div>
+                                      )}
+
+                                      {!!selTask?.fixedCost && (
+                                          <div>
+                                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                                  <DollarSign size={10}/> Otros Costos
+                                              </p>
+                                              <div className="flex justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
+                                                  <span className="truncate">{selTask.fixedCostDescription ?? 'Costo fijo'}</span>
+                                                  <span className="ml-2 font-mono text-slate-400 shrink-0">${selTask.fixedCost.toFixed(2)}</span>
+                                              </div>
+                                          </div>
+                                      )}
+                                  </div>
+                              );
+                          })()}
 
                           {/* Presets Section */}
                           {configPanel.mode === 'add' && (

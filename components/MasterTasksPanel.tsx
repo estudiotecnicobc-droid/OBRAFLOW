@@ -2,18 +2,21 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Plus, Edit2, Trash2, Save, X, ArrowLeft,
   BookOpen, Search, ChevronDown, AlertTriangle, CheckCircle,
-  ArrowRight, Package, Layers, Copy, Globe, Loader2, Wand2, RefreshCcw,
+  ArrowRight, Package, Layers, Copy, Globe, Loader2, Wand2, RefreshCcw, FileSearch, Download,
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useERP } from '../context/ERPContext';
 import { useMasterTasks } from '../hooks/useMasterTasks';
-import { useMasterMaterials } from '../hooks/useMasterMaterials';
+import { useUnifiedMaterials } from '../hooks/useUnifiedMaterials';
+import { normalizeStr } from '../utils/normalizeStr';
 import { calculateMasterTaskCost, MASTER_WORKDAY_HOURS } from '../services/masterTaskCostService';
 import { masterTasksService } from '../services/masterTasksSupabaseService';
 import { buildImportPayload } from '../services/importMasterTask';
 import { buildRubroImportPayloads } from '../services/importMasterRubro';
+import { CatalogImportModal } from './CatalogImportModal';
 import { MasterTask, MasterTaskMaterial, MasterTaskLabor, MasterTaskEquipment } from '../types';
+import { APUTechnicalReportDrawer } from '../src/features/reports/APUTechnicalReportDrawer';
 import { generateId } from '../utils/generateId';
 import { suggestTaskCode } from '../utils/codeGenerator';
 
@@ -64,6 +67,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
   onClose,
 }) => {
   const [quantity, setQuantity] = useState(1);
+  const [importing, setImporting] = useState(false);
 
   // Preview de líneas que se van a importar y cuáles se omiten
   const validLabor = task.labor.filter(l => !!laborCategoriesMap[l.laborCategoryId]);
@@ -197,11 +201,15 @@ const ImportModal: React.FC<ImportModalProps> = ({
             Cancelar
           </button>
           <button
-            onClick={() => onConfirm(quantity)}
-            disabled={projectIsPhantom}
+            onClick={async () => {
+              if (importing) return;
+              setImporting(true);
+              try { await onConfirm(quantity); } finally { setImporting(false); }
+            }}
+            disabled={projectIsPhantom || importing}
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
           >
-            <ArrowRight size={13} /> Importar al Proyecto
+            <ArrowRight size={13} /> {importing ? 'Importando…' : 'Importar al Proyecto'}
           </button>
         </div>
       </div>
@@ -337,7 +345,7 @@ export const MasterTasksPanel: React.FC = () => {
 
   // Data sources
   const { tasks, loading: tasksLoading, error: tasksError, add, update, remove, refetch } = useMasterTasks(orgId);
-  const { items: masterMaterials } = useMasterMaterials(orgId);
+  const { list: unifiedMaterials, masterMaterialsMap } = useUnifiedMaterials(orgId);
   const {
     laborCategories, laborCategoriesMap,
     tools, toolsMap,
@@ -346,14 +354,20 @@ export const MasterTasksPanel: React.FC = () => {
     project,
     projects,
     rubros,
-    addTask, addMaterial, addTaskYield, addTaskLaborYield, addTaskToolYield, addBudgetItem,
+    addTask, addMaterial, updateMaterial, updateLaborCategory, addTaskYield, addTaskLaborYield, addTaskToolYield, addBudgetItem,
   } = useERP();
 
-  // Mapa de materiales maestros para cálculo de costos
-  const masterMaterialsMap = useMemo(
-    () => Object.fromEntries(masterMaterials.map(m => [m.id, m])),
-    [masterMaterials],
-  );
+  // Índice precio técnico por nombre/código — para materiales sin FK en el draft
+  const nameIndex = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const u of unifiedMaterials) {
+      if (u.cost > 0) {
+        if (u.code) m.set(normalizeStr(u.code), u.cost);
+        m.set(normalizeStr(u.name), u.cost);
+      }
+    }
+    return m;
+  }, [unifiedMaterials]);
 
   // ── UI state ──────────────────────────────────────────────────────────────
   type View = 'list' | 'edit';
@@ -389,12 +403,16 @@ export const MasterTasksPanel: React.FC = () => {
   const [importTarget, setImportTarget] = useState<MasterTask | null>(null);
   const [rubroImportOpen, setRubroImportOpen] = useState(false);
 
+  // APU technical report drawer
+  const [reportTask, setReportTask] = useState<MasterTask | null>(null);
+
   // Catálogo global: toggle + datos + clonado por fila
   type Catalog = 'private' | 'global';
   const [catalog, setCatalog] = useState<Catalog>('private');
   const [globalTasks, setGlobalTasks] = useState<MasterTask[]>([]);
   const [globalLoading, setGlobalLoading] = useState(false);
   const [cloning, setCloning] = useState<Record<string, boolean>>({});
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Selectors for adding yield lines
   const [selMaterial, setSelMaterial] = useState('');
@@ -461,11 +479,16 @@ export const MasterTasksPanel: React.FC = () => {
       laborCategoriesMap,
       toolsMap,
       projectMaterials,
+      masterMaterialsMap,
     );
 
     // Escribir al proyecto usando las acciones ya expuestas por ERPContext.
     // addTask se awaita para que el budget_item no viole la FK de task_id.
     payload.materialsToCreate.forEach(m => addMaterial(m));
+    // Corregir materiales existentes que tenían cost=0
+    payload.materialsToUpdate.forEach(({ id, cost }) => updateMaterial(id, { cost }));
+    // Corregir categorías MO con basicHourlyRate=0 usando la tarifa snapshot de la tarea maestra
+    payload.laborCategoriesToUpdate.forEach(({ id, basicHourlyRate }) => updateLaborCategory(id, { basicHourlyRate }));
     try {
       await addTask(payload.task);
     } catch (err) {
@@ -534,11 +557,13 @@ export const MasterTasksPanel: React.FC = () => {
   const handleRubroImport = async (rubro: string) => {
     if (projectIsPhantom) return;
     const { payloads, skippedTotal } = buildRubroImportPayloads(
-      rubro, tasks, orgId, project.id, laborCategoriesMap, toolsMap, projectMaterials,
+      rubro, tasks, orgId, project.id, laborCategoriesMap, toolsMap, projectMaterials, masterMaterialsMap,
     );
     // for...of serializado: cada task persiste en Supabase antes de insertar su budget_item.
     for (const p of payloads) {
       p.materialsToCreate.forEach(m => addMaterial(m));
+      p.materialsToUpdate.forEach(({ id, cost }) => updateMaterial(id, { cost }));
+      p.laborCategoriesToUpdate.forEach(({ id, basicHourlyRate }) => updateLaborCategory(id, { basicHourlyRate }));
       try {
         await addTask(p.task);
       } catch (err) {
@@ -559,7 +584,15 @@ export const MasterTasksPanel: React.FC = () => {
   };
 
   // ── Live cost calculation ──────────────────────────────────────────────────
+  // Enriquece materiales sin FK (masterMaterialId = null) con precio técnico
+  // desde nameIndex antes de calcular. Materiales con FK usan masterMaterialsMap.
   const liveCost = useMemo(() => {
+    const enrichedMaterials = draft.materials.map(m => {
+      if (m.masterMaterialId) return m;
+      const price = nameIndex.get(normalizeStr(m.materialName));
+      if (!price) return m;
+      return { ...m, lastKnownUnitPrice: price };
+    });
     const base: MasterTask = {
       ...draft,
       id: draft.id ?? '',
@@ -568,22 +601,27 @@ export const MasterTasksPanel: React.FC = () => {
       dailyYield: Math.max(0.01, draft.dailyYield || 0),
       createdAt: '',
       updatedAt: '',
+      materials: enrichedMaterials,
     };
     return calculateMasterTaskCost(base, masterMaterialsMap, laborCategoriesMap, toolsMap, MASTER_WORKDAY_HOURS);
-  }, [draft, masterMaterialsMap, laborCategoriesMap, toolsMap, orgId]);
+  }, [draft, masterMaterialsMap, nameIndex, laborCategoriesMap, toolsMap, orgId]);
 
   // ── Add yield lines ────────────────────────────────────────────────────────
   const addMaterialLine = () => {
-    const master = masterMaterials.find(m => m.id === selMaterial);
-    if (!master) return;
+    const idx = parseInt(selMaterial, 10);
+    const umat = isNaN(idx) ? undefined : unifiedMaterials[idx];
+    if (!umat) return;
+    // Precio técnico: umat.cost ya está convertido en useUnifiedMaterials
+    // wastePercent: leer del masterMaterialsMap si hay FK, sino 0
+    const waste = umat.masterId ? (masterMaterialsMap[umat.masterId]?.wastePercent ?? 0) : 0;
     const line: MasterTaskMaterial = {
       id: uid(),
-      masterMaterialId: master.id,
-      materialName: master.name,
-      unit: master.unit,
+      masterMaterialId: umat.masterId,     // undefined para materiales sin FK
+      materialName: umat.name,
+      unit: umat.unit,
       quantity: 1,
-      wastePercent: master.wastePercent ?? 0,
-      lastKnownUnitPrice: master.unitPrice,
+      wastePercent: waste,
+      lastKnownUnitPrice: umat.cost,       // precio TÉCNICO — umat.cost ya dividido por CF
     };
     setDraft(d => ({ ...d, materials: [...d.materials, line] }));
     setSelMaterial('');
@@ -641,10 +679,22 @@ export const MasterTasksPanel: React.FC = () => {
   };
 
   // ── Filtered list ─────────────────────────────────────────────────────────
-  const categories = useMemo(
-    () => ['ALL', ...rubros],
-    [rubros],
-  );
+  // Fusiona los rubros canónicos con las categorías reales de las tareas cargadas.
+  // Evita que tareas con categorías no normalizadas (ej: '4.1. Mampostería') queden
+  // sin opción de filtro y parezcan "perdidas" al cambiar el selector.
+  const categories = useMemo(() => {
+    const taskCats = [
+      ...new Set(
+        tasks
+          .map(t => t.category?.trim())
+          .filter((c): c is string => !!c && !rubros.includes(c)),
+      ),
+    ].sort();
+    if (taskCats.length > 0) {
+      console.info('[MasterTasksPanel] Categorías de tareas fuera de rubros canónicos:', taskCats);
+    }
+    return ['ALL', ...rubros, ...taskCats];
+  }, [rubros, tasks]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -662,11 +712,25 @@ export const MasterTasksPanel: React.FC = () => {
     );
   }, [globalTasks, search]);
 
-  // Set de nombres de tareas del proyecto (para name-check de duplicados)
-  const projectTaskNames = useMemo(
-    () => new Set(projectTasks.map(t => t.name.toLowerCase().trim())),
-    [projectTasks],
-  );
+  // Fix: "ya en presupuesto" — verificar contra project.items (budget_items reales),
+  // no contra tasks completo. Evita falsos positivos con tasks huérfanas (creadas
+  // pero sin BudgetItem asociado por fallo en persist o estado stale).
+  const budgetTaskNames = useMemo(() => {
+    const budgetTaskIds = new Set(project.items.map(i => i.taskId));
+    const namesInBudget = new Set(
+      projectTasks
+        .filter(t => budgetTaskIds.has(t.id))
+        .map(t => t.name.toLowerCase().trim()),
+    );
+    if (namesInBudget.size !== budgetTaskIds.size) {
+      console.info(
+        '[MasterTasksPanel] budgetTaskNames: resolvedNames=%d, budgetItems=%d',
+        namesInBudget.size,
+        budgetTaskIds.size,
+      );
+    }
+    return namesInBudget;
+  }, [project.items, projectTasks]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -678,7 +742,7 @@ export const MasterTasksPanel: React.FC = () => {
           rubros={rubros}
           masterTasks={tasks}
           projectName={project.name}
-          projectTaskNames={projectTaskNames}
+          projectTaskNames={budgetTaskNames}
           laborCategoriesMap={laborCategoriesMap}
           toolsMap={toolsMap}
           onConfirm={handleRubroImport}
@@ -692,7 +756,7 @@ export const MasterTasksPanel: React.FC = () => {
           task={importTarget}
           projectName={project.name}
           projectIsPhantom={projectIsPhantom}
-          hasDuplicateName={projectTaskNames.has(importTarget.name.toLowerCase().trim())}
+          hasDuplicateName={budgetTaskNames.has(importTarget.name.toLowerCase().trim())}
           laborCategoriesMap={laborCategoriesMap}
           toolsMap={toolsMap}
           onConfirm={handleImport}
@@ -848,7 +912,7 @@ export const MasterTasksPanel: React.FC = () => {
                 <tbody>
                   {filtered.map(task => {
                     const cost = calculateMasterTaskCost(task, masterMaterialsMap, laborCategoriesMap, toolsMap, MASTER_WORKDAY_HOURS);
-                    const isDuplicate = projectTaskNames.has(task.name.toLowerCase().trim());
+                    const isDuplicate = budgetTaskNames.has(task.name.toLowerCase().trim());
                     return (
                       <tr key={task.id} className="border-b border-slate-50 hover:bg-blue-50/30 transition-colors">
                         <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{task.code || '—'}</td>
@@ -879,6 +943,13 @@ export const MasterTasksPanel: React.FC = () => {
                               <ArrowRight size={11} /> Usar
                             </button>
                             <button
+                              onClick={() => setReportTask(task)}
+                              className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded transition-colors"
+                              title="Ver ficha técnica"
+                            >
+                              <FileSearch size={14} />
+                            </button>
+                            <button
                               onClick={() => openEdit(task)}
                               className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                               title="Editar"
@@ -906,6 +977,19 @@ export const MasterTasksPanel: React.FC = () => {
           ))}
 
           {/* ── Tabla: catálogo global ────────────────────────────────────── */}
+          {catalog === 'global' && !globalLoading && globalTasks.length > 0 && (
+            <div className="px-4 py-2.5 border-b border-slate-100 bg-amber-50/60 flex items-center justify-between">
+              <span className="text-xs text-amber-700">
+                {globalTasks.length} APU{globalTasks.length !== 1 ? 's' : ''} disponibles en el catálogo global
+              </span>
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors"
+              >
+                <Download size={12} /> Importar a mi empresa
+              </button>
+            </div>
+          )}
           {catalog === 'global' && (
             globalLoading ? (
               <div className="p-12 text-center text-slate-400">
@@ -1108,9 +1192,16 @@ export const MasterTasksPanel: React.FC = () => {
                   <select value={selMaterial} onChange={e => setSelMaterial(e.target.value)}
                     className="w-full pl-3 pr-7 py-1.5 text-xs border border-slate-200 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                     <option value="">— Seleccionar material —</option>
-                    {masterMaterials.map(m => (
-                      <option key={m.id} value={m.id}>{m.name} ({m.unit}) — ${fmt(m.unitPrice)}</option>
-                    ))}
+                    {unifiedMaterials.map((m, i) => {
+                      const priceLabel = m.commercialUnit
+                        ? `$${fmt(m.cost)}/${m.unit} · $${fmt(m.commercialPrice ?? m.cost * (m.conversionFactor ?? 1))}/${m.commercialUnit}`
+                        : `$${fmt(m.cost)}/${m.unit}`;
+                      return (
+                        <option key={i} value={String(i)}>
+                          {m.name} ({m.unit}) — {priceLabel}
+                        </option>
+                      );
+                    })}
                   </select>
                   <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
@@ -1119,7 +1210,7 @@ export const MasterTasksPanel: React.FC = () => {
                   <Plus size={12} /> Agregar
                 </button>
               </div>
-              {masterMaterials.length === 0 && (
+              {unifiedMaterials.length === 0 && (
                 <p className="mb-3 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
                   No hay materiales en tu catálogo maestro. Creá materiales en el panel <strong>Materiales Maestros</strong> antes de agregarlos aquí.
                 </p>
@@ -1355,6 +1446,28 @@ export const MasterTasksPanel: React.FC = () => {
 
           </div>
         </div>
+      )}
+
+      {/* Importar catálogo global */}
+      {showImportModal && (
+        <CatalogImportModal
+          organizationId={orgId}
+          globalTasks={globalTasks}
+          onClose={() => setShowImportModal(false)}
+          onSuccess={async () => { setShowImportModal(false); await refetch(); setFilterCat('ALL'); setSearch(''); setCatalog('private'); }}
+        />
+      )}
+
+      {/* APU Technical Report Drawer */}
+      {reportTask && (
+        <APUTechnicalReportDrawer
+          masterTaskId={reportTask.id}
+          taskName={reportTask.name}
+          taskCode={reportTask.code}
+          taskUnit={reportTask.unit}
+          organizationId={orgId}
+          onClose={() => setReportTask(null)}
+        />
       )}
     </div>
   );

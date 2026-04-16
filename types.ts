@@ -30,32 +30,37 @@ export interface Dependency {
 export interface Material {
   id: string;
   organizationId: string; // Multitenant
+  code?: string;           // Código de catálogo (ej: I1001). Único por org. Agregado en migración 020.
   name: string;
   unit: string;
   cost: number;
-  category?: string; 
-  minStock?: number; 
+  category?: string;
+  minStock?: number;
   provider?: string;
   family?: CostFamily; // Optional override, defaults to MATERIAL
-  
+
   // NEW: Extended Fields
   description?: string;
   commercialFormat?: string; // e.g. "Bolsa 50kg", "Barra 12m"
   wastePercent?: number; // Standard waste percentage
+  commercialUnit?: string;    // Etiqueta unidad de compra. Ej: "bolsa 50 kg"
+  conversionFactor?: number;  // 1 unidad comercial = N unidades técnicas. Ej: bolsa → 50 (kg)
 }
 
 export interface Tool {
   id: string;
   organizationId: string; // Multitenant
+  code?: string;           // Código de catálogo (ej: I1747). Único por org. Agregado en migración 020.
   name: string;
-  category: string; 
-  costPerHour: number; 
+  category: string;
+  costPerHour: number;
   family?: CostFamily; // Optional override, defaults to EQUIPOS
 }
 
 export interface LaborCategory {
   id: string;
   organizationId: string; // Multitenant
+  code?: string;           // Código de catálogo (ej: I1004). Único por org. Agregado en migración 020.
   role: string; // Nombre del rol (ej: Oficial Especializado)
   basicHourlyRate: number; // Valor hora de bolsillo/básico
   socialChargesPercent: number; // % Cargas Sociales, Fondo Desempleo, Presentismo
@@ -263,11 +268,9 @@ export interface Project {
   laborForce?: ProjectLaborDefinition[]; // Available individual workers
   assignedCrews?: ProjectCrewDefinition[]; // Available crews
 
-<<<<<<< HEAD
   // Motor de costos versionado (migration 010)
   costBase?: string; // YYYY-MM-DD último día del mes — "Base Marzo 2026" = "2026-03-31"
-=======
-  // NEW: Centralized Dependencies (Normalized Model)
+  // Centralized Dependencies (Normalized Model)
   dependencies?: ProjectDependency[];
 }
 
@@ -278,7 +281,6 @@ export interface ProjectDependency {
   type: LinkType;
   lag: number; // Days
   note?: string;
->>>>>>> 6cbee2c18d661fde05974a40b203e053868ca294
 }
 
 export interface BudgetItem {
@@ -313,6 +315,9 @@ export interface BudgetItem {
   actualStartDate?: string; // Fecha Real de Inicio
   actualEndDate?: string; // Fecha Real de Fin
   trackingNotes?: string; // Observaciones de seguimiento (ej: "Demora por lluvia")
+
+  /** Orden de visualización en el presupuesto. NULL = ordenar por created_at. */
+  sortOrder?: number;
 }
 
 // --- RECEPTION MODULE ---
@@ -593,6 +598,7 @@ export interface MasterTaskMaterial {
   resourceId?: string;           // UUID del recurso en resources — fuente de costo versionado
   subMasterTaskId?: string;      // UUID de otro MasterTask — APU anidado (recursivo)
   conversionFactor?: number;     // factor unidad rendimiento → unidad base recurso (ej: bolsa 50kg → 50)
+  commercialUnit?: string;       // etiqueta de la unidad comercial (ej: "bolsa 50 kg") — migration 017
 }
 
 export interface MasterTaskLabor {
@@ -652,6 +658,8 @@ export interface MasterMaterial {
   supplier?: string;       // Proveedor habitual
   commercialFormat?: string; // "Bolsa 50kg", "Barra 12m"
   wastePercent?: number;   // % desperdicio estándar
+  commercialUnit?: string;    // Etiqueta unidad de compra. Ej: "bolsa 50 kg" (migration 021)
+  conversionFactor?: number;  // 1 unidad comercial = N unidades técnicas (migration 021)
   isActive: boolean;       // Soft delete
   lastPriceUpdate?: string; // ISO timestamp
   createdAt?: string;
@@ -745,6 +753,7 @@ export interface Resource {
   isActive: boolean;
   pricingNotes?: string;
   currentSnapshotId?: string;   // UUID — caché del snapshot vigente HOY
+  categoryName?: string;        // category_name — familia/categoría del recurso
 }
 
 /** Resultado de calcular el costo unitario de un MasterTask con el motor recursivo */
@@ -785,4 +794,263 @@ export interface BudgetCostResult {
   items:           BudgetItemCost[];
   totalDirectCost: number;        // suma de todos los totalCost
   computedAt:      string;        // ISO timestamp del cálculo
+}
+
+// --- CALCULADORA DE MATERIALES (estado local, sin persistencia) ---
+
+export interface CalcItem {
+  id: string;            // crypto.randomUUID() — local state only
+  masterTaskId: string;
+  quantity: number;
+}
+
+export interface ResourceLine {
+  key: string;           // dedup key: masterMaterialId | name.toLowerCase()
+  name: string;
+  unit: string;
+  quantityPerUnit: number; // rendimiento por unidad de APU (ya con waste)
+  totalQuantity: number;   // quantityPerUnit × item.quantity — en unidad TÉCNICA (kg, m3, …)
+  unitPrice: number;
+  totalCost: number;
+  wastePercent: number;
+  sourceTaskId: string;
+  sourceTaskName: string;
+  /** Factor: 1 unidad comercial = N unidades técnicas. Fórmula compra: CEIL(totalQuantity / cf) */
+  conversionFactor?: number;
+  /** Etiqueta de la unidad de compra. Ej: "bolsa 50 kg". Solo si conversionFactor está definido. */
+  commercialUnit?: string;
+}
+
+export interface APUCalcResult {
+  masterTaskId: string;
+  name: string;
+  unit: string;
+  quantity: number;
+  unitCosts: { material: number; labor: number; equipment: number; fixed: number; total: number };
+  resources: { materials: ResourceLine[]; labor: ResourceLine[]; equipment: ResourceLine[] };
+}
+
+export interface AggregatedResourceLine {
+  key: string;
+  name: string;
+  unit: string;
+  totalQuantity: number;
+  unitPrice: number;
+  totalCost: number;
+  sources: string[];
+  /** Factor: 1 unidad comercial = N unidades técnicas. Fórmula: CEIL(totalQuantity / cf) */
+  conversionFactor?: number;
+  /** Etiqueta de la unidad de compra. Ej: "bolsa 50 kg". Solo si conversionFactor está definido. */
+  commercialUnit?: string;
+}
+
+export interface MaterialsCalculationResult {
+  apuResults: APUCalcResult[];
+  aggregated: {
+    materials: AggregatedResourceLine[];
+    labor: AggregatedResourceLine[];
+    equipment: AggregatedResourceLine[];
+  };
+  totals: { material: number; labor: number; equipment: number; fixed: number; total: number };
+}
+
+// --- RPC CALCULADORA CONSOLIDADA (server-side, sin persistencia) ---
+// Shapes de request/response de la RPC calculate_consolidated_resources.
+
+export interface RpcConsolidatedRequest {
+  items: Array<{ masterTaskId: string; quantity: number }>;
+  organizationId: string;
+  /** YYYY-MM-DD. Defaults a today. Preparado para resource_cost_snapshots. */
+  costDate?: string;
+}
+
+/** Una línea de recurso consolidada (cross-APU) devuelta por la RPC. */
+export interface RpcResourceLine {
+  /** UUID de master_material | labor_category_id | tool_id | clave de dedup por nombre */
+  resourceId: string;
+  code: string;
+  name: string;
+  unit: string;
+  totalQuantity: number;
+  /** Costo unitario promedio ponderado: totalCost / totalQuantity */
+  unitCost: number;
+  totalCost: number;
+  sourceTaskNames: string[];
+  // ── Conversión comercial (migration 017) ──────────────────────────────
+  /** Factor 1 unidad comercial = N unidades técnicas. Null si no aplica. */
+  conversionFactor?: number;
+  /** Etiqueta de la unidad de compra. Ej: "bolsa 50 kg". Null si no aplica. */
+  commercialUnit?: string;
+  /** Cantidad a comprar = CEIL(totalQuantity / conversionFactor). Null si no aplica. */
+  purchaseQuantity?: number;
+}
+
+/** Resumen de costo unitario por APU (para el tab "Por APU"). */
+export interface RpcAPUSummary {
+  masterTaskId: string;
+  name: string;
+  requestedQty: number;
+  unitCosts: {
+    material: number;
+    labor: number;
+    equipment: number;
+    total: number;
+  };
+}
+
+// ─── REPORTE TÉCNICO POR APU (get_apu_technical_report) ──────────────────────
+
+/** Origen del costo mostrado en cada línea del reporte */
+export type APUReportCostSource = 'SNAPSHOT' | 'RESOURCE_BASE' | 'LEGACY_PRICE' | 'FIXED';
+
+/**
+ * Una línea de recurso en el reporte técnico de APU.
+ * Aplica a materiales, MO, equipos, subcontratos y costo fijo.
+ */
+export interface APUReportLine {
+  id: string;
+  resourceType: 'MATERIAL' | 'LABOR' | 'EQUIPMENT' | 'SUBCONTRACT' | 'FIXED';
+  resourceCode?: string;
+  resourceName: string;
+  unit: string;
+  /** Cantidad comercial (MAT), operarios (LABOR PATH A), HM/u (EQUIP), HH/u (LABOR PATH B) */
+  quantity: number;
+  /** Factor de conversión unidad comercial → unidad base. 1 si no aplica. */
+  conversionFactor: number;
+  wastePercent: number;
+  /** Operarios (solo LABOR PATH A) */
+  workers?: number;
+  /** HH/u=(workers×9h)/rendimiento para LABOR PATH A; HM/u para EQUIP; HH/u directo en PATH B */
+  hoursPerUnit?: number;
+  /** Tarifa base antes de cargas sociales (LABOR) o precio por unidad base (MAT/EQUIP) */
+  baseCost: number;
+  /** Cargas sociales + seguro % (solo LABOR cuando hay join a labor_categories) */
+  socialChargesPct?: number;
+  /** baseCost × conv_factor (MAT) | baseCost × (1 + charges/100) (LABOR) | baseCost (EQUIP) */
+  effectiveUnitCost: number;
+  /** Aporte al costo unitario del APU = effectiveUnitCost × cantidad × factores */
+  contribution: number;
+  costSource: APUReportCostSource;
+  note?: string;
+}
+
+export interface APUTechnicalReport {
+  masterTaskId: string;
+  code?: string;
+  name: string;
+  unit: string;
+  category?: string;
+  description?: string;
+  specifications?: string;
+  dailyYield: number;
+  workdayHours: number;      // constante = 9h
+  fixedCost: number;
+  fixedCostDescription?: string;
+  /** true = PATH A (master_task_materials/labor/equipment); false = PATH B (catalog_task_yields) */
+  isPathA: boolean;
+  costDate: string;          // YYYY-MM-DD
+  lines: APUReportLine[];
+  subtotals: {
+    material:    number;
+    labor:       number;
+    equipment:   number;
+    subcontract: number;
+    fixed:       number;
+  };
+  totalDirectCost: number;
+  computedAt: string;        // ISO timestamp UTC
+}
+
+/** Resultado completo devuelto por la RPC. */
+export interface RpcConsolidatedResult {
+  materials: RpcResourceLine[];
+  labor: RpcResourceLine[];
+  equipment: RpcResourceLine[];
+  apuSummary: RpcAPUSummary[];
+  totals: {
+    material: number;
+    labor: number;
+    equipment: number;
+    grandTotal: number;
+  };
+  computedAt: string; // ISO timestamp UTC
+}
+
+// ─── BUDGET COST SNAPSHOTS (migration 018) ───────────────────────────────────
+
+/** Fila de budget_cost_snapshots desnormalizada (vista v_budget_snapshot_summary). */
+export interface BudgetCostSnapshot {
+  id: string;
+  projectId: string;
+  organizationId: string;
+  costDate: string;               // YYYY-MM-DD
+  computedAt: string;             // ISO timestamp UTC
+  createdBy?: string;             // UUID usuario
+  itemCount: number;
+  grandTotal: number;
+  totalMaterial: number;
+  totalLabor: number;
+  totalEquipment: number;
+}
+
+/** Resultado completo de snapshot_budget_costs RPC. */
+export interface BudgetCostSnapshotResult {
+  snapshotId: string;
+  projectId: string;
+  costDate: string;
+  itemCount: number;
+  totals: {
+    material: number;
+    labor: number;
+    equipment: number;
+    grandTotal: number;
+  };
+  computedAt: string;
+  error?: string;
+}
+
+/** Resultado de get_budget_cost_staleness RPC. */
+export interface BudgetCostStaleness {
+  /** null = nunca calculado */
+  isStale: boolean | null;
+  neverCalculated: boolean;
+  lastSnapshotAt: string | null;
+  lastSnapshotCostDate: string | null;
+  lastSnapshotTotals: { material: number; labor: number; equipment: number; grandTotal: number } | null;
+  staleCount: number;
+  staleResources: Array<{
+    materialId: string;
+    materialName: string;
+    updatedAt: string;
+  }>;
+}
+
+/** Input de get_budget_for_calculator RPC. */
+export interface BudgetForCalculatorItem {
+  master_task_id: string;
+  quantity: number;
+  taskName: string;
+  itemCount: number;
+}
+
+/** Resultado de get_budget_for_calculator RPC. */
+export interface BudgetForCalculatorResult {
+  items: BudgetForCalculatorItem[];
+  itemsWithoutMaster: number;
+  projectId: string;
+}
+
+/** Resultado de detect_duplicate_apu_codes RPC. */
+export interface DuplicateAPUCodesResult {
+  duplicatesByCode: Array<{
+    code: string;
+    count: number;
+    tasks: Array<{ id: string; name: string; code: string; isActive: boolean }>;
+  }>;
+  duplicatesByName: Array<{
+    name: string;
+    count: number;
+    tasks: Array<{ id: string; name: string; code: string | null; isActive: boolean }>;
+  }>;
+  checkedAt: string;
 }

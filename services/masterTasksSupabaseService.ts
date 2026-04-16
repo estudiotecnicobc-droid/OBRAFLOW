@@ -5,6 +5,7 @@ import {
   MasterTaskLabor,
   MasterTaskEquipment,
 } from '../types';
+import { normalizeUnit } from '../utils/normalizeUnit';
 
 // ─── Mappers snake_case ↔ camelCase ──────────────────────────────────────────
 
@@ -15,7 +16,7 @@ function taskFromRow(row: Record<string, any>): Omit<MasterTask, 'materials' | '
     code: row.code ?? undefined,
     name: row.name,
     description: row.description ?? undefined,
-    unit: row.unit,
+    unit: normalizeUnit(row.unit),
     category: row.category ?? undefined,
     dailyYield: Number(row.daily_yield),
     fixedCost: row.fixed_cost != null ? Number(row.fixed_cost) : undefined,
@@ -33,7 +34,7 @@ function materialFromRow(row: Record<string, any>): MasterTaskMaterial {
     id: row.id,
     masterMaterialId:   row.master_material_id   ?? undefined,
     materialName:       row.material_name,
-    unit:               row.unit,
+    unit:               normalizeUnit(row.unit),
     quantity:           Number(row.quantity),
     wastePercent:       row.waste_percent        != null ? Number(row.waste_percent)         : undefined,
     lastKnownUnitPrice: row.last_known_unit_price != null ? Number(row.last_known_unit_price) : undefined,
@@ -41,6 +42,8 @@ function materialFromRow(row: Record<string, any>): MasterTaskMaterial {
     resourceId:       row.resource_id        ?? undefined,
     subMasterTaskId:  row.sub_master_task_id ?? undefined,
     conversionFactor: row.conversion_factor  != null ? Number(row.conversion_factor) : undefined,
+    // Unidad comercial (migration 017)
+    commercialUnit:   row.commercial_unit    ?? undefined,
   };
 }
 
@@ -166,7 +169,7 @@ export const masterTasksService = {
             materialName: res.name,
             unit: res.unit,
             quantity: Number(y.quantity),
-            lastKnownUnitPrice: Number(res.base_cost),
+            lastKnownUnitPrice: res.base_cost != null ? Number(res.base_cost) : undefined,
           });
         } else if (res.type === 'LABOR') {
           (laborMap[taskId] ??= []).push({
@@ -318,6 +321,8 @@ export const masterTasksService = {
             quantity:             m.quantity,
             waste_percent:        m.wastePercent ?? null,
             last_known_unit_price: m.lastKnownUnitPrice ?? null,
+            conversion_factor:    m.conversionFactor ?? null,
+            commercial_unit:      m.commercialUnit   ?? null,
           })),
         ).then(r => { if (r.error) throw new Error(r.error.message); }),
       );

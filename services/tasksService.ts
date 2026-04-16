@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { Task, TaskYield, TaskLaborYield, TaskToolYield } from '../types';
+import { normalizeUnit } from '../utils/normalizeUnit';
 
 // ─── Mappers — Tasks ──────────────────────────────────────────────────────────
 
@@ -9,7 +10,7 @@ function taskFromRow(row: Record<string, any>): Task {
     organizationId: row.organization_id,
     name: row.name,
     description: row.description ?? undefined,
-    unit: row.unit ?? '',
+    unit: normalizeUnit(row.unit),
     laborCost: row.labor_cost ?? 0,
     dailyYield: row.daily_yield ?? 1,
     category: row.category ?? undefined,
@@ -188,14 +189,18 @@ export const tasksService = {
     newLaborYields: TaskLaborYield[],
     newToolYields: TaskToolYield[],
   ): Promise<void> {
-    // Borrar existentes
-    await Promise.all([
+    // Borrar existentes — verificar errores
+    const [del1, del2, del3] = await Promise.all([
       supabase.from('task_yields').delete().eq('task_id', taskId),
       supabase.from('task_labor_yields').delete().eq('task_id', taskId),
       supabase.from('task_tool_yields').delete().eq('task_id', taskId),
     ]);
-    // Insertar nuevos (solo si hay registros)
-    await Promise.all([
+    if (del1.error) throw new Error(`[replaceAllYields] delete task_yields: ${del1.error.message}`);
+    if (del2.error) throw new Error(`[replaceAllYields] delete task_labor_yields: ${del2.error.message}`);
+    if (del3.error) throw new Error(`[replaceAllYields] delete task_tool_yields: ${del3.error.message}`);
+
+    // Insertar nuevos — verificar errores
+    const [ins1, ins2, ins3] = await Promise.all([
       newYields.length > 0
         ? supabase.from('task_yields').insert(newYields.map(y => ({
             task_id: y.taskId, material_id: y.materialId,
@@ -216,5 +221,8 @@ export const tasksService = {
           })))
         : Promise.resolve({ error: null }),
     ]);
+    if (ins1.error) throw new Error(`[replaceAllYields] insert task_yields: ${ins1.error.message}`);
+    if (ins2.error) throw new Error(`[replaceAllYields] insert task_labor_yields: ${ins2.error.message}`);
+    if (ins3.error) throw new Error(`[replaceAllYields] insert task_tool_yields: ${ins3.error.message}`);
   },
 };

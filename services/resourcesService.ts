@@ -15,6 +15,7 @@ function fromRow(row: Record<string, any>): Resource {
     isActive:          row.is_active,
     pricingNotes:      row.pricing_notes      ?? undefined,
     currentSnapshotId: row.current_snapshot_id ?? undefined,
+    categoryName:      row.category_name       ?? undefined,
   };
 }
 
@@ -48,5 +49,24 @@ export const resourcesService = {
   async mapForOrg(organizationId: string): Promise<Map<string, Resource>> {
     const list = await resourcesService.listForOrg(organizationId);
     return new Map(list.map(r => [r.id, r]));
+  },
+
+  /**
+   * Lista solo los recursos del catálogo global (organization_id IS NULL).
+   * Usados como precios de referencia importables a cualquier organización.
+   */
+  async listGlobal(): Promise<Resource[]> {
+    const { data, error } = await supabase
+      .from('resources')
+      .select('id, catalog_id, organization_id, code, name, unit, type, base_cost, social_charges_pct, is_active, category_name')
+      .is('organization_id', null)
+      .eq('is_active', true)
+      .order('type')
+      .order('name');
+    if (error) {
+      console.error('[resourcesService.listGlobal]', error.message);
+      return [];
+    }
+    return (data ?? []).map(fromRow);
   },
 };

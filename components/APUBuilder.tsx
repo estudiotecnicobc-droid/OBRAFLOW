@@ -48,16 +48,22 @@ export const APUBuilder: React.FC<APUBuilderProps> = ({ taskId, budgetItemId, on
 
   // --- INITIALIZATION ---
   useEffect(() => {
-<<<<<<< HEAD
-    if (!taskId) return;
-    const t = tasks.find(x => x.id === taskId);
+    // Resolución de taskId: Library Mode (taskId directo) o Gantt Mode (vía budgetItemId)
+    let resolvedTaskId = taskId;
+    if (!resolvedTaskId && budgetItemId) {
+      const item = project.items.find(i => i.id === budgetItemId);
+      if (item) resolvedTaskId = item.taskId;
+    }
+    if (!resolvedTaskId) return;
+
+    const t = tasks.find(x => x.id === resolvedTaskId);
     if (!t) return;
 
     setCurrentTask({ ...t });
 
-    const existingMaterials = yieldsIndex[taskId]         ?? [];
-    const existingTools     = toolYieldsIndex[taskId]     ?? [];
-    const existingLabor     = taskLaborYieldsIndex[taskId] ?? [];
+    const existingMaterials = yieldsIndex[resolvedTaskId]          ?? [];
+    const existingTools     = toolYieldsIndex[resolvedTaskId]      ?? [];
+    const existingLabor     = taskLaborYieldsIndex[resolvedTaskId] ?? [];
 
     const hasOwnYields = existingMaterials.length > 0 || existingTools.length > 0 || existingLabor.length > 0;
 
@@ -65,18 +71,18 @@ export const APUBuilder: React.FC<APUBuilderProps> = ({ taskId, budgetItemId, on
       // Caso 1: yields propios → usarlos / Caso 3: sin masterTaskId → vacío
       setLocalMaterials(existingMaterials);
       setLocalTools(existingTools);
-      setLocalCrews(taskCrewYieldsIndex[taskId] ?? []);
+      setLocalCrews(taskCrewYieldsIndex[resolvedTaskId] ?? []);
       setLocalLabor(existingLabor);
       return;
     }
 
     // Caso 2: sin yields propios + tiene masterTaskId → pre-poblar desde MasterTask (draft, sin auto-save)
-    setLocalCrews(taskCrewYieldsIndex[taskId] ?? []);
+    setLocalCrews(taskCrewYieldsIndex[resolvedTaskId] ?? []);
 
     masterTasksService.getById(t.masterTaskId).then(mt => {
       if (!mt) return;
 
-      const nameToMaterial = new Map(materials.map(m => [m.name.toLowerCase().trim(), m]));
+      const nameToMaterial = new Map<string, typeof materials[0]>(materials.map(m => [m.name.toLowerCase().trim(), m]));
 
       const preYields: TaskYield[] = mt.materials
         .map(mtm => {
@@ -86,9 +92,9 @@ export const APUBuilder: React.FC<APUBuilderProps> = ({ taskId, budgetItemId, on
             taskId: t.id,
             materialId: mat.id,
             quantity: mtm.quantity,
-            wastePercent: mtm.wastePercent,
+            ...(mtm.wastePercent != null ? { wastePercent: mtm.wastePercent } : {}),
             organizationId: project.organizationId,
-          };
+          } as TaskYield;
         })
         .filter((y): y is TaskYield => y !== null);
 
@@ -114,30 +120,7 @@ export const APUBuilder: React.FC<APUBuilderProps> = ({ taskId, budgetItemId, on
       setLocalLabor(preLabor);
       setLocalTools(preTools);
     });
-  }, [taskId, tasks]);
-=======
-      let targetMasterId = taskId;
-
-      // If budgetItemId is provided, resolve the Master Task ID from the Project Item
-      if (budgetItemId) {
-          const item = project.items.find(i => i.id === budgetItemId);
-          if (item) {
-              targetMasterId = item.taskId;
-          }
-      }
-
-      if (targetMasterId) {
-          const t = tasks.find(x => x.id === targetMasterId);
-          if (t) {
-              setCurrentTask({ ...t });
-              setLocalMaterials(yieldsIndex[targetMasterId] || []);
-              setLocalTools(toolYieldsIndex[targetMasterId] || []);
-              setLocalCrews(taskCrewYieldsIndex[targetMasterId] || []);
-              setLocalLabor(taskLaborYieldsIndex[targetMasterId] || []);
-          }
-      }
-  }, [taskId, budgetItemId, tasks, project.items, yieldsIndex, toolYieldsIndex, taskCrewYieldsIndex, taskLaborYieldsIndex]);
->>>>>>> 6cbee2c18d661fde05974a40b203e053868ca294
+  }, [taskId, budgetItemId, tasks]);
 
   // --- DYNAMIC CALCULATIONS ---
   const analysis = useMemo(() => {

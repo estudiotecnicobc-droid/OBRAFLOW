@@ -7,6 +7,7 @@ function materialFromRow(row: Record<string, any>): Material {
   return {
     id:               row.id,
     organizationId:   row.organization_id,
+    code:             row.code ?? undefined,
     name:             row.name,
     unit:             row.unit ?? '',
     cost:             row.cost ?? 0,
@@ -17,6 +18,10 @@ function materialFromRow(row: Record<string, any>): Material {
     description:      row.description ?? undefined,
     commercialFormat: row.commercial_format ?? undefined,
     wastePercent:     row.waste_percent ?? undefined,
+    // Unidad comercial y factor de conversión (migration 021)
+    // Se leen de forma segura: si las columnas no existen, row.x = undefined → undefined
+    commercialUnit:   row.commercial_unit   ?? undefined,
+    conversionFactor: row.conversion_factor != null ? Number(row.conversion_factor) : undefined,
   };
 }
 
@@ -24,6 +29,7 @@ function materialToRow(m: Material): Record<string, any> {
   return {
     id:               m.id,
     organization_id:  m.organizationId,
+    code:             m.code ?? null,
     name:             m.name,
     unit:             m.unit,
     cost:             m.cost,
@@ -39,6 +45,7 @@ function materialToRow(m: Material): Record<string, any> {
 
 function buildUpdateRow(updates: Partial<Material>): Record<string, any> {
   const row: Record<string, any> = {};
+  if (updates.code             !== undefined) row.code              = updates.code ?? null;
   if (updates.name             !== undefined) row.name              = updates.name;
   if (updates.unit             !== undefined) row.unit              = updates.unit;
   if (updates.cost             !== undefined) row.cost              = updates.cost;

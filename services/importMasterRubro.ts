@@ -13,7 +13,7 @@
  * en el payload ya construido y reutiliza el id — sin crear duplicados.
  */
 
-import { MasterTask, Material, LaborCategory, Tool } from '../types';
+import { MasterTask, MasterMaterial, Material, LaborCategory, Tool } from '../types';
 import { buildImportPayload, ImportMasterTaskPayload } from './importMasterTask';
 
 export interface RubroImportResult {
@@ -33,6 +33,7 @@ export interface RubroImportResult {
  * @param laborCategoriesMap  Mapa id→LaborCategory disponible en el proyecto
  * @param toolsMap            Mapa id→Tool disponible en el proyecto
  * @param projectMaterials    Materiales actuales del proyecto (para lookup por nombre)
+ * @param masterMaterialsMap  Mapa id→MasterMaterial (para precio vivo). Opcional.
  */
 export function buildRubroImportPayloads(
   rubro: string,
@@ -42,6 +43,7 @@ export function buildRubroImportPayloads(
   laborCategoriesMap: Record<string, LaborCategory>,
   toolsMap: Record<string, Tool>,
   projectMaterials: Material[] = [],
+  masterMaterialsMap: Record<string, MasterMaterial> = {},
 ): RubroImportResult {
   const matching = masterTasks.filter(t => t.category === rubro);
 
@@ -53,7 +55,7 @@ export function buildRubroImportPayloads(
   for (const task of matching) {
     const payload = buildImportPayload(
       task, organizationId, projectId, 1,
-      laborCategoriesMap, toolsMap, runningMaterials,
+      laborCategoriesMap, toolsMap, runningMaterials, masterMaterialsMap,
     );
     runningMaterials = [...runningMaterials, ...payload.materialsToCreate];
     payloads.push(payload);

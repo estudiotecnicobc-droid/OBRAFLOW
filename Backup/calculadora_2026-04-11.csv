@@ -1,0 +1,36 @@
+CALCULADORA DE MATERIALES Y RENDIMIENTOS
+
+MATERIALES
+Nombre,Unidad,Cantidad Total,A comprar,Precio Unit.,Subtotal,Fuentes
+"Arena","m3",30.0000,,42000.00,1260000.00,"Mamposteria 0,18m | MAMPOSTERIA | Excavacion de bases . "
+"Cemento Loma Negra","kg",116.5000,,13500.00,1572750.00,"Mamposteria 0,18m | CASILLA HABITABLE | MAMPOSTERIA | Excavacion de bases . "
+
+MANO DE OBRA
+Nombre,Unidad,Cantidad Total,Precio Unit.,Subtotal,Fuentes
+"AYUDANTE ","HH",355.5000,8904.00,3165372.00,"Limpieza de terreno con retiro de suelo vegetal | Mamposteria 0,18m | Excavacion manual de zanjas | EXCAVACION DE POZOS | MAMPOSTERIA | Excavacion de bases . "
+"OFICIAL","HH",30.0000,10176.00,305280.00,"Mamposteria 0,18m"
+
+EQUIPOS
+Nombre,Unidad,Cantidad Total,Precio Unit.,Subtotal,Fuentes
+"Carretilla","HM",357.0000,1880.00,671160.00,"Limpieza de terreno con retiro de suelo vegetal | Excavacion manual de zanjas | EXCAVACION DE POZOS | Excavacion de bases . "
+"Hormigonera 130L","HM",50.0000,1550.00,77500.00,"Mamposteria 0,18m"
+"Pala ","HM",157.0000,1220.00,191540.00,"Excavacion manual de zanjas | EXCAVACION DE POZOS | Excavacion de bases . "
+"Volquete","HM",200.0000,5900.00,1180000.00,"Limpieza de terreno con retiro de suelo vegetal"
+
+RENDIMIENTOS POR APU
+APU,Unidad,Cantidad,C.Mat/Und,C.MO/Und,C.Equ/Und,C.Fijo/Und,C.Total/Und
+"Limpieza de terreno con retiro de suelo vegetal","m2",200,0,2003.4,7780,0,9783.4
+"Mamposteria 0,18m","m2",50,11130,11448,1550,0,24128
+"Excavacion manual de zanjas","m3",52,0,13356,3100,0,16456
+"EXCAVACION DE POZOS","m3",80,0,10017,3100,0,13117
+"CASILLA HABITABLE","m2",4,13500,0,0,400000,413500
+"MAMPOSTERIA","m2",75,11130,8013.6,0,0,19143.6
+"Excavacion de bases . ","m3",25,55500,16027.2,3100,0,74627.2
+
+RESUMEN
+Concepto,Total
+Materiales,2832750.00
+Mano de Obra,3470652.00
+Equipos,2120200.00
+Costo Fijo,1600000.00
+TOTAL,10023602.00

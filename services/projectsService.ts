@@ -4,12 +4,7 @@ import { BusinessConfig, Project } from '../types';
 // ─── Mappers ──────────────────────────────────────────────────────────────────
 
 function projectFromRow(row: Record<string, any>): Project {
-  // Solo mapea las columnas reales de la tabla.
-  // Los campos opcionales del modelo Project (pricing, workday_*, etc.)
-  // quedan undefined — sus valores por defecto vienen de INITIAL_PROJECT en ERPContext.
-
   // BusinessConfig: se lee solo si ggd_pct tiene valor (sentinel de que los 4 fueron guardados).
-  // Los 4 campos se persisten siempre en conjunto, por lo que basta con verificar uno.
   const businessConfig: BusinessConfig | undefined =
     row.ggd_pct != null
       ? {
@@ -29,9 +24,9 @@ function projectFromRow(row: Record<string, any>): Project {
     startDate: row.start_date ?? new Date().toISOString().split('T')[0],
     endDate: row.end_date ?? undefined,
     status: row.status ?? 'planning',
-    items: [],          // budget_items vienen de tabla separada
-    businessConfig,     // undefined si no fue guardada aún
-    // Campos técnicos del proyecto
+    items: [],
+    businessConfig,
+    // Campos técnicos
     address:             row.address             ?? undefined,
     companyName:         row.company_name        ?? undefined,
     surface:             row.surface != null ? Number(row.surface) : undefined,
@@ -39,7 +34,20 @@ function projectFromRow(row: Record<string, any>): Project {
     structureType:       row.structure_type      ?? undefined,
     foundationType:      row.foundation_type     ?? undefined,
     // Motor de costos versionado (migration 010)
-    costBase: row.cost_base ?? undefined,
+    costBase:     row.cost_base   ?? undefined,
+    dependencies: Array.isArray(row.dependencies) ? row.dependencies : [],
+    // Calendario y jornada laboral (migration 013)
+    workdayHours:       row.workday_hours        != null ? Number(row.workday_hours) : undefined,
+    workdayStartTime:   row.workday_start_time   ?? undefined,
+    workdayEndTime:     row.workday_end_time     ?? undefined,
+    lunchBreakDuration: row.lunch_break_duration != null ? Number(row.lunch_break_duration) : undefined,
+    workingDays:        Array.isArray(row.working_days)      ? row.working_days      : undefined,
+    nonWorkingDates:    Array.isArray(row.non_working_dates) ? row.non_working_dates : undefined,
+    // Fuerza laboral y cuadrillas (migration 013)
+    laborForce:    Array.isArray(row.labor_force)    ? row.labor_force    : undefined,
+    assignedCrews: Array.isArray(row.assigned_crews) ? row.assigned_crews : undefined,
+    // Pricing legacy (migration 013) — NULL = frontend usa DEFAULT_PRICING_CONFIG
+    pricing: row.pricing != null ? row.pricing : undefined,
   };
 }
 
@@ -49,9 +57,6 @@ function normalizeDate(value?: string | null): string | null {
 }
 
 function projectToRow(p: Project): Record<string, any> {
-  // Solo las columnas que existen en la tabla projects de Supabase.
-  // El resto del modelo Project (pricing legacy, assigned_crews, workday_*, etc.)
-  // no se persiste aquí — la tabla es deliberadamente minimalista.
   return {
     id: p.id,
     organization_id: p.organizationId,
@@ -61,7 +66,7 @@ function projectToRow(p: Project): Record<string, any> {
     start_date: normalizeDate(p.startDate),
     end_date: normalizeDate(p.endDate),
     status: p.status ?? 'draft',
-    // BusinessConfig K — null si el proyecto se crea sin config explícita
+    // BusinessConfig K
     ggd_pct:    p.businessConfig?.ggdPct    ?? null,
     ggi_pct:    p.businessConfig?.ggiPct    ?? null,
     profit_pct: p.businessConfig?.profitPct ?? null,
@@ -73,13 +78,21 @@ function projectToRow(p: Project): Record<string, any> {
     construction_system: p.constructionSystem  ?? null,
     structure_type:      p.structureType       ?? null,
     foundation_type:     p.foundationType      ?? null,
-    // Motor de costos versionado (migration 010)
     cost_base:           p.costBase            ?? null,
+    // Calendario y jornada (migration 013)
+    workday_hours:        p.workdayHours        ?? null,
+    workday_start_time:   p.workdayStartTime    ?? null,
+    workday_end_time:     p.workdayEndTime      ?? null,
+    lunch_break_duration: p.lunchBreakDuration  ?? null,
+    working_days:         p.workingDays         ?? null,
+    non_working_dates:    p.nonWorkingDates      ?? null,
+    labor_force:          p.laborForce          ?? null,
+    assigned_crews:       p.assignedCrews       ?? null,
+    pricing:              p.pricing             ?? null,
   };
 }
 
 function buildUpdateRow(updates: Partial<Project>): Record<string, any> {
-  // Mismo criterio que projectToRow: solo columnas reales de la tabla.
   const row: Record<string, any> = {};
   if (updates.name !== undefined)      row.name = updates.name;
   if (updates.client !== undefined)    row.client = updates.client;
@@ -88,7 +101,6 @@ function buildUpdateRow(updates: Partial<Project>): Record<string, any> {
   if (updates.endDate !== undefined)   row.end_date   = normalizeDate(updates.endDate);
   if (updates.status !== undefined)    row.status = updates.status;
   // BusinessConfig K: los 4 campos se escriben juntos o ninguno.
-  // null explícito = borrar config guardada (el store usará DEFAULT_BUSINESS_CONFIG).
   if (updates.businessConfig !== undefined) {
     row.ggd_pct    = updates.businessConfig?.ggdPct    ?? null;
     row.ggi_pct    = updates.businessConfig?.ggiPct    ?? null;
@@ -102,6 +114,19 @@ function buildUpdateRow(updates: Partial<Project>): Record<string, any> {
   if (updates.structureType !== undefined)       row.structure_type      = updates.structureType ?? null;
   if (updates.foundationType !== undefined)      row.foundation_type     = updates.foundationType ?? null;
   if (updates.costBase !== undefined)            row.cost_base           = updates.costBase ?? null;
+  if (updates.dependencies !== undefined)        row.dependencies        = updates.dependencies;
+  // Calendario y jornada (migration 013)
+  if (updates.workdayHours !== undefined)        row.workday_hours        = updates.workdayHours ?? null;
+  if (updates.workdayStartTime !== undefined)    row.workday_start_time   = updates.workdayStartTime ?? null;
+  if (updates.workdayEndTime !== undefined)      row.workday_end_time     = updates.workdayEndTime ?? null;
+  if (updates.lunchBreakDuration !== undefined)  row.lunch_break_duration = updates.lunchBreakDuration ?? null;
+  if (updates.workingDays !== undefined)         row.working_days         = updates.workingDays ?? null;
+  if (updates.nonWorkingDates !== undefined)     row.non_working_dates    = updates.nonWorkingDates ?? null;
+  // Fuerza laboral y cuadrillas (migration 013)
+  if (updates.laborForce !== undefined)          row.labor_force    = updates.laborForce ?? null;
+  if (updates.assignedCrews !== undefined)       row.assigned_crews = updates.assignedCrews ?? null;
+  // Pricing legacy (migration 013)
+  if (updates.pricing !== undefined)             row.pricing = updates.pricing ?? null;
   return row;
 }
 
