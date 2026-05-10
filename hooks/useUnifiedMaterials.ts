@@ -174,11 +174,23 @@ export function useUnifiedMaterials(organizationId: string): UseUnifiedMaterials
       const hasConversion = !!(mm.conversionFactor && mm.conversionFactor > 1);
       const techCost   = hasConversion ? mm.unitPrice / mm.conversionFactor! : mm.unitPrice;
       const commPrice  = hasConversion ? mm.unitPrice : undefined;
+
+      // Acero comercial (unit='barra', CF>1): la unidad TÉCNICA es kg.
+      // DB almacena $/barra → techCost ya es $/kg. Exponer 'kg' como unit
+      // evita que MasterTasksPanel muestre "barra" y el usuario ingrese
+      // cantidades en barras multiplicadas por $/kg (resultado absurdo).
+      // La unidad comercial de compra sigue disponible en commercialUnit.
+      const n = normalizeStr(mm.name);
+      const isSteelCommercialBar = hasConversion &&
+        mm.unit !== 'kg' &&
+        (n.includes('hierro') || n.includes('acero'));
+      const displayUnit = isSteelCommercialBar ? 'kg' : mm.unit;
+
       map.set(normalizeStr(mm.name), {
         masterId: mm.id,
         code: mm.code,
         name: mm.name,
-        unit: mm.unit,
+        unit: displayUnit,       // 'kg' para acero comercial; mm.unit para el resto
         cost: techCost,          // precio TÉCNICO para display y nameIndex
         commercialUnit: mm.commercialUnit,
         conversionFactor: mm.conversionFactor,

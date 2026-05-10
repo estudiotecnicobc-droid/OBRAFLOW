@@ -26,5 +26,16 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "supabase/functions",
+    "OBRAFLOW",
+    "tu-erp-construccion",
+    "hooks/usePlan.ts",
+    "services/billingService.ts",
+    "components/FeatureGate.tsx",
+    "components/UpgradePrompt.tsx",
+    "src/features/billing"
+  ]
 }

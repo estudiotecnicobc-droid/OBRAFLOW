@@ -1,5 +1,7 @@
-import { ChandiasTask, ChandiasTaskMaterial } from '../catalog/chandiasCatalog';
+import { ChandiasTask, ChandiasTaskMaterial, ChandiasTaskDerivedOutput } from '../catalog/chandiasCatalog';
 import { normalizeStr } from '../../../../utils/normalizeStr';
+import { getSteelBarWeight, getSteelBarsNeeded, DEFAULT_REBAR_DIAMETER_MM } from './steelRebars';
+import { isSteelMaterial, isGenericSteelMaterial, resolveSteelPricingModel } from './steelWorkflow';
 
 // ─── Tipos del motor ──────────────────────────────────────────────────────────
 
@@ -32,6 +34,7 @@ export interface ChandiasAddedItem extends ChandiasCalcResult {
   itemId: string;       // UUID local
   description: string;  // texto libre (ubicación, eje, etc.)
   manualMaterials?: ManualMaterial[];  // materiales adicionales ingresados a mano
+  steelDiameterMm?: number;  // diámetro de barra elegido (beam family) — para compra inteligente en consolidado
 }
 
 export interface ConsolidatedMaterial {
@@ -142,6 +145,112 @@ export interface ResolvedMaterial extends ChandiasCalcMaterial {
 }
 
 /**
+ * Inyecta el conversion_factor correcto para materiales de acero en barra cuyo
+ * CF no está almacenado en DB (varía por diámetro — ver migration 022).
+ *
+ * Criterio de detección: nombre contiene 'acero' o 'hierro' Y no tiene CF definido.
+ * NO depende de que commercial_unit exista en DB (puede llegar NULL).
+ *
+ * En ese estado: `cost` en OrgMaterialLookup = precio por barra (comercial).
+ * Tras inyección: `commercialPrice = cost` (precio/barra), `conversionFactor = barWeightKg`,
+ * `commercialUnit = "barra ∅Nmm · 12m"` (generado localmente si se provee diameterMm).
+ * Esto permite que `mapMaterialToReal` calcule: precioTécnico = commercialPrice / CF.
+ *
+ * Función pura — no muta el array original. Usar en contextos donde se conoce
+ * el diámetro de barra (ej: beam family en ChandiasCalculator).
+ */
+export function injectSteelConversionFactor(
+  orgMaterials: OrgMaterialLookup[],
+  barWeightKg: number,
+  diameterMm?: number,
+): OrgMaterialLookup[] {
+  if (barWeightKg <= 0) return orgMaterials;
+  return orgMaterials.map(m => {
+    const n = normalizeStr(m.name);
+    const isSteelBar =
+      (n.includes('acero') || n.includes('hierro')) &&
+      (!m.conversionFactor || m.conversionFactor <= 0);
+    if (!isSteelBar) return m;
+    // Material genérico paramétrico ("Acero ADN 420 (Genérico por Cuantía)"):
+    // NO inyectar CF — su unidad comercial es kg, no barras.
+    // La compra por barras la muestra el panel de beamResult (Fase 2), no la composición.
+    if (isGenericSteelMaterial(m.name)) return m;
+    const commercialUnit = diameterMm
+      ? `barra ∅${diameterMm}mm · 12m`
+      : (m.commercialUnit ?? 'barra 12m');
+    const isAlreadyKg = m.unit?.toLowerCase() === 'kg';
+    if (isAlreadyKg) {
+      // Ya está en $/kg (precio técnico). Solo inyectar CF para calcular compra en barras.
+      // NO tocar commercialPrice: mapMaterialToReal usará cost directamente.
+      return { ...m, conversionFactor: barWeightKg, commercialUnit };
+    }
+    // Precio en $/barra o $/TN: marcar como commercialPrice para que mapMaterialToReal
+    // calcule: precioTécnico = commercialPrice / conversionFactor.
+    return {
+      ...m,
+      unit: 'kg',
+      conversionFactor: barWeightKg,
+      commercialPrice:  m.cost,
+      commercialUnit,
+    };
+  });
+}
+
+/**
+ * Inyecta factores de conversión comercial (bolsas, envases) para materiales
+ * a granel comunes que pueden no tenerlos en DB (previo a migration 022).
+ *
+ * Solo actúa cuando el material NO tiene CF definido (evita sobreescribir DB).
+ * NO toca commercialPrice — el cost ya llega como precio técnico ($/kg, $/m³, etc.)
+ * Permite que convertToCommercial calcule purchaseQty en unidades de compra.
+ */
+export function injectBulkConversionFactors(
+  orgMaterials: OrgMaterialLookup[],
+): OrgMaterialLookup[] {
+  const BULK: Array<{ test: (n: string) => boolean; cf: number; unit: string }> = [
+    {
+      test: n => (n.includes('cemento') || n.includes('portland')) && !n.includes('cola') && !n.includes('adhesivo'),
+      cf: 50, unit: 'bolsa 50 kg',
+    },
+    {
+      // Cal hidráulica — bolsa 25 kg (solo hidráulica; hidratada tiene su propia entrada en DB)
+      test: n => n.includes('cal hidraulica'),
+      cf: 25, unit: 'bolsa 25 kg',
+    },
+    {
+      // Cal hidratada — también bolsa 25 kg pero entrada de DB propia (migración 041)
+      test: n => n.includes('cal hidratada'),
+      cf: 25, unit: 'bolsa 25 kg',
+    },
+    {
+      test: n => n.includes('cal aerea'),
+      cf: 20, unit: 'bolsa 20 kg',
+    },
+    {
+      test: n => n.includes('yeso'),
+      cf: 40, unit: 'bolsa 40 kg',
+    },
+    {
+      test: n => n.includes('adhesivo') || (n.includes('cemento') && n.includes('cola')),
+      cf: 25, unit: 'bolsa 25 kg',
+    },
+  ];
+
+  return orgMaterials.map(m => {
+    if (m.conversionFactor && m.conversionFactor > 0) return m; // ya tiene CF (DB o inyectado)
+    const n = normalizeStr(m.name);
+    const rule = BULK.find(r => r.test(n));
+    if (!rule) return m;
+    return {
+      ...m,
+      conversionFactor: rule.cf,
+      commercialUnit: m.commercialUnit ?? rule.unit,
+      // NO commercialPrice: cost ya es precio técnico ($/kg); mapMaterialToReal usará cost directo
+    };
+  });
+}
+
+/**
  * Convierte cantidad técnica a unidades comerciales (redondeando hacia arriba).
  * Retorna undefined si no hay factor de conversión definido o es inválido.
  */
@@ -153,6 +262,28 @@ export function convertToCommercial(
   return Math.ceil(quantity / conversionFactor);
 }
 
+/**
+ * Unidad comercial de fallback para materiales sin CF inyectado.
+ */
+function fallbackCommercialUnit(nombre: string, unit: string): string {
+  const n = nombre.toLowerCase();
+  if (n.includes('hormig'))    return 'm³';
+  if (n.includes('encofrado')) return 'm²';
+  return unit;
+}
+
+/**
+ * purchaseQty de fallback para materiales sin CF inyectado.
+ * - Hormigón: redondeo a 2 decimales hacia arriba (ej: 1.498 → 1.50)
+ * - Acero ya tiene CF inyectado por injectSteelConversionFactor → no llega aquí
+ * - Encofrado y default: cantidad técnica (se compra exacto)
+ */
+function fallbackPurchaseQty(nombre: string, cantidad: number): number {
+  const n = nombre.toLowerCase();
+  if (n.includes('hormig')) return Math.ceil(cantidad * 100) / 100;
+  return cantidad;
+}
+
 
 /**
  * Aliases de nombres: variantes de nomenclatura entre catálogo y DB.
@@ -162,12 +293,21 @@ export function convertToCommercial(
  */
 const NAME_ALIASES: Record<string, string[]> = {
   // ── Aglomerantes ──────────────────────────────────────────────────────────
-  // Cal: cubre 'Cal hidráulica', 'Cal hidratada', 'CAL HIDRÁULICA EN POLVO' (seed I1000)
-  'cal hidratada':              ['cal hidraulica', 'cal hidraulica en polvo'],
-  'cal hidraulica':             ['cal hidratada',  'cal hidraulica en polvo'],
-  'cal hidraulica en polvo':    ['cal hidraulica', 'cal hidratada'],
-  'cal hidratada en polvo':     ['cal aerea en polvo', 'cal hidraulica en polvo'],
-  'cal aerea en polvo':         ['cal hidratada en polvo', 'cal hidraulica en polvo'],
+  // Cal hidratada (Ca(OH)₂ — para morteros de mampostería y revoques interiores).
+  // NOTA: aliases bidireccionales con cal hidráulica ELIMINADOS (migración 041).
+  // Cal hidratada ≠ Cal hidráulica: productos distintos, no intercambiables.
+  // Si el catálogo pide "cal hidratada", debe existir en DB; no cae en cal hidráulica.
+  'cal hidratada':              ['cal hidratada en polvo'],
+  'cal hidratada en polvo':     ['cal hidratada'],
+
+  // Cal hidráulica (NHL — para restauración, morteros especiales).
+  // NO es alias de cal hidratada. Alias solo dentro del mismo producto.
+  'cal hidraulica':             ['cal hidraulica en polvo'],
+  'cal hidraulica en polvo':    ['cal hidraulica'],
+
+  // Cal aérea — alias solo dentro de su familia.
+  'cal aerea en polvo':         ['cal aerea'],
+  'cal aerea':                  ['cal aerea en polvo'],
   // Cemento: cubre 'Cemento Portland CPN 40', 'CEMENTO PORTLAND' (seed I1001), 'Cemento Loma Negra'
   'cemento portland cpn 40':    ['cemento portland cpn40', 'cemento portland', 'cemento loma negra'],
   'cemento portland cpn40':     ['cemento portland cpn 40', 'cemento portland', 'cemento loma negra'],
@@ -197,8 +337,11 @@ const NAME_ALIASES: Record<string, string[]> = {
   'ladrillo ceramico hueco 12x18x33': ['ladrillo hueco 12x18x33'],
 
   // ── Ladrillo hueco 18 cm (e=0.20) ────────────────────────────────────────
-  'ladrillo hueco 18x18x33':         ['ladrillo ceramico hueco 18x18x33', 'i1014'],
-  'ladrillo ceramico hueco 18x18x33': ['ladrillo hueco 18x18x33'],
+  // 'Ladrillo cerámico 18x18x33' (seed 019) no lleva "hueco" en el nombre —
+  // se agrega aquí para cerrar el gap de resolución en MAM-003.
+  'ladrillo hueco 18x18x33':         ['ladrillo ceramico 18x18x33', 'ladrillo ceramico hueco 18x18x33', 'i1014'],
+  'ladrillo ceramico hueco 18x18x33': ['ladrillo hueco 18x18x33', 'ladrillo ceramico 18x18x33'],
+  'ladrillo ceramico 18x18x33':      ['ladrillo hueco 18x18x33', 'ladrillo ceramico hueco 18x18x33'],
 
   // ── Yeso ─────────────────────────────────────────────────────────────────
   // Catálogo usa "Yeso común para construcción" y "Yeso común para cielorraso"
@@ -235,6 +378,38 @@ const NAME_ALIASES: Record<string, string[]> = {
   // ── Porcelanato — variante con factor desperdicio en el nombre ─────────────
   // Seed 019 tiene "Porcelanato 60x60 cm" (ASCII x, espacio); catálogo usa "60×60cm" (×, sin espacio)
   'porcelanato 60\u00d760cm (c/5% desp.)': ['porcelanato 60x60 cm', 'porcelanato 60\u00d760cm', 'porcelanato 60\u00d760 cm'],
+
+  // ── Fundaciones ──────────────────────────────────────────────────────────
+  // "Hormigón Elaborado H-21" cubre variantes con/sin acento y con/sin espacio en H21
+  'hormigon elaborado h-21':    ['hormigon elaborado h21', 'hormigon h-21', 'hormigon h21'],
+  'hormigon elaborado h21':     ['hormigon elaborado h-21', 'hormigon h-21'],
+  'hormigon h-21':              ['hormigon elaborado h-21', 'hormigon elaborado h21'],
+  // ── Acero — arquitectura dos modos ────────────────────────────────────────
+  // PRIORIDAD de lookup (orden de aliases = orden de búsqueda):
+  //   1. "Acero ADN 420 (Genérico por Cuantía)" — Modo 1 paramétrico (migration 034)
+  //   2. "Hierro nervado ØX mm" — Modo 2 comercial por diámetro (seed 019/023)
+  //   3. Variantes de nombres directos
+  //
+  // NOTA: normalizeStr preserva 'ø' (U+00F8).
+  // "Hierro nervado Ø12 mm" → normalizeStr → "hierro nervado ø12 mm"
+  // "Acero ADN 420 (Genérico por Cuantía)" → "acero adn 420 (generico por cuantia)"
+  'acero adn 420': [
+    'acero adn 420 (generico por cuantia)',   // ← PRIMERO: genérico $/kg (migration 034)
+    'acero dn 420',
+    'hierro adn 420',
+    'acero en barras adn 420',
+    'hierro nervado \u00f812 mm',             // Modo 2: caída natural al ∅12mm
+    'hierro nervado \u00f810 mm',
+  ],
+  'acero adn 420 (generico por cuantia)': ['acero adn 420', 'acero dn 420'],
+  'acero dn 420':  ['acero adn 420 (generico por cuantia)', 'acero adn 420', 'hierro adn 420'],
+  'hierro adn 420': ['acero adn 420 (generico por cuantia)', 'acero adn 420', 'acero dn 420'],
+  // Seed 019/023: "Hierro nervado ØNmm" — alias de vuelta hacia el catálogo
+  'hierro nervado \u00f86 mm':  ['acero adn 420', 'acero adn 420 (generico por cuantia)'],
+  'hierro nervado \u00f88 mm':  ['acero adn 420', 'acero adn 420 (generico por cuantia)'],
+  'hierro nervado \u00f810 mm': ['acero adn 420', 'acero adn 420 (generico por cuantia)'],
+  'hierro nervado \u00f812 mm': ['acero adn 420', 'acero adn 420 (generico por cuantia)'],
+  'hierro nervado \u00f816 mm': ['acero adn 420', 'acero adn 420 (generico por cuantia)'],
 
   // ── Pinturas ─────────────────────────────────────────────────────────────
   // "Pintura látex vinílico interior" → Seed 019: "Pintura látex interior blanco"
@@ -279,19 +454,44 @@ export function mapMaterialToReal(
     }
   }
 
-  const conversionFactor = matched?.conversionFactor;
-  const commercialUnit   = matched?.commercialUnit;
+  // 3. Fallback acero: si el catálogo pide 'acero'/'hierro' y no hubo match por nombre,
+  //    busca cualquier orgMaterial de acero/hierro (con o sin CF).
+  //    Precio: si tiene commercialPrice+CF → divide; si ya está en $/kg → usa cost directo.
+  if (matchedBy === 'missing') {
+    const nc = normalizeStr(m.nombre);
+    if (nc.includes('acero') || nc.includes('hierro')) {
+      const fb = orgMaterials.find(r => {
+        const rn = normalizeStr(r.name);
+        return rn.includes('acero') || rn.includes('hierro');
+      });
+      if (fb) { matched = fb; matchedBy = 'name'; }
+    }
+  }
 
-  // Convertir precio comercial → técnico cuando el material tiene CF.
-  // Si commercialPrice está disponible (precio por bolsa, barra, etc.):
-  //   precioTécnico = commercialPrice / conversionFactor
-  // Si solo hay cost (ya técnico) y no hay commercialPrice: usar cost directo.
-  if (matched) {
-    const cf = conversionFactor;
-    if (cf && cf > 0 && matched.commercialPrice) {
-      unitCost = matched.commercialPrice / cf;
-    } else {
-      unitCost = matched.cost;
+  const conversionFactor = matched?.conversionFactor;
+  const commercialUnit   = matched?.commercialUnit ?? fallbackCommercialUnit(m.nombre, m.unit);
+
+  if (isSteelMaterial(m.nombre)) {
+    // ── Acero: delegar a resolveSteelPricingModel ──────────────────────────────
+    // Fase 1 — precio técnico ($/kg):
+    //   Para genérico:          technicalUnitPrice = cost ($/kg directo)
+    //   Para comercial $/barra: technicalUnitPrice = commercialPrice / CF_propio
+    //   Para comercial $/kg:    technicalUnitPrice = cost (injected CF solo afecta compra)
+    // Fase 2 — purchaseQty:
+    //   CEIL(kg / CF_inyectado) vía convertToCommercial abajo.
+    //   diameterMm=null: la compra en barras la gestiona el panel de beamResult,
+    //   no la tabla de composición.
+    const sw = resolveSteelPricingModel(m.cantidad, matched ?? null, null, orgMaterials);
+    unitCost = sw.technicalUnitPrice;
+  } else {
+    // ── Resto de materiales: precio estándar ──────────────────────────────────
+    if (matched) {
+      const cf = conversionFactor;
+      if (cf && cf > 0 && matched.commercialPrice) {
+        unitCost = matched.commercialPrice / cf;
+      } else {
+        unitCost = matched.cost;
+      }
     }
   }
 
@@ -302,7 +502,7 @@ export function mapMaterialToReal(
     matchedBy,
     conversionFactor,
     commercialUnit,
-    purchaseQty: convertToCommercial(m.cantidad, conversionFactor),
+    purchaseQty: convertToCommercial(m.cantidad, conversionFactor) ?? fallbackPurchaseQty(m.nombre, m.cantidad),
   };
 }
 
@@ -326,7 +526,7 @@ export function consolidateResolved(
         acc.cantidad = parseFloat((acc.cantidad + m.cantidad).toFixed(4));
         acc.totalCost = parseFloat((acc.unitCost * acc.cantidad).toFixed(2));
         // Recomputar purchaseQty sobre la cantidad acumulada final
-        acc.purchaseQty = convertToCommercial(acc.cantidad, acc.conversionFactor);
+        acc.purchaseQty = convertToCommercial(acc.cantidad, acc.conversionFactor) ?? fallbackPurchaseQty(acc.nombre, acc.cantidad);
       }
     }
   }
@@ -409,6 +609,120 @@ export function computeNetFloorArea(
     0,
   );
   return { base, sectoresTotal, total: parseFloat((base + sectoresTotal).toFixed(4)) };
+}
+
+// ─── Salidas derivadas paramétricas ───────────────────────────────────────────
+
+export interface DerivedOutputResult extends ChandiasTaskDerivedOutput {
+  value: number;  // resultado de evaluar formula con los dims actuales
+}
+
+/**
+ * Evalúa los cómputos derivados de una tarea (ej: superficie de encofrado).
+ * Retorna array vacío si la tarea no tiene derivedOutputs definidos.
+ * El resultado es informativo — no impacta en cantidades de materiales.
+ */
+export function computeDerivedOutputs(
+  task: ChandiasTask,
+  dims: Record<string, number>,
+): DerivedOutputResult[] {
+  if (!task.derivedOutputs?.length) return [];
+  return task.derivedOutputs.map(d => ({
+    ...d,
+    value: parseFloat(evaluateFormula(d.formula, dims).toFixed(4)),
+  }));
+}
+
+// ─── Vigas, columnas y fundaciones de H.A. ───────────────────────────────────
+
+export interface BeamAdvancedConfig {
+  nBeams: number;           // vigas/elementos iguales (≥ 1)
+  wastePercent: number;     // % desperdicio hormigón (ej: 5 → 1.05)
+  steelRatio: number;       // kg acero por m³ de volumen estructural
+  steelDiameterMm: number;  // diámetro de barra a comprar (para convertir kg → barras)
+  formwork: {
+    fondo: boolean;         // cara inferior (base de viga/losa)
+    lat1: boolean;          // lateral 1
+    lat2: boolean;          // lateral 2
+    lat3?: boolean;         // lateral 3 — 4ª cara para columnas (largo × ancho)
+  };
+}
+
+export const BEAM_CONFIG_DEFAULTS: BeamAdvancedConfig = {
+  nBeams: 1,
+  wastePercent: 5,
+  steelRatio: 130,
+  steelDiameterMm: DEFAULT_REBAR_DIAMETER_MM,  // 12mm
+  formwork: { fondo: true, lat1: true, lat2: true },
+};
+
+export interface BeamDerivedResult {
+  volumePerBeam: number;          // m³ de 1 elemento (largo×ancho×alto)
+  totalVolumeBruto: number;       // volumePerBeam × nBeams
+  totalHormigon: number;          // totalVolumeBruto × (1 + waste)
+  totalAcero: number;             // totalVolumeBruto × steelRatio  [unidad APU: kg]
+  encofradoPerBeam: number;       // m² de encofrado por elemento
+  totalEncofrado: number;         // encofradoPerBeam × nBeams
+  hormiPurchaseSuggested: number; // ceil(totalHormigon × 2) / 2 → múltiplos 0.5 m³
+  // ── Compra inteligente de acero ──
+  steelBarWeightKg: number;       // kg por barra de 12m para el diámetro elegido
+  steelBarsNeeded: number;        // CEIL(totalAcero / steelBarWeightKg) → barras a comprar
+}
+
+/**
+ * Calcula resultado ajustado para fundaciones/columnas de H.A. con config avanzada.
+ * Reemplaza el calcResult base aplicando: nBeams, wastePercent, steelRatio y encofrado.
+ * Función pura — misma API que la familia de muros y pisos.
+ */
+export function computeBeamResult(
+  base: ChandiasCalcResult,
+  dims: Record<string, number>,
+  cfg: BeamAdvancedConfig,
+): { calcResult: ChandiasCalcResult; derived: BeamDerivedResult } {
+  const n     = Math.max(1, cfg.nBeams);
+  const waste = Math.max(0, cfg.wastePercent) / 100;
+  const sr    = Math.max(0, cfg.steelRatio);
+
+  const volumePerBeam    = base.quantity;                               // largo×ancho×alto
+  const totalVolumeBruto = parseFloat((volumePerBeam * n).toFixed(4)); // × N elementos
+  const totalHormigon    = parseFloat((totalVolumeBruto * (1 + waste)).toFixed(4));
+  const totalAcero       = parseFloat((totalVolumeBruto * sr).toFixed(4));
+
+  // Encofrado por cara seleccionada
+  const largo = dims.largo ?? 0;
+  const ancho = dims.ancho ?? 0;
+  const alto  = dims.alto  ?? 0;
+  let encofradoPerBeam = 0;
+  if (cfg.formwork.fondo) encofradoPerBeam += largo * ancho;
+  if (cfg.formwork.lat1)  encofradoPerBeam += largo * alto;
+  if (cfg.formwork.lat2)  encofradoPerBeam += largo * alto;
+  if (cfg.formwork.lat3)  encofradoPerBeam += largo * ancho; // 4ª cara: columnas
+  encofradoPerBeam     = parseFloat(encofradoPerBeam.toFixed(4));
+  const totalEncofrado = parseFloat((encofradoPerBeam * n).toFixed(4));
+  const hormiPurchaseSuggested = Math.ceil(totalHormigon * 2) / 2;
+
+  // Compra inteligente de acero: kg técnicos → barras de 12m del diámetro elegido
+  const steelBarWeightKg = getSteelBarWeight(cfg.steelDiameterMm);
+  const steelBarsNeeded  = getSteelBarsNeeded(totalAcero, cfg.steelDiameterMm);
+
+  const derived: BeamDerivedResult = {
+    volumePerBeam, totalVolumeBruto, totalHormigon, totalAcero,
+    encofradoPerBeam, totalEncofrado, hormiPurchaseSuggested,
+    steelBarWeightKg, steelBarsNeeded,
+  };
+
+  // Recomputar cantidades de materiales del catálogo
+  const newMateriales = base.materiales.map(m => {
+    const norm = normalizeStr(m.nombre);
+    if (norm.includes('hormig'))                              return { ...m, cantidad: totalHormigon };
+    if (norm.includes('acero') || norm.includes('hierro'))   return { ...m, cantidad: totalAcero };
+    return { ...m, cantidad: parseFloat((m.coef * totalVolumeBruto).toFixed(4)) };
+  });
+
+  return {
+    calcResult: { ...base, quantity: totalVolumeBruto, materiales: newMateriales },
+    derived,
+  };
 }
 
 /**

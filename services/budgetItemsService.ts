@@ -20,6 +20,7 @@ function budgetItemFromRow(row: Record<string, any>): BudgetItem {
     efficiencyFactor: row.efficiency_factor ?? undefined,
     allowancePercent: row.allowance_percent ?? undefined,
     sortOrder: row.sort_order ?? undefined,
+    computationItemId: row.computation_item_id ?? undefined,
   };
 }
 
@@ -42,6 +43,8 @@ function budgetItemToRow(item: BudgetItem): Record<string, any> {
   };
   // sort_order solo se incluye si tiene valor — la columna puede no existir hasta ejecutar migración 014
   if (item.sortOrder != null) row.sort_order = item.sortOrder;
+  // computation_item_id solo se incluye si tiene valor — requiere migración 040
+  if (item.computationItemId != null) row.computation_item_id = item.computationItemId;
   return row;
 }
 
@@ -58,7 +61,8 @@ function buildUpdateRow(updates: Partial<BudgetItem>): Record<string, any> {
   if (updates.crewsAssigned !== undefined)    row.crews_assigned    = updates.crewsAssigned;
   if (updates.efficiencyFactor !== undefined) row.efficiency_factor = updates.efficiencyFactor;
   if (updates.allowancePercent !== undefined) row.allowance_percent = updates.allowancePercent;
-  if (updates.sortOrder !== undefined)        row.sort_order        = updates.sortOrder ?? null;
+  if (updates.sortOrder !== undefined)           row.sort_order            = updates.sortOrder ?? null;
+  if (updates.computationItemId !== undefined)   row.computation_item_id   = updates.computationItemId ?? null;
   return row;
 }
 

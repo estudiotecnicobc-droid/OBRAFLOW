@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Printer } from 'lucide-react';
+import { Printer, Download, ChevronUp, ChevronDown } from 'lucide-react';
 import { useERP } from '../../../context/ERPContext';
 import { supabase } from '../../../services/supabaseClient';
 import { budgetItemsService } from '../../../services/budgetItemsService';
@@ -13,6 +13,47 @@ interface Props {
 
 type TabKey = 'Materiales' | 'Mano de Obra' | 'Equipos';
 const TABS: TabKey[] = ['Materiales', 'Mano de Obra', 'Equipos'];
+
+type SortCol = 'name' | 'totalQuantity' | 'purchaseQuantity' | 'unitCost' | 'totalCost';
+
+function exportToCSV(lines: RpcResourceLine[], projectName: string, tab: TabKey): void {
+  const isMat = tab === 'Materiales';
+  const headers = isMat
+    ? ['Código', 'Recurso', 'Unidad', 'Cant. técnica', 'Cant. compra', 'Unidad compra', 'Costo Unit.', 'Costo Total', 'APUs']
+    : ['Código', 'Recurso', 'Unidad', 'Cantidad', 'Costo Unit.', 'Costo Total', 'APUs'];
+
+  const rows = lines.map(l => {
+    const base = [
+      l.code || '',
+      l.name,
+      l.unit,
+      l.totalQuantity.toFixed(4).replace('.', ','),
+    ];
+    if (isMat) {
+      base.push(
+        l.purchaseQuantity != null ? String(l.purchaseQuantity) : '',
+        l.commercialUnit ?? '',
+      );
+    }
+    base.push(
+      l.unitCost.toFixed(2).replace('.', ','),
+      l.totalCost.toFixed(2).replace('.', ','),
+      l.sourceTaskNames.join(' | '),
+    );
+    return base.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';');
+  });
+
+  const bom = '﻿';
+  const csv = bom + [headers.map(h => `"${h}"`).join(';'), ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  a.href     = url;
+  a.download = `consumos_${projectName.replace(/[^a-z0-9]/gi, '_')}_${tab.replace(/ /g, '_')}_${date}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function fmt(n: number): string {
   return n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -32,6 +73,24 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
   const [error, setError]           = useState<string | null>(null);
   const [result, setResult]         = useState<RpcConsolidatedResult | null>(null);
   const [activeTab, setActiveTab]   = useState<TabKey>('Materiales');
+  const [sortCol, setSortCol]       = useState<SortCol>('totalCost');
+  const [sortDir, setSortDir]       = useState<'asc' | 'desc'>('desc');
+
+  function toggleSort(col: SortCol) {
+    if (sortCol === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(col);
+      setSortDir(col === 'name' ? 'asc' : 'desc');
+    }
+  }
+
+  function SortIcon({ col }: { col: SortCol }) {
+    if (sortCol !== col) return <ChevronDown size={11} className="text-slate-300 ml-0.5 inline" />;
+    return sortDir === 'asc'
+      ? <ChevronUp   size={11} className="text-teal-500 ml-0.5 inline" />
+      : <ChevronDown size={11} className="text-teal-500 ml-0.5 inline" />;
+  }
 
   const calculate = useCallback(async () => {
     if (!projectId || !organizationId) return;
@@ -83,7 +142,14 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
       const res = await calculateConsolidatedResources({ items, organizationId, costDate });
       setResult(res);
     } catch (e: any) {
-      setError(e.message ?? 'Error al calcular consumos');
+      const raw = e.message ?? 'Error al calcular consumos';
+      if (raw.includes('conversion_factor') || (raw.includes('does not exist') && raw.includes('column'))) {
+        setError('Error de base de datos: falta ejecutar la migración 017 en Supabase Dashboard (agrega conversion_factor a master_task_materials y catalog_task_yields). Luego ejecutar 045 para actualizar la RPC.');
+      } else if (raw.includes('function') && raw.includes('does not exist')) {
+        setError('La función RPC calculate_consolidated_resources no existe en la base de datos. Ejecutar migración 045 en Supabase Dashboard.');
+      } else {
+        setError(raw);
+      }
     } finally {
       setLoading(false);
     }
@@ -96,7 +162,17 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
     return result.equipment;
   };
 
-  const currentLines = tabLines(activeTab).slice().sort((a, b) => b.totalCost - a.totalCost);
+  const currentLines = tabLines(activeTab).slice().sort((a, b) => {
+    let cmp = 0;
+    if (sortCol === 'name') {
+      cmp = a.name.localeCompare(b.name, 'es');
+    } else if (sortCol === 'purchaseQuantity') {
+      cmp = (a.purchaseQuantity ?? 0) - (b.purchaseQuantity ?? 0);
+    } else {
+      cmp = (a[sortCol] as number) - (b[sortCol] as number);
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
 
   function tabCount(tab: TabKey): number {
     return tabLines(tab).length;
@@ -236,6 +312,18 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
           <Printer size={14} />
           Imprimir
         </button>
+        <button
+          onClick={() => {
+            if (!result) return;
+            const projectName = projects.find(p => p.id === projectId)?.name ?? projectId;
+            exportToCSV(currentLines, projectName, activeTab);
+          }}
+          disabled={!result}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-teal-200 text-teal-700 hover:bg-teal-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm transition-colors"
+        >
+          <Download size={14} />
+          Exportar CSV
+        </button>
       </div>
 
       {error && (
@@ -295,16 +383,41 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wider">
+                    <tr className="bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wider select-none">
                       <th className="text-left px-4 py-3 text-slate-400 w-28">Código</th>
-                      <th className="text-left px-4 py-3 text-slate-500">Recurso</th>
+                      <th
+                        className="text-left px-4 py-3 text-slate-500 cursor-pointer hover:text-teal-600"
+                        onClick={() => toggleSort('name')}
+                      >
+                        Recurso <SortIcon col="name" />
+                      </th>
                       <th className="text-center px-3 py-3 text-slate-400 w-16">Unid.</th>
-                      <th className="text-right px-4 py-3 text-slate-500 w-32">Cant. técnica</th>
+                      <th
+                        className="text-right px-4 py-3 text-slate-500 w-32 cursor-pointer hover:text-teal-600"
+                        onClick={() => toggleSort('totalQuantity')}
+                      >
+                        Cant. técnica <SortIcon col="totalQuantity" />
+                      </th>
                       {activeTab === 'Materiales' && (
-                        <th className="text-right px-4 py-3 text-teal-600 w-36">Cant. compra</th>
+                        <th
+                          className="text-right px-4 py-3 text-teal-600 w-36 cursor-pointer hover:text-teal-800"
+                          onClick={() => toggleSort('purchaseQuantity')}
+                        >
+                          Cant. compra <SortIcon col="purchaseQuantity" />
+                        </th>
                       )}
-                      <th className="text-right px-4 py-3 text-slate-500 w-28">Costo Unit.</th>
-                      <th className="text-right px-4 py-3 text-slate-700 w-28">Costo Total</th>
+                      <th
+                        className="text-right px-4 py-3 text-slate-500 w-28 cursor-pointer hover:text-teal-600"
+                        onClick={() => toggleSort('unitCost')}
+                      >
+                        Costo Unit. <SortIcon col="unitCost" />
+                      </th>
+                      <th
+                        className="text-right px-4 py-3 text-slate-700 w-28 cursor-pointer hover:text-teal-600"
+                        onClick={() => toggleSort('totalCost')}
+                      >
+                        Costo Total <SortIcon col="totalCost" />
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">

@@ -1,20 +1,28 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Search, Plus, Trash2, RefreshCcw, Download, Package, X, AlertTriangle, CheckCircle2, BookPlus, Loader2, Layers, ChevronDown } from 'lucide-react';
+import { Search, Plus, Trash2, RefreshCcw, Download, Package, X, AlertTriangle, CheckCircle2, BookPlus, Loader2, Layers, ChevronDown, Settings2, ShoppingCart, FileText, BookOpen, Save } from 'lucide-react';
 import { CHANDIAS_CATALOG, ChandiasTask } from './catalog/chandiasCatalog';
+import { TaskSketch } from './TaskSketch';
 import {
   calculateTask, consolidateMaterials, getCategories,
   mapMaterialToReal, consolidateResolved, convertToCommercial,
+  computeDerivedOutputs, DerivedOutputResult,
   ChandiasAddedItem, ManualMaterial, OrgMaterialLookup, ResolvedMaterial,
   WallOpening, computeNetWallArea,
   FloorSector, computeNetFloorArea,
+  BeamAdvancedConfig, BEAM_CONFIG_DEFAULTS, BeamDerivedResult, computeBeamResult,
+  injectSteelConversionFactor, injectBulkConversionFactors,
 } from './engine/chandias';
+import { STEEL_REBAR_SPECS, getSteelBarWeight, DEFAULT_REBAR_DIAMETER_MM } from './engine/steelRebars';
 import { generateId } from '../../../utils/generateId';
 import { useAuth } from '../../../context/AuthContext';
 import { useERP } from '../../../context/ERPContext';
 import { useMasterTasks } from '../../../hooks/useMasterTasks';
 import { useUnifiedMaterials } from '../../../hooks/useUnifiedMaterials';
 import { masterTasksService, MasterTaskInput } from '../../../services/masterTasksSupabaseService';
-import { MasterTaskMaterial } from '../../../types';
+import { MasterTaskMaterial, APUSourceMetadata } from '../../../types';
+import { ReportPreviewModal, ReportMode } from './ReportPreviewModal';
+import { computationService } from '../../../services/computationService';
+import { buildComputationImportPayloads } from '../../../services/importComputationItems';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -45,6 +53,8 @@ function withManualMerged(items: ChandiasAddedItem[]): ChandiasAddedItem[] {
 const CATEGORY_COLORS: Record<string, string> = {
   'Movimiento de Suelos': 'bg-amber-100 text-amber-700',
   'Hormigones':           'bg-blue-100 text-blue-700',
+  'Fundaciones':          'bg-stone-200 text-stone-700',
+  'Estructura H.A.':     'bg-stone-300 text-stone-800',
   'Mampostería':          'bg-orange-100 text-orange-700',
   'Revoques':             'bg-yellow-100 text-yellow-700',
   'Contrapisos y Pisos':  'bg-emerald-100 text-emerald-700',
@@ -57,35 +67,65 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 const catColor = (cat: string) => CATEGORY_COLORS[cat] ?? 'bg-slate-100 text-slate-600';
 
-// ─── Helper: convierte un rubro Chandías en MasterTaskMaterial[] ──────────────
-// Usa el coef como cantidad por unidad de tarea (rendimiento unitario).
-// Resuelve precio y unidad comercial desde los materiales de la org.
+// ─── Helper: normaliza materiales desde un grupo de ítems del mismo taskId ────
+// Suma las cantidades reales (incluye manuales) y las divide por Σquantity.
+// Resultado: receta por 1 unidad de tarea, capturando la configuración real
+// del usuario (beamSteelRatio, beamWaste, manuales, etc.).
 
-function buildAPUMaterials(
-  task: ChandiasTask,
+function buildAPUMaterialsFromGroup(
+  groupItems: ChandiasAddedItem[],
   orgMaterials: OrgMaterialLookup[],
 ): MasterTaskMaterial[] {
-  return task.materiales.map(m => {
+  const totalQty = groupItems.reduce((s, i) => s + i.quantity, 0);
+  if (totalQty === 0 || groupItems.length === 0) return [];
+
+  // Sumar cantidades reales por nombre|unit
+  const matMap = new Map<string, { nombre: string; unit: string; total: number }>();
+  for (const item of groupItems) {
+    const allMats = [
+      ...item.materiales,
+      ...(item.manualMaterials ?? []).map(m => ({
+        nombre: m.nombre, unit: m.unit, coef: 0, cantidad: m.cantidad,
+      })),
+    ];
+    for (const m of allMats) {
+      const key = `${m.nombre.toLowerCase()}|${m.unit}`;
+      const ex  = matMap.get(key);
+      if (ex) { ex.total += m.cantidad; }
+      else    { matMap.set(key, { nombre: m.nombre, unit: m.unit, total: m.cantidad }); }
+    }
+  }
+
+  return Array.from(matMap.values()).map(({ nombre, unit, total }) => {
+    const normalizedCoef = total / totalQty;
     const resolved = mapMaterialToReal(
-      { nombre: m.nombre, unit: m.unit, coef: m.coef, cantidad: m.coef, code: m.code },
+      { nombre, unit, coef: normalizedCoef, cantidad: normalizedCoef },
       orgMaterials,
     );
+    // Solo persistir la capa comercial cuando hay un factor de conversión real
+    // (unidad técnica ≠ unidad de compra: kg→bolsa, kg→barra, lt→balde).
+    // Hormigón (m³→m³), encofrado (m²→m²): sin conversión → null ambos.
+    // Constraint DB: commercial_unit IS NULL OR conversion_factor IS NOT NULL.
+    const hasCF = resolved.conversionFactor != null && resolved.conversionFactor > 0;
     return {
-      id: generateId(),
-      materialName:       m.nombre,
-      unit:               m.unit,
-      quantity:           m.coef,
+      id:                 generateId(),
+      materialName:       nombre,
+      unit,
+      quantity:           normalizedCoef,
       lastKnownUnitPrice: resolved.unitCost > 0 ? resolved.unitCost : undefined,
-      conversionFactor:   resolved.conversionFactor,
-      commercialUnit:     resolved.commercialUnit,
+      conversionFactor:   hasCF ? resolved.conversionFactor : undefined,
+      commercialUnit:     hasCF ? (resolved.commercialUnit ?? undefined) : undefined,
     };
   });
 }
 
-// ─── Modal: Crear APU desde ítem Chandías ────────────────────────────────────
+// ─── Modal: Transformar en APU Maestro ───────────────────────────────────────
+// Agrupa todos los ítems del mismo taskId, normaliza la receta por Σquantity,
+// y guarda en master_tasks con trazabilidad source_metadata.
 
 interface CreateAPUModalProps {
-  item:           ChandiasAddedItem;
+  triggerItem:    ChandiasAddedItem;    // ítem que disparó el modal (define taskId)
+  allItems:       ChandiasAddedItem[];  // todos los ítems — para agrupar por taskId
   orgMaterials:   OrgMaterialLookup[];
   existingNames:  Set<string>;
   organizationId: string;
@@ -94,37 +134,76 @@ interface CreateAPUModalProps {
 }
 
 const CreateAPUModal: React.FC<CreateAPUModalProps> = ({
-  item, orgMaterials, existingNames, organizationId, onClose, onCreated,
+  triggerItem, allItems, orgMaterials, existingNames, organizationId, onClose, onCreated,
 }) => {
-  const catalogTask = CHANDIAS_CATALOG.find(t => t.id === item.taskId)!;
-  const [name,       setName]       = useState(item.taskNombre);
-  const [code,       setCode]       = useState('');
-  const [dailyYield, setDailyYield] = useState('1');
-  const [saving,     setSaving]     = useState(false);
-  const [error,      setError]      = useState<string | null>(null);
-  const [success,    setSuccess]    = useState(false);
+  const catalogTask  = CHANDIAS_CATALOG.find(t => t.id === triggerItem.taskId)!;
+
+  // Agrupar todos los ítems del mismo tipo
+  const groupItems   = allItems.filter(i => i.taskId === triggerItem.taskId);
+  const totalQty     = groupItems.reduce((s, i) => s + i.quantity, 0);
+  const itemCount    = groupItems.length;
+
+  const [name,        setName]        = useState(triggerItem.taskNombre);
+  const [code,        setCode]        = useState('');
+  const [description, setDescription] = useState('');
+  const [dailyYield,  setDailyYield]  = useState('1');
+  const [saving,      setSaving]      = useState(false);
+  const [error,       setError]       = useState<string | null>(null);
+  const [success,     setSuccess]     = useState(false);
 
   const isDuplicate = existingNames.has(name.trim().toLowerCase());
   const yieldNum    = parseFloat(dailyYield) || 0;
   const canSubmit   = name.trim().length > 0 && yieldNum > 0 && !saving;
 
-  // Preview de materiales (memo — solo varía si name/orgMaterials cambian)
-  const materials = useMemo(() => buildAPUMaterials(catalogTask, orgMaterials), [catalogTask, orgMaterials]);
+  // Inyectar CF de acero para el grupo (usa el diámetro del triggerItem como referencia)
+  const orgMaterialsForAPU = useMemo((): OrgMaterialLookup[] => {
+    const diam      = triggerItem.steelDiameterMm ?? DEFAULT_REBAR_DIAMETER_MM;
+    const withSteel = injectSteelConversionFactor(orgMaterials, getSteelBarWeight(diam), diam);
+    return injectBulkConversionFactors(withSteel);
+  }, [orgMaterials, triggerItem.steelDiameterMm]);
+
+  // Receta normalizada por unidad
+  const materials = useMemo(
+    () => buildAPUMaterialsFromGroup(groupItems, orgMaterialsForAPU),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [groupItems.map(i => i.itemId).join(','), orgMaterialsForAPU],
+  );
+
+  const missingPrices = materials.filter(m => !m.lastKnownUnitPrice).length;
+  const unitCostTotal = materials.reduce((s, m) => s + (m.lastKnownUnitPrice ?? 0) * m.quantity, 0);
 
   const handleCreate = async () => {
     setSaving(true);
     setError(null);
     try {
+      const sourceMetadata: APUSourceMetadata = {
+        source:           'chandias_computation',
+        catalogTaskId:    triggerItem.taskId,
+        catalogTaskName:  triggerItem.taskNombre,
+        catalogTaskUnit:  triggerItem.unidad,
+        totalQuantity:    totalQty,
+        itemCount,
+        inputItems: groupItems.map(i => ({
+          itemId:      i.itemId,
+          dims:        i.dims,
+          quantity:    i.quantity,
+          description: i.description || undefined,
+        })),
+        steelDiameterMm: triggerItem.steelDiameterMm,
+        snapshotDate:    new Date().toISOString().slice(0, 10),
+      };
+
       const input: MasterTaskInput = {
-        name:        name.trim(),
-        code:        code.trim() || undefined,
-        unit:        item.unidad,
-        category:    catalogTask.categoria,
-        description: `Generado desde calculadora Chandías — rubro ${item.taskId}`,
-        dailyYield:  yieldNum,
+        name:           name.trim(),
+        code:           code.trim() || undefined,
+        unit:           triggerItem.unidad,
+        category:       catalogTask.categoria,
+        description:    description.trim() || `Generado desde calculadora Chandías — ${triggerItem.taskId}`,
+        dailyYield:     yieldNum,
         materials,
-        labor:     [],
-        equipment: [],
+        labor:          [],
+        equipment:      [],
+        sourceMetadata,
       };
       await masterTasksService.create(organizationId, input);
       setSuccess(true);
@@ -136,24 +215,39 @@ const CreateAPUModal: React.FC<CreateAPUModalProps> = ({
     }
   };
 
+  const fmtQty = (n: number) => n.toLocaleString('es-AR', { maximumFractionDigits: 3 });
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
 
         {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-4 bg-blue-600 text-white shrink-0">
+        <div className="flex items-center gap-3 px-5 py-4 bg-blue-700 text-white shrink-0">
           <BookPlus size={18} />
-          <div className="min-w-0">
-            <p className="font-bold text-sm">Crear APU desde Chandías</p>
-            <p className="text-xs text-blue-200 font-mono truncate">{item.taskId} · {item.unidad}</p>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-sm">Transformar en APU Maestro</p>
+            <p className="text-xs text-blue-200 font-mono truncate">
+              {triggerItem.taskId} · {triggerItem.unidad} · {itemCount} ítem{itemCount !== 1 ? 's' : ''} · {fmtQty(totalQty)} {triggerItem.unidad} total
+            </p>
           </div>
-          <button onClick={onClose} className="ml-auto p-1.5 hover:bg-blue-700 rounded-lg shrink-0">
+          <button onClick={onClose} className="ml-auto p-1.5 hover:bg-blue-800 rounded-lg shrink-0">
             <X size={15} />
           </button>
         </div>
 
         {/* Body */}
         <div className="overflow-y-auto flex-1 p-5 space-y-4">
+
+          {/* Info de agrupación */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
+            <Layers size={13} className="shrink-0 text-blue-500" />
+            <span>
+              Este APU agrupa <strong>{itemCount} ítem{itemCount !== 1 ? 's' : ''}</strong> del tipo
+              <strong> {catalogTask.nombre}</strong>
+              {' '}(<strong>{fmtQty(totalQty)} {triggerItem.unidad}</strong> total).
+              La receta unitaria se calculó normalizando por el volumen/área total.
+            </span>
+          </div>
 
           {/* Nombre */}
           <div>
@@ -163,7 +257,7 @@ const CreateAPUModal: React.FC<CreateAPUModalProps> = ({
             />
             {isDuplicate && (
               <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                <AlertTriangle size={11} /> Ya existe un APU con este nombre en tu base
+                <AlertTriangle size={11} /> Ya existe un APU con este nombre en la base maestra
               </p>
             )}
           </div>
@@ -173,7 +267,7 @@ const CreateAPUModal: React.FC<CreateAPUModalProps> = ({
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Código (opcional)</label>
               <input type="text" value={code} onChange={e => setCode(e.target.value)}
-                placeholder="Ej: MAM-005"
+                placeholder="Ej: FUN-004-C"
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
               />
             </div>
@@ -185,16 +279,27 @@ const CreateAPUModal: React.FC<CreateAPUModalProps> = ({
                   className="flex-1 px-3 py-2 text-sm focus:outline-none min-w-0"
                 />
                 <span className="px-2 text-xs text-slate-400 bg-slate-50 flex items-center border-l border-slate-200 whitespace-nowrap">
-                  {item.unidad}/día
+                  {triggerItem.unidad}/día
                 </span>
               </div>
             </div>
           </div>
 
+          {/* Descripción */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">
+              Descripción / observaciones (opcional)
+            </label>
+            <input type="text" value={description} onChange={e => setDescription(e.target.value)}
+              placeholder="Ej: Columna de fundación H-21, 200 kg/m³ acero…"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </div>
+
           {/* Badges */}
           <div className="flex gap-2 flex-wrap">
             <span className="text-xs px-2 py-1 bg-slate-100 rounded-lg text-slate-600">
-              Unidad: <strong>{item.unidad}</strong>
+              Unidad: <strong>{triggerItem.unidad}</strong>
             </span>
             <span className={`text-xs px-2 py-1 rounded-lg ${catColor(catalogTask.categoria)}`}>
               {catalogTask.categoria}
@@ -202,13 +307,25 @@ const CreateAPUModal: React.FC<CreateAPUModalProps> = ({
             <span className="text-xs px-2 py-1 bg-slate-100 rounded-lg text-slate-500">
               {materials.length} material{materials.length !== 1 ? 'es' : ''}
             </span>
+            {missingPrices > 0 && (
+              <span className="text-xs px-2 py-1 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 flex items-center gap-1">
+                <AlertTriangle size={10} /> {missingPrices} sin precio
+              </span>
+            )}
           </div>
 
-          {/* Preview materiales */}
+          {/* Receta unitaria */}
           <div className="border border-slate-100 rounded-xl overflow-hidden">
-            <p className="px-3 py-2 text-xs font-bold text-slate-600 bg-slate-50 border-b border-slate-100">
-              Composición de materiales
-            </p>
+            <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-100">
+              <p className="text-xs font-bold text-slate-600">
+                Receta unitaria — por 1 {triggerItem.unidad}
+              </p>
+              {unitCostTotal > 0 && (
+                <span className="text-xs font-bold text-blue-700">
+                  ${fmtCost(unitCostTotal)} / {triggerItem.unidad}
+                </span>
+              )}
+            </div>
             <div className="max-h-44 overflow-y-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -223,7 +340,9 @@ const CreateAPUModal: React.FC<CreateAPUModalProps> = ({
                   {materials.map((m, i) => (
                     <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
                       <td className="px-3 py-1.5 text-slate-700">{m.materialName}</td>
-                      <td className="px-2 py-1.5 text-right font-mono text-slate-600">{m.quantity}</td>
+                      <td className="px-2 py-1.5 text-right font-mono text-slate-600">
+                        {m.quantity.toLocaleString('es-AR', { maximumFractionDigits: 4 })}
+                      </td>
                       <td className="px-2 py-1.5 text-center text-slate-400">{m.unit}</td>
                       <td className="px-2 py-1.5 text-right">
                         {m.lastKnownUnitPrice
@@ -238,6 +357,14 @@ const CreateAPUModal: React.FC<CreateAPUModalProps> = ({
             </div>
           </div>
 
+          {/* Aviso precios faltantes */}
+          {missingPrices > 0 && !success && (
+            <p className="text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200 flex items-center gap-1.5">
+              <AlertTriangle size={12} className="shrink-0" />
+              {missingPrices} material{missingPrices !== 1 ? 'es' : ''} sin precio. El APU se guardará correctamente — podés actualizarlos desde Base de Datos → APUs.
+            </p>
+          )}
+
           {/* Error */}
           {error && (
             <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-200">{error}</p>
@@ -247,7 +374,10 @@ const CreateAPUModal: React.FC<CreateAPUModalProps> = ({
           {success && (
             <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
               <CheckCircle2 size={14} className="shrink-0" />
-              <span>APU <strong>{name.trim()}</strong> creado correctamente. Podés verlo en Base de Datos → APUs.</span>
+              <span>
+                APU <strong>{name.trim()}</strong> guardado en la base maestra.
+                Podés verlo en Base de Datos → APUs.
+              </span>
             </div>
           )}
         </div>
@@ -260,9 +390,9 @@ const CreateAPUModal: React.FC<CreateAPUModalProps> = ({
           </button>
           {!success && (
             <button onClick={handleCreate} disabled={!canSubmit}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <BookPlus size={14} />}
-              {saving ? 'Creando…' : 'Crear APU'}
+              {saving ? 'Guardando…' : 'Guardar en Base Maestra'}
             </button>
           )}
         </div>
@@ -346,31 +476,83 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedId, onSelect }) => {
 
 // ─── DetailPanel ──────────────────────────────────────────────────────────────
 
+/** Estado serializable del DetailPanel para persistir en el borrador. */
+interface DetailPanelState {
+  taskId: string;
+  dimValues: Record<string, string>;
+  description: string;
+  manualMaterials: ManualMaterial[];
+  excludedMaterialNames: string[];
+  nWalls: number;
+  openings: WallOpening[];
+  nRooms: number;
+  floorSectors: FloorSector[];
+  beamNBeams: number;
+  beamWaste: number;
+  beamSteelRatio: number;
+  beamSteelDiameter: number;
+  beamFondo: boolean;
+  beamLat1: boolean;
+  beamLat2: boolean;
+  beamLat3: boolean;
+}
+
 interface DetailPanelProps {
   task: ChandiasTask | null;
   orgMaterials: OrgMaterialLookup[];
   onAdd: (item: ChandiasAddedItem) => void;
+  /** Callback disparado tras cada cambio de estado relevante del panel (para autosave). */
+  onPanelStateChange?: (state: DetailPanelState) => void;
+  /** Estado inicial a restaurar cuando el taskId coincide (borrador previo). */
+  initialPanelState?: DetailPanelState | null;
 }
-const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) => {
+const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, onPanelStateChange, initialPanelState }) => {
   const [dimValues,   setDimValues]   = useState<Record<string, string>>({});
   const [description, setDescription] = useState('');
 
   // ── Materiales manuales ───────────────────────────────────────────────────
+  const [excludedMaterialNames, setExcludedMaterialNames] = useState<Set<string>>(new Set());
   const [manualMaterials, setManualMaterials] = useState<ManualMaterial[]>([]);
   const [addingMat,       setAddingMat]       = useState(false);
   const [matSearch,       setMatSearch]       = useState('');
   const [matSelected,     setMatSelected]     = useState<OrgMaterialLookup | null>(null);
   const [matQty,          setMatQty]          = useState('');
   const [matDropdown,     setMatDropdown]     = useState(false);
+  // Coordenadas para el dropdown con position:fixed.
+  // Necesario porque el dropdown está adentro de overflow-hidden (card) y
+  // overflow-y-auto (scroll container) — ambos recortan position:absolute.
+  const [dropTop,         setDropTop]         = useState(0);
+  const [dropLeft,        setDropLeft]        = useState(0);
+  const [dropWidth,       setDropWidth]       = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Garantiza que el dropdown se abre cuando aparece el formulario,
-  // independientemente de si autoFocus dispara onFocus o no.
+  const recalcDropPos = () => {
+    if (searchInputRef.current) {
+      const r = searchInputRef.current.getBoundingClientRect();
+      const minW = 320;
+      const w = Math.max(r.width, minW);
+      // Clamp to viewport right edge
+      const left = Math.min(r.left, window.innerWidth - w - 8);
+      // Flip upward if not enough space below
+      const spaceBelow = window.innerHeight - r.bottom;
+      const openUp = spaceBelow < 240 && r.top > spaceBelow;
+      setDropTop(openUp ? Math.max(8, r.top - 296) : r.bottom + 4);
+      setDropLeft(left);
+      setDropWidth(w);
+    }
+  };
+
+  // Abre el dropdown y calcula su posición fija.
+  // requestAnimationFrame garantiza que el DOM está pintado antes de leer el rect.
   useEffect(() => {
     if (addingMat) {
-      searchInputRef.current?.focus();
-      setMatDropdown(true);
+      requestAnimationFrame(() => {
+        recalcDropPos();
+        searchInputRef.current?.focus();
+        setMatDropdown(true);
+      });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addingMat]);
 
   // ── Configuración avanzada de muro (Mampostería / Revoques / Revestimientos) ─
@@ -383,26 +565,100 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) 
   const [floorSectors,     setFloorSectors]     = useState<FloorSector[]>([]);
   const [showFloorAdvanced, setShowFloorAdvanced] = useState(false);
 
+  // ── Configuración avanzada de fundaciones / H.A. ──────────────────────────
+  const [beamNBeams,        setBeamNBeams]        = useState(BEAM_CONFIG_DEFAULTS.nBeams);
+  const [beamWaste,         setBeamWaste]         = useState(BEAM_CONFIG_DEFAULTS.wastePercent);
+  const [beamSteelRatio,    setBeamSteelRatio]    = useState(BEAM_CONFIG_DEFAULTS.steelRatio);
+  const [beamSteelDiameter, setBeamSteelDiameter] = useState(BEAM_CONFIG_DEFAULTS.steelDiameterMm);
+  const [beamFondo,         setBeamFondo]         = useState(BEAM_CONFIG_DEFAULTS.formwork.fondo);
+  const [beamLat1,          setBeamLat1]          = useState(BEAM_CONFIG_DEFAULTS.formwork.lat1);
+  const [beamLat2,          setBeamLat2]          = useState(BEAM_CONFIG_DEFAULTS.formwork.lat2);
+  const [beamLat3,          setBeamLat3]          = useState(false);
+  const [showBeamAdvanced,  setShowBeamAdvanced]  = useState(false);
+
   const prevTaskId = React.useRef<string | null>(null);
   if (task && task.id !== prevTaskId.current) {
+    // Si hay estado guardado que coincide con esta tarea, restaurarlo; si no, usar defaults.
+    const init = initialPanelState?.taskId === task.id ? initialPanelState : null;
     const defaults: Record<string, string> = {};
-    task.dims.forEach(d => { defaults[d.id] = ''; });
-    setDimValues(defaults);
-    setDescription('');
-    setManualMaterials([]);
+    task.dims.forEach(d => { defaults[d.id] = init?.dimValues?.[d.id] ?? ''; });
+    setDimValues(init?.dimValues ?? defaults);
+    setDescription(init?.description ?? '');
+    setExcludedMaterialNames(new Set(init?.excludedMaterialNames ?? []));
+    setManualMaterials(init?.manualMaterials ?? []);
     setAddingMat(false);
     setMatSearch('');
     setMatSelected(null);
     setMatQty('');
     setMatDropdown(false);
-    setNWalls(1);
-    setOpenings([]);
+    setNWalls(init?.nWalls ?? 1);
+    setOpenings(init?.openings ?? []);
     setShowAdvanced(false);
-    setNRooms(1);
-    setFloorSectors([]);
+    setNRooms(init?.nRooms ?? 1);
+    setFloorSectors(init?.floorSectors ?? []);
     setShowFloorAdvanced(false);
+    if (init) {
+      // Restaurar config de vigas desde el borrador
+      setBeamNBeams(init.beamNBeams);
+      setBeamWaste(init.beamWaste);
+      setBeamSteelRatio(init.beamSteelRatio);
+      setBeamSteelDiameter(init.beamSteelDiameter);
+      setBeamFondo(init.beamFondo);
+      setBeamLat1(init.beamLat1);
+      setBeamLat2(init.beamLat2);
+      setBeamLat3(init.beamLat3);
+    } else if (task.structuralConfig?.enabled) {
+      // Beam: inicializar desde structuralConfig del catálogo (o defaults si ausente)
+      const sc = task.structuralConfig;
+      setBeamWaste(sc.defaultWastePercent);
+      setBeamSteelRatio(sc.defaultSteelRatio);
+      setBeamFondo(sc.defaultFormwork.fondo);
+      setBeamLat1(sc.defaultFormwork.lat1);
+      setBeamLat2(sc.defaultFormwork.lat2);
+      setBeamLat3(sc.defaultFormwork.lat3);
+      setBeamNBeams(BEAM_CONFIG_DEFAULTS.nBeams);
+      setBeamSteelDiameter(BEAM_CONFIG_DEFAULTS.steelDiameterMm);
+    } else {
+      setBeamFondo(BEAM_CONFIG_DEFAULTS.formwork.fondo ?? true);
+      setBeamLat1(BEAM_CONFIG_DEFAULTS.formwork.lat1);
+      setBeamLat2(BEAM_CONFIG_DEFAULTS.formwork.lat2);
+      setBeamLat3(false);
+      setBeamNBeams(BEAM_CONFIG_DEFAULTS.nBeams);
+      setBeamSteelDiameter(BEAM_CONFIG_DEFAULTS.steelDiameterMm);
+    }
+    setShowBeamAdvanced(init ? (init.beamNBeams > 1 || init.beamWaste !== BEAM_CONFIG_DEFAULTS.wastePercent || init.beamSteelRatio !== BEAM_CONFIG_DEFAULTS.steelRatio) : (task.structuralConfig?.defaultPanelOpen ?? false));
     prevTaskId.current = task.id;
   }
+
+  // Reportar estado del panel al padre para persistencia en borrador
+  useEffect(() => {
+    if (!task || !onPanelStateChange) return;
+    onPanelStateChange({
+      taskId: task.id,
+      dimValues,
+      description,
+      manualMaterials,
+      excludedMaterialNames: Array.from(excludedMaterialNames),
+      nWalls,
+      openings,
+      nRooms,
+      floorSectors,
+      beamNBeams,
+      beamWaste,
+      beamSteelRatio,
+      beamSteelDiameter,
+      beamFondo,
+      beamLat1,
+      beamLat2,
+      beamLat3,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    task?.id, dimValues, description, manualMaterials, excludedMaterialNames,
+    nWalls, openings, nRooms, floorSectors,
+    beamNBeams, beamWaste, beamSteelRatio, beamSteelDiameter,
+    beamFondo, beamLat1, beamLat2, beamLat3,
+  ]);
 
   const dims = useMemo(() => {
     if (!task) return {} as Record<string, number>;
@@ -417,7 +673,8 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) 
     ['Mampostería', 'Revoques', 'Revestimientos'].includes(task?.categoria ?? '') &&
     (task?.dims.some(d => d.id === 'alto') ?? false)
   );
-  const isFloorFamily = task?.categoria === 'Contrapisos y Pisos';
+  const isFloorFamily  = task?.categoria === 'Contrapisos y Pisos';
+  const isBeamFamily   = !!task?.structuralConfig?.enabled;
 
   const baseCalcResult = useMemo(
     () => task ? calculateTask(task, dims) : null,
@@ -434,14 +691,29 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) 
     return computeNetFloorArea(dims.largo ?? 0, dims.ancho ?? 0, { nRooms, sectors: floorSectors });
   }, [isFloorFamily, dims, nRooms, floorSectors]);
 
+  const beamCfg = useMemo((): BeamAdvancedConfig => ({
+    nBeams: beamNBeams,
+    wastePercent: beamWaste,
+    steelRatio: beamSteelRatio,
+    steelDiameterMm: beamSteelDiameter,
+    formwork: { fondo: beamFondo, lat1: beamLat1, lat2: beamLat2, lat3: beamLat3 },
+  }), [beamNBeams, beamWaste, beamSteelRatio, beamSteelDiameter, beamFondo, beamLat1, beamLat2, beamLat3]);
+
+  const beamResult = useMemo((): { calcResult: ReturnType<typeof computeBeamResult>['calcResult']; derived: BeamDerivedResult } | null => {
+    if (!isBeamFamily || !baseCalcResult) return null;
+    return computeBeamResult(baseCalcResult, dims, beamCfg);
+  }, [isBeamFamily, baseCalcResult, dims, beamCfg]);
+
   /**
    * calcResult efectivo:
    *  - Familias de muro/revoque/revestimiento → superficie neta (largo×alto×N − aberturas)
    *  - Pisos → superficie total (largo×ancho×N + sectores)
+   *  - Fundaciones → volumen ajustado por nBeams, waste, steelRatio
    *  - Todo lo demás → igual que baseCalcResult (sin cambios).
    */
   const calcResult = useMemo(() => {
     if (!baseCalcResult) return null;
+    if (beamResult) return beamResult.calcResult;
     const net = wallSurface?.neta ?? floorSurface?.total ?? null;
     if (net === null) return baseCalcResult;
     return {
@@ -452,48 +724,119 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) 
         cantidad: parseFloat((m.coef * net).toFixed(4)),
       })),
     };
-  }, [baseCalcResult, wallSurface, floorSurface]);
+  }, [baseCalcResult, beamResult, wallSurface, floorSurface]);
+
+  // Cómputos derivados (ej: encofrado paramétrico de FUN-002)
+  const derivedOutputs = useMemo((): DerivedOutputResult[] => {
+    if (!task) return [];
+    return computeDerivedOutputs(task, dims);
+  }, [task, dims]);
+
+  // Para beam family: reemplaza el valor de 'encofrado' con el calculado por beamResult
+  // (que aplica nBeams y selección de caras). Para otras familias: igual que derivedOutputs.
+  const effectiveDerivedOutputs = useMemo((): DerivedOutputResult[] => {
+    if (!isBeamFamily || !beamResult) return derivedOutputs;
+    return derivedOutputs.map(d =>
+      d.id === 'encofrado' ? { ...d, value: beamResult.derived.totalEncofrado } : d,
+    );
+  }, [isBeamFamily, beamResult, derivedOutputs]);
+
+  // Siempre inyectar CF de acero (diámetro según contexto) + CF de materiales a granel.
+  // Para beam family: usa el diámetro seleccionado; para otras tareas: diámetro por defecto.
+  // injectBulkConversionFactors agrega CF para cemento/cal/yeso (necesario si migration 022 no ejecutada).
+  const orgMaterialsEffective = useMemo((): OrgMaterialLookup[] => {
+    const steelDiam = isBeamFamily ? beamSteelDiameter : DEFAULT_REBAR_DIAMETER_MM;
+    const withSteel = injectSteelConversionFactor(orgMaterials, getSteelBarWeight(steelDiam), steelDiam);
+    return injectBulkConversionFactors(withSteel);
+  }, [orgMaterials, isBeamFamily, beamSteelDiameter]);
 
   // Materiales automáticos con precios resueltos
   const resolvedMaterials = useMemo((): ResolvedMaterial[] => {
     if (!calcResult || !task) return [];
     return calcResult.materiales.map((m, i) =>
-      mapMaterialToReal({ ...m, code: task.materiales[i]?.code }, orgMaterials),
+      mapMaterialToReal({ ...m, code: task.materiales[i]?.code }, orgMaterialsEffective),
     );
-  }, [calcResult, task, orgMaterials]);
+  }, [calcResult, task, orgMaterialsEffective]);
+
+  // Materiales del catálogo filtrados por exclusión manual del usuario
+  const resolvedMaterialsVisible = useMemo(
+    () => resolvedMaterials.filter(m => !excludedMaterialNames.has(m.nombre)),
+    [resolvedMaterials, excludedMaterialNames],
+  );
 
   // Materiales manuales con precios resueltos (misma lógica técnica/comercial)
   const resolvedManual = useMemo((): ResolvedMaterial[] =>
     manualMaterials.map(m =>
       mapMaterialToReal(
         { nombre: m.nombre, unit: m.unit, coef: 0, cantidad: m.cantidad, code: m.code },
-        orgMaterials,
+        orgMaterialsEffective,
       ),
     ),
-    [manualMaterials, orgMaterials],
+    [manualMaterials, orgMaterialsEffective],
   );
 
-  // Sugerencias para el selector de material (filtradas por búsqueda)
+  // Materiales derivados por geometría: derivedOutputs con asMaterial → líneas de composición.
+  // La cantidad usa effectiveDerivedOutputs (ya aplica nBeams/caras para beam family).
+  const resolvedDerived = useMemo((): Array<ResolvedMaterial & { derivedOutputId: string }> => {
+    if (!task) return [];
+    return effectiveDerivedOutputs
+      .filter(d => !!task.derivedOutputs?.find(od => od.id === d.id)?.asMaterial)
+      .map(d => {
+        const cat = task.derivedOutputs!.find(od => od.id === d.id)!;
+        const am  = cat.asMaterial!;
+        const resolved = mapMaterialToReal(
+          { nombre: am.nombre ?? cat.label, unit: cat.unit, coef: 0, cantidad: d.value, code: am.code },
+          orgMaterialsEffective,
+        );
+        return { ...resolved, derivedOutputId: d.id };
+      });
+  }, [task, effectiveDerivedOutputs, orgMaterialsEffective]);
+
+  // Sugerencias para el selector de material (filtradas por búsqueda — sin límite).
+  // Usa orgMaterialsEffective para mostrar unidades técnicas correctas (kg, no TN)
+  // y datos comerciales inyectados (bolsas, barras).
   const matSuggestions = useMemo(() => {
     const q = matSearch.trim().toLowerCase();
-    if (!q) return orgMaterials.slice(0, 8);
-    return orgMaterials.filter(m => m.name.toLowerCase().includes(q)).slice(0, 8);
-  }, [matSearch, orgMaterials]);
+    if (!q) return orgMaterialsEffective;
+    return orgMaterialsEffective.filter(m =>
+      m.name.toLowerCase().includes(q) ||
+      (m.code && m.code.toLowerCase().includes(q)),
+    );
+  }, [matSearch, orgMaterialsEffective]);
 
   const allFilled      = task?.dims.every(d => (parseFloat(dimValues[d.id] || '0') || 0) > 0) ?? false;
   const quantity       = calcResult?.quantity ?? 0;
-  const missingAuto    = resolvedMaterials.filter(m => m.matchedBy === 'missing').length;
+  const missingAuto    = resolvedMaterialsVisible.filter(m => m.matchedBy === 'missing').length;
   const missingManual  = resolvedManual.filter(m => m.matchedBy === 'missing').length;
-  const missingAll     = missingAuto + missingManual;
-  const totalAutoCost  = resolvedMaterials.reduce((s, m) => s + m.totalCost, 0);
+  const missingDerived = resolvedDerived.filter(m => m.matchedBy === 'missing').length;
+  const missingAll     = missingAuto + missingManual + missingDerived;
+  const totalAutoCost  = resolvedMaterialsVisible.reduce((s, m) => s + m.totalCost, 0);
   const totalManCost   = resolvedManual.reduce((s, m) => s + m.totalCost, 0);
-  const totalAllCost   = totalAutoCost + totalManCost;
-  const totalCount     = (task?.materiales.length ?? 0) + manualMaterials.length;
+  const totalDervCost  = resolvedDerived.reduce((s, m) => s + m.totalCost, 0);
+  const totalAllCost   = totalAutoCost + totalManCost + totalDervCost;
+  const totalCount     = resolvedMaterialsVisible.length + manualMaterials.length + resolvedDerived.length;
 
   const handleAdd = useCallback(() => {
     if (!calcResult || !task || quantity <= 0) return;
-    onAdd({ ...calcResult, itemId: generateId(), description, manualMaterials });
-  }, [calcResult, task, quantity, description, onAdd, manualMaterials]);
+    // Convertir líneas derivadas a manualMaterials para persistirlas en el ítem
+    const derivedAsManual: ManualMaterial[] = resolvedDerived
+      .filter(m => m.cantidad > 0)
+      .map(m => ({
+        id: generateId(),
+        nombre: m.nombre,
+        unit: m.unit,
+        cantidad: m.cantidad,
+        code: task.derivedOutputs?.find(d => d.id === m.derivedOutputId)?.asMaterial?.code,
+      }));
+    onAdd({
+      ...calcResult,
+      materiales: calcResult.materiales.filter(m => !excludedMaterialNames.has(m.nombre)),
+      itemId: generateId(),
+      description,
+      manualMaterials: [...manualMaterials, ...derivedAsManual],
+      steelDiameterMm: isBeamFamily ? beamSteelDiameter : undefined,
+    });
+  }, [calcResult, task, quantity, description, onAdd, manualMaterials, resolvedDerived, isBeamFamily, beamSteelDiameter, excludedMaterialNames]);
 
   const handleAddManual = useCallback(() => {
     if (!matSelected || parseFloat(matQty) <= 0) return;
@@ -575,6 +918,11 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) 
           <h2 className="font-bold text-slate-800">{task.nombre}</h2>
           <p className="text-xs text-slate-500 mt-0.5 italic">{task.descripcion}</p>
 
+          {/* Esquema de referencia — proporcional a las dimensiones ingresadas */}
+          <div className="mt-3 mb-1 bg-slate-50 rounded-xl border border-slate-100 py-2 px-1">
+            <TaskSketch task={task} dimValues={dimValues} />
+          </div>
+
           {/* Inputs dinámicos */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
             {task.dims.map(dim => (
@@ -582,7 +930,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) 
                 <label className="block text-xs font-semibold text-slate-500 mb-1">{dim.label}</label>
                 <div className="flex rounded-lg border border-slate-200 overflow-hidden focus-within:ring-1 focus-within:ring-blue-400 focus-within:border-blue-400">
                   <input
-                    type="number" min="0" step="any"
+                    type="number" min="0" step="0.05"
                     value={dimValues[dim.id] ?? ''}
                     onChange={e => setDimValues(prev => ({ ...prev, [dim.id]: e.target.value }))}
                     placeholder="0"
@@ -804,6 +1152,145 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) 
             </div>
           )}
 
+          {/* ── Configuración avanzada de fundaciones (Fundaciones H.A.) ─────── */}
+          {isBeamFamily && (
+            <div className="mt-4 border border-stone-200 rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowBeamAdvanced(v => !v)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-stone-50 hover:bg-stone-100 transition-colors"
+              >
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-stone-700">
+                  <Settings2 size={13} />
+                  Parámetros de cómputo
+                  {(() => {
+                    const activeFaceCount = [beamFondo, beamLat1, beamLat2, beamLat3].filter(Boolean).length;
+                    const defaultFaceCount = task?.structuralConfig
+                      ? Object.values(task.structuralConfig.defaultFormwork).filter(Boolean).length
+                      : 3;
+                    const defaultWaste = task?.structuralConfig?.defaultWastePercent ?? 5;
+                    const badgeItems = [
+                      beamNBeams > 1 && `×${beamNBeams} el.`,
+                      beamWaste !== defaultWaste && `desp. ${beamWaste}%`,
+                      activeFaceCount !== defaultFaceCount && `${activeFaceCount} caras enc.`,
+                    ].filter(Boolean);
+                    return badgeItems.length > 0 ? (
+                      <span className="px-1.5 py-0.5 text-[9px] font-bold bg-stone-200 text-stone-600 rounded-full">
+                        {badgeItems.join(' · ')}
+                      </span>
+                    ) : null;
+                  })()}
+                </span>
+                <ChevronDown
+                  size={13}
+                  className={`text-stone-400 transition-transform duration-150 ${showBeamAdvanced ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {showBeamAdvanced && (
+                <div className="px-3 pt-3 pb-3 space-y-4 border-t border-stone-100">
+                  {/* Cantidad de elementos */}
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-semibold text-stone-600 min-w-[140px]">
+                      Elementos iguales
+                    </label>
+                    <div className="flex rounded-lg border border-stone-200 overflow-hidden focus-within:ring-1 focus-within:ring-stone-400 w-28">
+                      <input
+                        type="number" min="1" step="1"
+                        value={beamNBeams}
+                        onChange={e => setBeamNBeams(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="flex-1 px-3 py-1.5 text-sm bg-white focus:outline-none min-w-0"
+                      />
+                      <span className="px-2 text-xs text-stone-400 bg-stone-50 flex items-center border-l border-stone-200">un</span>
+                    </div>
+                  </div>
+
+                  {/* Desperdicio hormigón */}
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-semibold text-stone-600 min-w-[140px]">
+                      Desperdicio hormigón
+                    </label>
+                    <div className="flex rounded-lg border border-stone-200 overflow-hidden focus-within:ring-1 focus-within:ring-stone-400 w-28">
+                      <input
+                        type="number" min="0" max="30" step="1"
+                        value={beamWaste}
+                        onChange={e => setBeamWaste(Math.max(0, Math.min(30, parseFloat(e.target.value) || 0)))}
+                        className="flex-1 px-3 py-1.5 text-sm bg-white focus:outline-none min-w-0"
+                      />
+                      <span className="px-2 text-xs text-stone-400 bg-stone-50 flex items-center border-l border-stone-200">%</span>
+                    </div>
+                  </div>
+
+                  {/* Cuantía de acero */}
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-semibold text-stone-600 min-w-[140px]">
+                      Cuantía de acero
+                    </label>
+                    <div className="flex rounded-lg border border-stone-200 overflow-hidden focus-within:ring-1 focus-within:ring-stone-400 w-28">
+                      <input
+                        type="number" min="0" step="5"
+                        value={beamSteelRatio}
+                        onChange={e => setBeamSteelRatio(Math.max(0, parseFloat(e.target.value) || 0))}
+                        className="flex-1 px-3 py-1.5 text-sm bg-white focus:outline-none min-w-0"
+                      />
+                      <span className="px-2 text-xs text-stone-400 bg-stone-50 flex items-center border-l border-stone-200">kg/m³</span>
+                    </div>
+                  </div>
+
+                  {/* Diámetro de barra */}
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-semibold text-stone-600 min-w-[140px]">
+                      Diámetro de barra
+                    </label>
+                    <select
+                      value={beamSteelDiameter}
+                      onChange={e => setBeamSteelDiameter(parseInt(e.target.value))}
+                      className="px-3 py-1.5 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400 bg-white w-36"
+                    >
+                      {STEEL_REBAR_SPECS.map(s => (
+                        <option key={s.diameterMm} value={s.diameterMm}>
+                          ∅{s.diameterMm}mm — {s.barWeightKg} kg/barra
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Encofrado */}
+                  <div>
+                    <p className="text-xs font-semibold text-stone-600 mb-2">Caras de encofrado</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(() => {
+                        const fl = task?.structuralConfig?.faceLabels;
+                        return ([
+                          { key: 'fondo', label: fl?.fondo ?? 'Fondo',     val: beamFondo, set: setBeamFondo },
+                          { key: 'lat1',  label: fl?.lat1  ?? 'Lateral 1', val: beamLat1,  set: setBeamLat1 },
+                          { key: 'lat2',  label: fl?.lat2  ?? 'Lateral 2', val: beamLat2,  set: setBeamLat2 },
+                          { key: 'lat3',  label: fl?.lat3  ?? 'Lateral 3', val: beamLat3,  set: setBeamLat3 },
+                        ] as const).map(f => (
+                          <button
+                            key={f.key}
+                            type="button"
+                            onClick={() => f.set(v => !v)}
+                            className={`px-3 py-1 text-xs rounded-lg border transition-colors ${
+                              f.val
+                                ? 'bg-stone-700 text-white border-stone-700'
+                                : 'bg-white text-stone-400 border-stone-200'
+                            }`}
+                          >
+                            {f.label}
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                    <p className="text-[10px] text-stone-400 mt-1 italic">
+                      Encofrado = suma de áreas de caras activas
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── Cantidad / Superficie calculada ─────────────────────────────── */}
           {isWallFamily && wallSurface && (nWalls > 1 || openings.length > 0) ? (
             <div className="mt-4 px-4 py-3 bg-blue-50 border border-blue-100 rounded-lg space-y-1">
@@ -865,6 +1352,111 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) 
                 </div>
               </div>
             </div>
+          ) : isBeamFamily && beamResult && quantity > 0 ? (
+            /* ── Resumen de cómputo de H.A. ──────────────────────────────── */
+            <div className="mt-4 px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl space-y-2.5">
+              <p className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
+                {task?.categoria === 'Fundaciones' ? 'Cómputo de fundación' : `Cómputo — ${task?.categoria ?? 'H.A.'}`}
+              </p>
+
+              {/* Volumen estructural */}
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs font-medium text-stone-700">
+                  Volumen estructural
+                  {beamNBeams > 1 && (
+                    <span className="ml-1 text-[10px] text-stone-400">
+                      ({fmtNum(beamResult.derived.volumePerBeam, 3)} × {beamNBeams})
+                    </span>
+                  )}
+                </span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-bold text-stone-800">{fmtNum(beamResult.derived.totalVolumeBruto, 3)}</span>
+                  <span className="text-xs text-stone-500">m³</span>
+                </div>
+              </div>
+
+              <div className="border-t border-stone-200" />
+
+              {/* Hormigón */}
+              <div className="space-y-1">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs font-medium text-stone-700">
+                    Hormigón H-21
+                    <span className="ml-1 text-[10px] text-stone-400">(+{beamWaste}% desp.)</span>
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-bold text-stone-800">{fmtNum(beamResult.derived.totalHormigon, 3)}</span>
+                    <span className="text-xs text-stone-500">m³</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pl-1">
+                  <span className="flex items-center gap-1 text-[10px] text-stone-500">
+                    <ShoppingCart size={10} />
+                    Compra sugerida (múltiplos 0.5 m³)
+                  </span>
+                  <span className="text-xs font-semibold text-stone-600">
+                    {fmtNum(beamResult.derived.hormiPurchaseSuggested, 1)} m³
+                  </span>
+                </div>
+              </div>
+
+              {/* Acero */}
+              <div className="space-y-1">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs font-medium text-stone-700">
+                    Acero ADN 420
+                    <span className="ml-1 text-[10px] text-stone-400">({beamSteelRatio} kg/m³)</span>
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-bold text-stone-800">{fmtNum(beamResult.derived.totalAcero, 1)}</span>
+                    <span className="text-xs text-stone-500">kg</span>
+                  </div>
+                </div>
+                {beamResult.derived.steelBarsNeeded > 0 && (
+                  <div className="flex items-center justify-between pl-1">
+                    <span className="flex items-center gap-1 text-[10px] text-stone-500">
+                      <ShoppingCart size={10} />
+                      Compra (∅{beamSteelDiameter}mm · {fmtNum(beamResult.derived.steelBarWeightKg, 3)} kg/barra)
+                    </span>
+                    <span className="text-xs font-semibold text-stone-600">
+                      {beamResult.derived.steelBarsNeeded} barras 12m
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Encofrado */}
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs font-medium text-stone-700">
+                  Encofrado
+                  <span className="ml-1 text-[10px] text-stone-400">
+                    ({[beamFondo && 'fondo', beamLat1 && 'lat1', beamLat2 && 'lat2', beamLat3 && 'lat3'].filter(Boolean).join('+') || 'sin caras'})
+                  </span>
+                </span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-bold text-stone-800">{fmtNum(beamResult.derived.totalEncofrado, 2)}</span>
+                  <span className="text-xs text-stone-500">m²</span>
+                </div>
+              </div>
+
+              {/* Auditoría */}
+              <div className="border-t border-stone-200 pt-1.5">
+                <p className="text-[10px] text-stone-400 font-mono leading-relaxed">
+                  V = {fmtNum(dims.largo??0,2)}×{fmtNum(dims.ancho??0,2)}×{fmtNum(dims.alto??0,2)}
+                  {beamNBeams > 1 ? `×${beamNBeams}` : ''} = {fmtNum(beamResult.derived.totalVolumeBruto,3)} m³
+                  {'  '}|{'  '}
+                  H = V×{(1 + beamWaste/100).toFixed(2)} = {fmtNum(beamResult.derived.totalHormigon,3)} m³
+                  {'  '}|{'  '}
+                  A = V×{beamSteelRatio} = {fmtNum(beamResult.derived.totalAcero,1)} kg
+                  {beamResult.derived.steelBarsNeeded > 0 && (
+                    <>
+                      {'  '}|{'  '}
+                      CEIL({fmtNum(beamResult.derived.totalAcero,1)}/{fmtNum(beamResult.derived.steelBarWeightKg,3)}) = {beamResult.derived.steelBarsNeeded} barras ∅{beamSteelDiameter}mm
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
           ) : (
             <div className="mt-4 flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-100 rounded-lg">
               <span className="text-sm text-slate-600">Cantidad calculada:</span>
@@ -872,6 +1464,31 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) 
                 <span className="text-2xl font-bold text-blue-700">{fmtNum(quantity)}</span>
                 <span className="text-sm text-slate-500">{task.unidad}</span>
               </div>
+            </div>
+          )}
+
+          {/* ── Cómputos derivados — solo para familias no-beam ──────────── */}
+          {!isBeamFamily && derivedOutputs.length > 0 && quantity > 0 && (
+            <div className="mt-3 px-4 py-3 bg-stone-50 border border-stone-200 rounded-lg space-y-2">
+              <p className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
+                Cómputos derivados
+              </p>
+              {derivedOutputs.map(d => (
+                <div key={d.id}>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xs font-medium text-stone-700">{d.label}</span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-lg font-bold text-stone-800">
+                        {fmtNum(d.value, 2)}
+                      </span>
+                      <span className="text-xs text-stone-500">{d.unit}</span>
+                    </div>
+                  </div>
+                  {d.nota && (
+                    <p className="text-[10px] text-stone-400 italic mt-0.5">{d.nota}</p>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
@@ -894,16 +1511,20 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) 
           <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
             {totalCount} {totalCount === 1 ? 'material' : 'materiales'}
           </span>
-          {missingAll > 0 && (
+          {/* Muestra el subtotal cuando hay costos calculados; "(parcial)" si faltan precios.
+              El badge de "sin precio" solo aparece cuando no hay subtotal que mostrar. */}
+          {quantity > 0 && totalCount > 0 && totalAllCost > 0 ? (
+            <span className="ml-auto text-xs font-bold text-slate-700">
+              Subtotal: ${fmtCost(totalAllCost)}
+              {missingAll > 0 && (
+                <span className="font-normal text-amber-500 ml-1">(parcial)</span>
+              )}
+            </span>
+          ) : missingAll > 0 ? (
             <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 ml-auto">
               <AlertTriangle size={11} /> {missingAll} sin precio
             </span>
-          )}
-          {quantity > 0 && missingAll === 0 && totalCount > 0 && (
-            <span className="ml-auto text-xs font-bold text-slate-700">
-              Subtotal: ${fmtCost(totalAllCost)}
-            </span>
-          )}
+          ) : null}
         </div>
 
         {totalCount === 0 ? (
@@ -924,8 +1545,8 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) 
             <tbody>
 
               {/* ── Materiales del catálogo (automáticos) ──────────────────── */}
-              {resolvedMaterials.map((m, i) => (
-                <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
+              {resolvedMaterialsVisible.map((m, i) => (
+                <tr key={i} className="border-b border-slate-50 hover:bg-slate-50 group/matrow">
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1.5">
                       {m.matchedBy === 'missing'
@@ -960,10 +1581,19 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) 
                     }
                   </td>
                   <td className="px-3 py-2.5 text-right font-semibold">
-                    {quantity > 0 && m.matchedBy !== 'missing'
-                      ? <span className="text-slate-800">${fmtCost(m.totalCost)}</span>
-                      : <span className="text-slate-300">—</span>
-                    }
+                    <div className="flex items-center justify-end gap-1.5">
+                      {quantity > 0 && m.matchedBy !== 'missing'
+                        ? <span className="text-slate-800">${fmtCost(m.totalCost)}</span>
+                        : <span className="text-slate-300">—</span>
+                      }
+                      <button
+                        onClick={() => setExcludedMaterialNames(prev => new Set([...prev, m.nombre]))}
+                        className="shrink-0 p-0.5 text-slate-200 hover:text-red-500 opacity-0 group-hover/matrow:opacity-100 transition-opacity"
+                        title="Quitar del cálculo"
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1028,6 +1658,66 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) 
                   ))}
                 </>
               )}
+
+              {/* ── Derivados por geometría ─────────────────────────────────── */}
+              {resolvedDerived.length > 0 && quantity > 0 && (
+                <>
+                  <tr className="bg-amber-50/70">
+                    <td colSpan={7} className="px-4 py-1 text-[10px] font-bold text-amber-600 uppercase tracking-wider select-none">
+                      Derivados por geometría
+                    </td>
+                  </tr>
+                  {resolvedDerived.map((m, i) => (
+                    <tr key={`derived-${i}`} className="border-b border-amber-50 hover:bg-amber-50/40">
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="shrink-0 px-1 py-0.5 text-[9px] font-bold bg-amber-100 text-amber-700 rounded leading-none"
+                            title="Cantidad calculada por geometría — no es coeficiente fijo del APU"
+                          >
+                            Σ
+                          </span>
+                          {m.matchedBy === 'missing'
+                            ? <AlertTriangle size={11} className="text-amber-500 shrink-0" title="No encontrado en tu base de materiales" />
+                            : <CheckCircle2 size={11} className="text-emerald-500 shrink-0" title={`Coincidencia por ${m.matchedBy}`} />
+                          }
+                          <span className={`font-medium italic ${m.matchedBy === 'missing' ? 'text-slate-400' : 'text-slate-700'}`}>
+                            {m.nombre}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-center text-slate-500 font-mono">{m.unit}</td>
+                      <td className="px-3 py-2.5 text-right text-slate-300 select-none text-[10px] italic">geom.</td>
+                      <td className="px-3 py-2.5 text-right font-semibold text-slate-700">
+                        {fmtNum(m.cantidad, 2)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        {m.purchaseQty !== undefined
+                          ? (
+                            <span className="inline-flex flex-col items-end leading-tight">
+                              <span className="font-bold text-slate-800">{m.purchaseQty}</span>
+                              <span className="text-[10px] text-slate-400">{m.commercialUnit}</span>
+                            </span>
+                          )
+                          : <span className="text-slate-300">—</span>
+                        }
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        {m.matchedBy === 'missing'
+                          ? <span className="text-amber-500 text-[10px]">sin precio</span>
+                          : <span className="text-slate-600">${fmtCost(m.unitCost)}</span>
+                        }
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-semibold">
+                        {m.matchedBy !== 'missing'
+                          ? <span className="text-slate-800">${fmtCost(m.totalCost)}</span>
+                          : <span className="text-slate-300">—</span>
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </>
+              )}
             </tbody>
           </table>
         )}
@@ -1049,30 +1739,64 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd }) 
                   ref={searchInputRef}
                   type="text"
                   value={matSearch}
-                  onChange={e => { setMatSearch(e.target.value); setMatSelected(null); setMatDropdown(true); }}
-                  onFocus={() => setMatDropdown(true)}
+                  onChange={e => { setMatSearch(e.target.value); setMatSelected(null); setMatDropdown(true); recalcDropPos(); }}
+                  onFocus={() => { recalcDropPos(); setMatDropdown(true); }}
                   onBlur={() => setTimeout(() => setMatDropdown(false), 150)}
                   placeholder="Buscar material…"
                   className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
                 />
+                {/* Dropdown con position:fixed — escapa de overflow-hidden y overflow-y-auto */}
                 {matDropdown && matSuggestions.length > 0 && (
-                  <div className="absolute z-20 top-full left-0 right-0 mt-0.5 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                    {matSuggestions.map(m => (
-                      <button
-                        key={m.name}
-                        onMouseDown={e => { e.preventDefault(); setMatSelected(m); setMatSearch(m.name); setMatDropdown(false); }}
-                        className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 flex justify-between gap-2 border-b border-slate-50 last:border-0"
-                      >
-                        <span className="truncate font-medium text-slate-800">{m.name}</span>
-                        <span className="text-slate-400 whitespace-nowrap shrink-0">
-                          {m.unit && <>{m.unit} · </>}
-                          {m.cost > 0
-                            ? <span className="text-emerald-600">${fmtCost(m.cost)}</span>
-                            : <span className="text-amber-500">sin precio</span>
-                          }
-                        </span>
-                      </button>
-                    ))}
+                  <div
+                    style={{ position: 'fixed', top: dropTop, left: dropLeft, width: dropWidth, zIndex: 9999 }}
+                    className="bg-white border border-slate-200 rounded-lg shadow-xl flex flex-col"
+                  >
+                    <div className="max-h-72 overflow-y-auto">
+                      {matSuggestions.map(m => (
+                        <button
+                          key={m.name}
+                          onMouseDown={e => { e.preventDefault(); setMatSelected(m); setMatSearch(m.name); setMatDropdown(false); }}
+                          className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-50 last:border-0"
+                        >
+                          <div className="flex justify-between gap-2 items-baseline">
+                            <span className="truncate text-xs font-medium text-slate-800">{m.name}</span>
+                            <span className="text-xs whitespace-nowrap shrink-0">
+                              {m.unit && <span className="text-slate-400">{m.unit} · </span>}
+                              {m.cost > 0
+                                ? <span className="text-emerald-600 font-medium">${fmtCost(m.cost)}</span>
+                                : <span className="text-amber-500">sin precio</span>
+                              }
+                            </span>
+                          </div>
+                          {m.code && (
+                            <div className="text-[10px] text-slate-400 mt-0.5">{m.code}</div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="px-3 py-1.5 border-t border-slate-100 bg-slate-50 rounded-b-lg text-[10px] text-slate-400 text-right">
+                      {matSuggestions.length} {matSuggestions.length === 1 ? 'material' : 'materiales'}
+                    </div>
+                  </div>
+                )}
+                {/* Sin resultados para la búsqueda */}
+                {matDropdown && matSearch.trim().length > 0 && matSuggestions.length === 0 && orgMaterials.length > 0 && (
+                  <div
+                    style={{ position: 'fixed', top: dropTop, left: dropLeft, width: dropWidth, zIndex: 9999 }}
+                    className="bg-white border border-slate-200 rounded-lg shadow-xl px-3 py-4 text-center"
+                  >
+                    <p className="text-xs text-slate-400">Sin resultados para "{matSearch.trim()}"</p>
+                    <p className="text-[10px] text-slate-300 mt-0.5">Borrá el texto para ver todos los materiales</p>
+                  </div>
+                )}
+                {/* Sin materiales disponibles */}
+                {matDropdown && matSuggestions.length === 0 && orgMaterials.length === 0 && (
+                  <div
+                    style={{ position: 'fixed', top: dropTop, left: dropLeft, width: dropWidth, zIndex: 9999 }}
+                    className="bg-white border border-slate-200 rounded-lg shadow-xl px-3 py-4 text-center"
+                  >
+                    <p className="text-xs text-slate-400">Sin materiales disponibles</p>
+                    <p className="text-[10px] text-slate-300 mt-0.5">Importá materiales en Base de Datos → Base Maestra</p>
                   </div>
                 )}
               </div>
@@ -1125,22 +1849,84 @@ interface RightPanelProps {
   items:          ChandiasAddedItem[];
   orgMaterials:   OrgMaterialLookup[];
   organizationId: string;
+  projectId:      string;
   existingNames:  Set<string>;
   onRemove:       (itemId: string) => void;
   onClear:        () => void;
   onExportCSV:    () => void;
+  /** Guardar sesión de cómputo en Supabase. Rechaza con error si falla. */
+  onSaveComputation: () => Promise<void>;
+  /**
+   * Guardar cómputo + crear tasks/budget_items en el proyecto activo.
+   * Devuelve mensaje de éxito. Rechaza con error si falla.
+   */
+  onSendToPresupuesto: () => Promise<string>;
+  /** Incrementar este valor fuerza al panel a mostrar la pestaña Rubros (tras restaurar borrador). */
+  restoredAt?:    number;
+  /** Callback invocado tras crear un APU exitosamente — el padre debe llamar refetch(). */
+  onAPUCreated?:  () => void;
 }
 const RightPanel: React.FC<RightPanelProps> = ({
-  items, orgMaterials, organizationId, existingNames,
-  onRemove, onClear, onExportCSV,
+  items, orgMaterials, organizationId, projectId, existingNames,
+  onRemove, onClear, onExportCSV, onSaveComputation, onSendToPresupuesto, restoredAt, onAPUCreated,
 }) => {
   const [tab,        setTab]        = useState<RightTab>('items');
   const [apuItem,    setApuItem]    = useState<ChandiasAddedItem | null>(null);
   const [apuSuccess, setApuSuccess] = useState<string | null>(null);
+  const [reportMode, setReportMode] = useState<ReportMode | null>(null);
 
+  type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [saveError,  setSaveError]  = useState<string | null>(null);
+
+  const handleSaveComputation = async () => {
+    setSaveStatus('saving');
+    setSaveError(null);
+    try {
+      await onSaveComputation();
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 4000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al guardar';
+      setSaveError(msg);
+      setSaveStatus('error');
+      setTimeout(() => { setSaveStatus('idle'); setSaveError(null); }, 6000);
+    }
+  };
+
+  type SendStatus = 'idle' | 'sending' | 'sent' | 'error';
+  const [sendStatus, setSendStatus] = useState<SendStatus>('idle');
+  const [sendMsg,    setSendMsg]    = useState<string | null>(null);
+
+  const handleSendToPresupuesto = async () => {
+    setSendStatus('sending');
+    setSendMsg(null);
+    try {
+      const msg = await onSendToPresupuesto();
+      setSendMsg(msg);
+      setSendStatus('sent');
+      setTimeout(() => { setSendStatus('idle'); setSendMsg(null); }, 6000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al enviar';
+      setSendMsg(msg);
+      setSendStatus('error');
+      setTimeout(() => { setSendStatus('idle'); setSendMsg(null); }, 6000);
+    }
+  };
+
+  // Cuando se restaura un borrador, forzar pestaña Rubros para que el usuario vea los ítems
+  useEffect(() => {
+    if (restoredAt) setTab('items');
+  }, [restoredAt]);
+
+  // Inyectar CF de acero (∅12mm default) + materiales a granel para el panel consolidado.
+  const orgMaterialsForPanel = useMemo(() => {
+    const withSteel = injectSteelConversionFactor(orgMaterials, getSteelBarWeight(DEFAULT_REBAR_DIAMETER_MM), DEFAULT_REBAR_DIAMETER_MM);
+    return injectBulkConversionFactors(withSteel);
+  }, [orgMaterials]);
   const resolved = useMemo(
-    () => consolidateResolved(withManualMerged(items), orgMaterials),
-    [items, orgMaterials],
+    () => consolidateResolved(withManualMerged(items), orgMaterialsForPanel),
+    [items, orgMaterialsForPanel],
   );
   const missingCount = resolved.filter(m => m.matchedBy === 'missing').length;
   const grandTotal   = resolved.reduce((s, m) => s + m.totalCost, 0);
@@ -1158,6 +1944,36 @@ const RightPanel: React.FC<RightPanelProps> = ({
           </button>
         ))}
       </div>
+
+      {/* Banner guardado exitoso */}
+      {saveStatus === 'saved' && (
+        <div className="mx-2 mt-2 flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[10px] text-emerald-700 shrink-0">
+          <CheckCircle2 size={11} className="shrink-0" />
+          Cómputo guardado correctamente.
+        </div>
+      )}
+      {/* Banner error al guardar */}
+      {saveStatus === 'error' && saveError && (
+        <div className="mx-2 mt-2 flex items-start gap-1.5 px-2.5 py-1.5 bg-red-50 border border-red-200 rounded-lg text-[10px] text-red-700 shrink-0">
+          <AlertTriangle size={11} className="shrink-0 mt-px" />
+          <span className="break-all">{saveError}</span>
+        </div>
+      )}
+
+      {/* Banner enviado al presupuesto */}
+      {sendStatus === 'sent' && sendMsg && (
+        <div className="mx-2 mt-2 flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[10px] text-emerald-700 shrink-0">
+          <CheckCircle2 size={11} className="shrink-0" />
+          <span>{sendMsg}</span>
+        </div>
+      )}
+      {/* Banner error al enviar */}
+      {sendStatus === 'error' && sendMsg && (
+        <div className="mx-2 mt-2 flex items-start gap-1.5 px-2.5 py-1.5 bg-red-50 border border-red-200 rounded-lg text-[10px] text-red-700 shrink-0">
+          <AlertTriangle size={11} className="shrink-0 mt-px" />
+          <span className="break-all">{sendMsg}</span>
+        </div>
+      )}
 
       {/* Warning de faltantes (global) */}
       {tab === 'totales' && missingCount > 0 && items.length > 0 && (
@@ -1203,8 +2019,11 @@ const RightPanel: React.FC<RightPanelProps> = ({
                     )}
                   </div>
                   <div className="flex gap-0.5 shrink-0">
-                    <button onClick={() => setApuItem(item)} title="Crear APU en base maestra"
-                      className="p-1 text-slate-300 hover:text-blue-500 transition-colors">
+                    <button
+                      onClick={() => setApuItem(item)}
+                      title="Transformar en APU Maestro (agrupa todos los ítems del mismo tipo)"
+                      className="p-1 text-slate-300 hover:text-blue-600 transition-colors"
+                    >
                       <BookPlus size={13} />
                     </button>
                     <button onClick={() => onRemove(item.itemId)}
@@ -1290,22 +2109,69 @@ const RightPanel: React.FC<RightPanelProps> = ({
 
       {/* Footer */}
       {items.length > 0 && (
-        <div className="p-2 border-t border-slate-100 flex gap-1.5 shrink-0">
-          <button onClick={onClear}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-200 transition-colors">
-            <RefreshCcw size={11} /> Limpiar
-          </button>
-          <button onClick={onExportCSV}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors ml-auto">
-            <Download size={11} /> CSV
-          </button>
+        <div className="p-2 border-t border-slate-100 flex flex-col gap-1.5 shrink-0">
+          {/* Fila 1: acciones secundarias */}
+          <div className="flex items-center gap-1">
+            <button onClick={onClear}
+              className="flex items-center gap-1 px-2 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-200 transition-colors">
+              <RefreshCcw size={11} /> Limpiar
+            </button>
+            <div className="ml-auto flex items-center gap-1">
+              <button onClick={onExportCSV} title="Descargar CSV"
+                className="flex items-center gap-1 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors">
+                <Download size={11} /> CSV
+              </button>
+              <button onClick={() => setReportMode('computo')} title="Vista previa — Reporte Cómputo"
+                className="flex items-center gap-1 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors">
+                <FileText size={11} /> Cómputo
+              </button>
+              <button onClick={() => setReportMode('apu')} title="Vista previa — Reporte APU"
+                className="flex items-center gap-1 px-2 py-1.5 text-xs text-blue-700 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors">
+                <BookOpen size={11} /> APU
+              </button>
+            </div>
+          </div>
+          {/* Fila 2: CTAs principales */}
+          {projectId ? (
+            <>
+              {/* Enviar al presupuesto — CTA primaria */}
+              <button
+                onClick={handleSendToPresupuesto}
+                disabled={sendStatus === 'sending' || saveStatus === 'saving'}
+                title="Guarda el cómputo y crea ítems de presupuesto en el proyecto activo"
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                {sendStatus === 'sending'
+                  ? <><Loader2 size={12} className="animate-spin" /> Enviando…</>
+                  : <><ShoppingCart size={12} /> Enviar al presupuesto</>
+                }
+              </button>
+              {/* Guardar cómputo — acción secundaria (solo persiste, sin budget_items) */}
+              <button
+                onClick={handleSaveComputation}
+                disabled={saveStatus === 'saving' || sendStatus === 'sending'}
+                title="Guarda los rubros como sesión de cómputo sin crear ítems de presupuesto"
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                {saveStatus === 'saving'
+                  ? <><Loader2 size={11} className="animate-spin" /> Guardando…</>
+                  : <><Save size={11} /> Guardar cómputo</>
+                }
+              </button>
+            </>
+          ) : (
+            <div className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[10px] text-slate-400 bg-slate-50 border border-slate-200 rounded-lg">
+              Seleccioná un proyecto para guardar
+            </div>
+          )}
         </div>
       )}
 
-      {/* Modal crear APU */}
+      {/* Modal transformar en APU */}
       {apuItem && (
         <CreateAPUModal
-          item={apuItem}
+          triggerItem={apuItem}
+          allItems={items}
           orgMaterials={orgMaterials}
           existingNames={existingNames}
           organizationId={organizationId}
@@ -1314,7 +2180,19 @@ const RightPanel: React.FC<RightPanelProps> = ({
             setApuItem(null);
             setApuSuccess(taskName);
             setTimeout(() => setApuSuccess(null), 5000);
+            onAPUCreated?.();
           }}
+        />
+      )}
+
+      {/* Modal reporte */}
+      {reportMode && (
+        <ReportPreviewModal
+          mode={reportMode}
+          items={items}
+          resolved={resolved}
+          grandTotal={grandTotal}
+          onClose={() => setReportMode(null)}
         />
       )}
     </div>
@@ -1328,13 +2206,67 @@ type FontScale = 'sm' | 'md' | 'lg';
 const clampW = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 
 const LAYOUT_PRESETS = [
-  { key: 'balanced',    label: 'Balanceada',  left: 224, right: 256 },
-  { key: 'catalog',     label: 'Catálogo',    left: 340, right: 180 },
-  { key: 'calc',        label: 'Cálculo',     left: 180, right: 180 },
-  { key: 'composition', label: 'Composición', left: 180, right: 380 },
+  { key: 'catalog',     label: 'Catálogo',    left: 360, right: 340 },
+  { key: 'balanced',    label: 'Balanceada',  left: 290, right: 290 },
+  { key: 'calc',        label: 'Cálculo',     left: 200, right: 200 },
+  { key: 'composition', label: 'Composición', left: 200, right: 420 },
 ] as const;
 
 const FONT_ZOOM: Record<FontScale, number> = { sm: 0.875, md: 1, lg: 1.125 };
+
+// ─── Draft persistence (localStorage) ────────────────────────────────────────
+
+const DRAFT_VERSION = 'v2'; // v2: key scoped por projectId (v1 queda huérfana)
+
+function draftKey(orgId: string, userId: string, projectId: string) {
+  return `chandias_draft_${DRAFT_VERSION}_${orgId}_${userId}_${projectId}`;
+}
+
+interface ChandiasDraft {
+  items: ChandiasAddedItem[];
+  savedAt: string; // ISO
+  selectedTaskId?: string;
+  panelState?: DetailPanelState | null;
+}
+
+function loadDraft(orgId: string, userId: string, projectId: string): ChandiasDraft | null {
+  if (!orgId || !userId || !projectId) return null;
+  try {
+    const raw = localStorage.getItem(draftKey(orgId, userId, projectId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ChandiasDraft;
+    if (!Array.isArray(parsed.items) || parsed.items.length === 0) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(
+  orgId: string,
+  userId: string,
+  projectId: string,
+  items: ChandiasAddedItem[],
+  selectedTaskId: string | null,
+  panelState?: DetailPanelState | null,
+) {
+  if (!orgId || !userId || !projectId) return;
+  if (items.length === 0) {
+    localStorage.removeItem(draftKey(orgId, userId, projectId));
+    return;
+  }
+  try {
+    const draft: ChandiasDraft = {
+      items,
+      savedAt: new Date().toISOString(),
+      ...(selectedTaskId ? { selectedTaskId } : {}),
+      ...(panelState ? { panelState } : {}),
+    };
+    localStorage.setItem(draftKey(orgId, userId, projectId), JSON.stringify(draft));
+  } catch {
+    // cuota de storage llena — ignorar silenciosamente
+  }
+}
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
@@ -1342,8 +2274,22 @@ export const ChandiasCalculator: React.FC = () => {
   const { user } = useAuth();
   const orgId    = user?.organizationId ?? '';
 
-  const { tasks: masterTasks }           = useMasterTasks(orgId);
-  const { materials: erpMaterials }      = useERP();
+  const { tasks: masterTasks, refetch: refetchMasterTasks } = useMasterTasks(orgId);
+  const {
+    materials: erpMaterials,
+    project,
+    tasks: projectTasks,
+    laborCategoriesMap,
+    toolsMap,
+    addTask,
+    addMaterial,
+    updateMaterial,
+    updateLaborCategory,
+    addBudgetItem,
+    addTaskYield,
+    addTaskLaborYield,
+    addTaskToolYield,
+  } = useERP();
   const { list: unifiedList }            = useUnifiedMaterials(orgId);
   // Fallback: si unifiedList todavía está vacío (Supabase aún cargando),
   // usar los materiales del proyecto ya disponibles en ERPContext.
@@ -1355,12 +2301,80 @@ export const ChandiasCalculator: React.FC = () => {
     [masterTasks],
   );
 
+  // Set de nombres de tareas YA en el presupuesto — para dedup en "Enviar al presupuesto"
+  const budgetTaskNamesSet = useMemo(() => {
+    const budgetTaskIds = new Set((project?.items ?? []).map(bi => bi.taskId));
+    return new Set(
+      projectTasks
+        .filter(t => budgetTaskIds.has(t.id))
+        .map(t => t.name.trim().toLowerCase()),
+    );
+  }, [project?.items, projectTasks]);
+
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [items, setItems] = useState<ChandiasAddedItem[]>([]);
+  const [restoredAt, setRestoredAt] = useState(0);
+
+  // ── Draft persistence ────────────────────────────────────────────────────
+  const userId    = user?.id ?? '';
+  const projectId = project?.id ?? '';
+  // Estado del panel de detalle (dims, config avanzada) para persistir en el borrador
+  const [panelState, setPanelState]               = useState<DetailPanelState | null>(null);
+  const [initialPanelState, setInitialPanelState] = useState<DetailPanelState | null>(null);
+  // Banner: muestra confirmación DESPUÉS de auto-restaurar (o null si no hay borrador)
+  const [draftBanner, setDraftBanner] = useState<{ savedAt: string } | null>(null);
+
+  const handlePanelStateChange = useCallback((state: DetailPanelState) => {
+    setPanelState(state);
+  }, []);
+
+  // Flag: evita que el auto-save borre el borrador antes de que auth cargue.
+  const itemsInteracted = useRef(false);
+
+  // Al montar Y al cambiar de proyecto: limpiar estado y restaurar el draft del proyecto activo.
+  // Incluir projectId en deps garantiza que al cambiar de proyecto se resetea correctamente.
+  useEffect(() => {
+    if (!orgId || !userId || !projectId) return;
+    // Limpiar estado del proyecto anterior antes de restaurar el nuevo
+    setItems([]);
+    setSelectedTaskId(null);
+    setPanelState(null);
+    setInitialPanelState(null);
+    setDraftBanner(null);
+    itemsInteracted.current = false;
+    // Restaurar draft del proyecto activo (si existe)
+    const draft = loadDraft(orgId, userId, projectId);
+    if (!draft) return;
+    setItems(draft.items);
+    if (draft.selectedTaskId) setSelectedTaskId(draft.selectedTaskId);
+    if (draft.panelState)    setInitialPanelState(draft.panelState);
+    setRestoredAt(n => n + 1);
+    itemsInteracted.current = true;
+    setDraftBanner({ savedAt: draft.savedAt });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId, userId, projectId]);
+
+  // Auto-save con debounce 1.5 s cada vez que items, selectedTaskId o panelState cambia.
+  // Solo activa luego de la primera interacción o restauración.
+  useEffect(() => {
+    if (!orgId || !userId || !projectId || !itemsInteracted.current) return;
+    const t = setTimeout(() => saveDraft(orgId, userId, projectId, items, selectedTaskId, panelState), 1500);
+    return () => clearTimeout(t);
+  }, [items, selectedTaskId, panelState, orgId, userId, projectId]);
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem(draftKey(orgId, userId, projectId));
+    setItems([]);
+    setSelectedTaskId(null);
+    setInitialPanelState(null);
+    setPanelState(null);
+    itemsInteracted.current = false;
+    setDraftBanner(null);
+  };
 
   // ── Panel resize ──────────────────────────────────────────────────────────
-  const [leftW,  setLeftW]  = useState(224);
-  const [rightW, setRightW] = useState(256);
+  const [leftW,  setLeftW]  = useState(360);  // preset "Catálogo" por defecto
+  const [rightW, setRightW] = useState(340);
 
   // ── Tipografía ────────────────────────────────────────────────────────────
   const [fontScale, setFontScale] = useState<FontScale>('md');
@@ -1392,9 +2406,22 @@ export const ChandiasCalculator: React.FC = () => {
     [selectedTaskId],
   );
 
-  const handleAdd    = useCallback((item: ChandiasAddedItem) => setItems(prev => [...prev, item]), []);
-  const handleRemove = useCallback((id: string) => setItems(prev => prev.filter(i => i.itemId !== id)), []);
-  const handleClear  = useCallback(() => setItems([]), []);
+  const handleAdd    = useCallback((item: ChandiasAddedItem) => {
+    itemsInteracted.current = true;
+    setItems(prev => [...prev, item]);
+  }, []);
+  const handleRemove = useCallback((id: string) => {
+    itemsInteracted.current = true;
+    setItems(prev => prev.filter(i => i.itemId !== id));
+  }, []);
+  const handleClear  = useCallback(() => {
+    itemsInteracted.current = false;
+    setItems([]);
+    setPanelState(null);
+    setInitialPanelState(null);
+    setDraftBanner(null);
+    if (orgId && userId && projectId) localStorage.removeItem(draftKey(orgId, userId, projectId));
+  }, [orgId, userId]);
 
   const handleExportCSV = useCallback(() => {
     const cons = consolidateMaterials(withManualMerged(items));
@@ -1417,6 +2444,116 @@ export const ChandiasCalculator: React.FC = () => {
     URL.revokeObjectURL(url);
   }, [items]);
 
+  const handleSaveComputation = useCallback(async () => {
+    if (items.length === 0) throw new Error('Sin rubros para guardar');
+    if (!projectId) throw new Error('Seleccioná un proyecto activo');
+    try {
+      const session = await computationService.createSession(projectId, orgId);
+      await computationService.addItems(session.id, orgId, items);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('does not exist') || msg.includes('42P01')) {
+        throw new Error('Migración 040 pendiente — ejecutá el script en Supabase Dashboard');
+      }
+      throw err;
+    }
+  }, [items, projectId, orgId]);
+
+  /**
+   * Guarda cómputo en Supabase Y crea tasks + budget_items en el proyecto.
+   * Retorna un mensaje de éxito para que RightPanel lo muestre.
+   *
+   * Duplicados: ítems cuyo taskNombre ya existe en el presupuesto son omitidos.
+   * Trazabilidad: budgetItem.computationItemId = UUID del computation_item en DB.
+   *   Si migration 040 no está ejecutada, se continúa sin computationItemId.
+   */
+  const handleSendToPresupuesto = useCallback(async (): Promise<string> => {
+    if (items.length === 0) throw new Error('Sin rubros para enviar');
+    if (!projectId || !project?.id) throw new Error('Seleccioná un proyecto activo');
+
+    // ── 1. Guardar sesión de cómputo para trazabilidad ────────────────────
+    // { chandiasAddedItem.itemId → computation_item UUID }
+    let computationItemIdMap: Record<string, string> = {};
+    try {
+      const session    = await computationService.createSession(projectId, orgId);
+      const savedItems = await computationService.addItems(session.id, orgId, items);
+      // addItems inserta en el mismo orden → zip por posición
+      items.forEach((item, i) => {
+        if (savedItems[i]) computationItemIdMap[item.itemId] = savedItems[i].id;
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('does not exist') || msg.includes('42P01')) {
+        // Migration 040 no ejecutada — continuar sin computationItemId
+        computationItemIdMap = {};
+      } else {
+        throw err;
+      }
+    }
+
+    // ── 2. Construir payloads ─────────────────────────────────────────────
+    const { payloads, noAPUPayloads, skippedNames } = buildComputationImportPayloads(
+      items,
+      masterTasks,
+      orgId,
+      project.id,
+      laborCategoriesMap,
+      toolsMap,
+      erpMaterials,
+      budgetTaskNamesSet,
+      computationItemIdMap,
+    );
+
+    const totalToSend = payloads.length + noAPUPayloads.length;
+
+    if (totalToSend === 0) {
+      const detail = skippedNames.length > 0
+        ? ` (${skippedNames.length} ítem${skippedNames.length > 1 ? 's' : ''} ya en presupuesto)`
+        : '';
+      throw new Error(`Nada nuevo para enviar${detail}`);
+    }
+
+    // ── 3. Crear tasks + yields + budget_items ────────────────────────────
+    // Índice de precios vivos (master_materials / project materials) por nombre
+    // para enriquecer materiales nuevos que llegan con lastKnownUnitPrice=null.
+    const livePriceByName = new Map<string, number>(
+      orgMaterials
+        .filter(u => u.cost > 0)
+        .map(u => [u.name.trim().toLowerCase(), u.cost]),
+    );
+    for (const p of payloads) {
+      p.materialsToCreate
+        .map(m => m.cost > 0 ? m : { ...m, cost: livePriceByName.get(m.name.trim().toLowerCase()) ?? 0 })
+        .forEach(m => addMaterial(m));
+      p.materialsToUpdate.forEach(({ id, cost }) => updateMaterial(id, { cost }));
+      p.laborCategoriesToUpdate.forEach(({ id, basicHourlyRate }) => updateLaborCategory(id, { basicHourlyRate }));
+      await addTask(p.task);
+      p.taskYields.forEach(ty => addTaskYield(ty));
+      p.laborYields.forEach(ly => addTaskLaborYield(ly));
+      p.toolYields.forEach(ty => addTaskToolYield(ty));
+      addBudgetItem(p.budgetItem);
+    }
+    for (const { task, budgetItem } of noAPUPayloads) {
+      await addTask(task);
+      addBudgetItem(budgetItem);
+    }
+
+    // ── 4. Mensaje de resultado ───────────────────────────────────────────
+    const parts: string[] = [`${totalToSend} ítem${totalToSend > 1 ? 's' : ''} enviado${totalToSend > 1 ? 's' : ''} al presupuesto`];
+    if (noAPUPayloads.length > 0) {
+      parts.push(`${noAPUPayloads.length} sin APU (costo = 0)`);
+    }
+    if (skippedNames.length > 0) {
+      parts.push(`${skippedNames.length} ya existía${skippedNames.length > 1 ? 'n' : ''}`);
+    }
+    return parts.join(' · ');
+  }, [
+    items, projectId, project?.id, orgId, masterTasks, orgMaterials,
+    laborCategoriesMap, toolsMap, erpMaterials, budgetTaskNamesSet,
+    addTask, addMaterial, updateMaterial, updateLaborCategory,
+    addTaskYield, addTaskLaborYield, addTaskToolYield, addBudgetItem,
+  ]);
+
   // ── Preset activo (coincidencia exacta de anchos) ─────────────────────────
   const activePreset = LAYOUT_PRESETS.find(p => p.left === leftW && p.right === rightW)?.key ?? null;
 
@@ -1425,6 +2562,31 @@ export const ChandiasCalculator: React.FC = () => {
       className="flex flex-col bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden"
       style={{ height: 'calc(100vh - 220px)', minHeight: '500px' }}
     >
+      {/* ── Banner de borrador restaurado ────────────────────────────────────── */}
+      {draftBanner && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-emerald-50 border-b border-emerald-200 shrink-0">
+          <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+          <span className="text-xs text-emerald-800">
+            Borrador restaurado del{' '}
+            <strong>{new Date(draftBanner.savedAt).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}</strong>
+            {' '}— podés continuar donde dejaste.
+          </span>
+          <button
+            onClick={handleDiscardDraft}
+            className="ml-auto px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors"
+          >
+            Descartar
+          </button>
+          <button
+            onClick={() => setDraftBanner(null)}
+            className="p-1 text-emerald-500 hover:text-emerald-700 rounded"
+            title="Cerrar notificación"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       {/* ── Barra de controles ─────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b border-slate-100 bg-slate-50/80 shrink-0 flex-wrap">
 
@@ -1489,7 +2651,13 @@ export const ChandiasCalculator: React.FC = () => {
         />
 
         {/* Panel central — detalle / cálculo */}
-        <DetailPanel task={selectedTask} orgMaterials={orgMaterials} onAdd={handleAdd} />
+        <DetailPanel
+          task={selectedTask}
+          orgMaterials={orgMaterials}
+          onAdd={handleAdd}
+          onPanelStateChange={handlePanelStateChange}
+          initialPanelState={initialPanelState}
+        />
 
         {/* Separador arrastreable R */}
         <div
@@ -1501,8 +2669,12 @@ export const ChandiasCalculator: React.FC = () => {
         <div style={{ width: rightW }} className="shrink-0 overflow-hidden">
           <RightPanel
             items={items} orgMaterials={orgMaterials}
-            organizationId={orgId} existingNames={existingNames}
+            organizationId={orgId} projectId={projectId} existingNames={existingNames}
             onRemove={handleRemove} onClear={handleClear} onExportCSV={handleExportCSV}
+            onSaveComputation={handleSaveComputation}
+            onSendToPresupuesto={handleSendToPresupuesto}
+            restoredAt={restoredAt}
+            onAPUCreated={refetchMasterTasks}
           />
         </div>
       </div>

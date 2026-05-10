@@ -638,6 +638,8 @@ export const BudgetEditor: React.FC = () => {
   };
 
   const handleSelectPreset = (preset: Partial<Task>) => {
+      // Guard: tarea anterior todavía en vuelo (evita doble-insert por doble-click o StrictMode)
+      if (pendingTaskRef.current) return;
       // Check if task exists
       const existing = tasks.find(t => t.name === preset.name && t.category === configPanel.category);
       if (existing) {

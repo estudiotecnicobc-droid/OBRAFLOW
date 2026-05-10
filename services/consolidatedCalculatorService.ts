@@ -18,8 +18,11 @@ function parseResourceLine(row: Record<string, unknown>): RpcResourceLine {
     unit:            String(row.unit ?? ''),
     totalQuantity:   Number(row.totalQuantity ?? 0),
     unitCost:        Number(row.unitCost ?? 0),
-    totalCost:       Number(row.totalCost ?? 0),
-    sourceTaskNames: Array.isArray(row.sourceTaskNames) ? row.sourceTaskNames as string[] : [],
+    totalCost:        Number(row.totalCost ?? 0),
+    sourceTaskNames:  Array.isArray(row.sourceTaskNames) ? row.sourceTaskNames as string[] : [],
+    conversionFactor: row.conversionFactor != null ? Number(row.conversionFactor) : undefined,
+    commercialUnit:   row.commercialUnit   != null ? String(row.commercialUnit)   : undefined,
+    purchaseQuantity: row.purchaseQuantity != null ? Number(row.purchaseQuantity) : undefined,
   };
 }
 

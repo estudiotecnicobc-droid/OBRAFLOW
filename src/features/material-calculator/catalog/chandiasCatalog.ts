@@ -18,6 +18,58 @@ export interface ChandiasTaskMaterial {
   code?: string;   // código de material en la base org (opcional, mejora el matching)
 }
 
+/**
+ * Salida derivada calculada paramétricamente (no es un material del APU).
+ * Se usa para mostrar valores como superficie de encofrado que dependen de las
+ * dimensiones pero NO tienen coeficiente fijo por unidad de obra.
+ *
+ * Cuando `asMaterial` está presente, la línea se inyecta también en la
+ * composición de materiales del cálculo como "derivado por geometría"
+ * (visible y costeado, pero marcado con badge Σ para distinguirlo del APU base).
+ */
+export interface ChandiasTaskDerivedOutput {
+  id: string;      // identificador único dentro de la tarea, ej: 'encofrado'
+  label: string;   // texto visible en la UI
+  formula: string; // expresión JS que usa los ids de dims[], ej: 'largo*(ancho+2*alto)'
+  unit: string;    // unidad del resultado, ej: 'm²'
+  nota?: string;   // supuesto o aclaración (se muestra como leyenda)
+  /** Si presente, inyecta esta salida como línea en la composición de materiales. */
+  asMaterial?: {
+    nombre?: string;  // nombre en la tabla (si omitido, usa `label`)
+    code?: string;    // código para matching en base de materiales de la org
+  };
+}
+
+/**
+ * Configuración de familia estructural volumétrica (H.A.).
+ * Activa la UI avanzada con parámetros de cómputo, encofrado y acero.
+ * Si ausente, la tarea usa el flujo genérico (sin panel avanzado).
+ *
+ * EXTENSIBILIDAD: para agregar una nueva familia estructural H.A. basta con
+ * agregar structuralConfig a la entrada del catálogo — sin tocar código.
+ */
+export interface StructuralFamilyConfig {
+  /** Activa la UI avanzada de H.A. */
+  enabled: true;
+  /** Cuantía de acero por defecto [kg/m³] */
+  defaultSteelRatio: number;
+  /** Desperdicio de hormigón por defecto [%] (ej: 5 = 5%) */
+  defaultWastePercent: number;
+  /** Estado inicial de las caras de encofrado */
+  defaultFormwork: {
+    fondo: boolean;  // cara inferior
+    lat1:  boolean;  // lateral largo 1
+    lat2:  boolean;  // lateral largo 2
+    lat3:  boolean;  // 4ª cara (perpendicular) — true para columnas
+  };
+  /** Variante de sketch — si ausente, usa 'box3d' */
+  sketchVariant?: 'box3d' | 'column3d' | 'floor';
+  /** Si true, el panel "Parámetros de cómputo" arranca expandido al seleccionar la tarea */
+  defaultPanelOpen?: boolean;
+  /** Etiquetas contextuales para los botones de caras de encofrado */
+  faceLabels?: { fondo: string; lat1: string; lat2: string; lat3: string };
+}
+
 export interface ChandiasTask {
   id: string;
   nombre: string;
@@ -27,6 +79,9 @@ export interface ChandiasTask {
   dims: ChandiasTaskDim[];
   formula: string;      // expresión JS que usa los ids de dims[]
   materiales: ChandiasTaskMaterial[];
+  derivedOutputs?: ChandiasTaskDerivedOutput[];  // cómputos derivados para mostrar en UI
+  /** Si presente, activa la UI avanzada de H.A. (beam family) */
+  structuralConfig?: StructuralFamilyConfig;
 }
 
 export const CHANDIAS_CATALOG: ChandiasTask[] = [
@@ -165,8 +220,8 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
 
   // ── MAMPOSTERÍA ──────────────────────────────────────────────────────────
   {
-    id: 'MAM-001', nombre: 'Muro ladrillo común e=0.30m', categoria: 'Mampostería',
-    unidad: 'm²', descripcion: 'Muro portante, junta normal 1.5cm, mortero 1:1:6',
+    id: 'MAM-001', nombre: 'Muro ladrillo común 6x12x24 e=0.15m (1 pie)', categoria: 'Mampostería',
+    unidad: 'm²', descripcion: 'Muro portante de 1 pie, junta normal 1.5cm, mortero 1:1:6',
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -177,8 +232,8 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     ],
   },
   {
-    id: 'MAM-002', nombre: 'Muro ladrillo común e=0.15m', categoria: 'Mampostería',
-    unidad: 'm²', descripcion: 'Muro de cerramiento simple, junta normal',
+    id: 'MAM-002', nombre: 'Muro ladrillo común 6x12x24 e=0.30m (2 pies)', categoria: 'Mampostería',
+    unidad: 'm²', descripcion: 'Muro de cerramiento doble, junta normal',
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -213,8 +268,8 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     ],
   },
   {
-    id: 'MAM-005', nombre: 'Tabique ladrillo hueco e=0.08m', categoria: 'Mampostería',
-    unidad: 'm²', descripcion: 'Tabique divisorio de poco espesor',
+    id: 'MAM-005', nombre: 'Tabique ladrillo cerámico 8x18x33 e=0.08m', categoria: 'Mampostería',
+    unidad: 'm²', descripcion: 'Tabique divisorio ceramico simple, e=8cm, 1 hoja',
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -225,15 +280,15 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     ],
   },
   {
-    id: 'MAM-006', nombre: 'Tabique ladrillo hueco e=0.10m', categoria: 'Mampostería',
-    unidad: 'm²', descripcion: 'Tabique interior con ladrillo hueco 8×18×33cm doble hoja',
+    id: 'MAM-006', nombre: 'Muro ladrillo ceramico 18x18x33 e=0.18m', categoria: 'Mampostería',
+    unidad: 'm²', descripcion: 'Muro exterior ceramico, e=18cm, mortero 1:1:6',
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Ladrillo hueco 8x18x33', code: 'LAD-H8', unit: 'un', coef: 32 },
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 3.5 },
-      { nombre: 'Cal hidratada', code: 'CAL-HID', unit: 'kg', coef: 2.5 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.015 },
+      { nombre: 'Ladrillo ceramico 18x18x33', code: 'LAD-C18', unit: 'un', coef: 16 },
+      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 4 },
+      { nombre: 'Cal hidratada', code: 'CAL-HID', unit: 'kg', coef: 3 },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.018 },
     ],
   },
 
@@ -590,6 +645,212 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
       { nombre: 'Aguarrás mineral', unit: 'l', coef: 0.05 },
       { nombre: 'Lija al agua N°180', unit: 'un', coef: 0.20 },
     ],
+  },
+
+  // ── FUNDACIONES ──────────────────────────────────────────────────────────
+  // APU base volumétrico (m³). Encofrado calculado paramétricamente (derivedOutputs).
+  {
+    id: 'FUN-001', nombre: 'Bases de Hormigón Armado H-21', categoria: 'Fundaciones',
+    unidad: 'm³', descripcion: 'Base aislada o corrida de H.A. H-21. 50 kg/m³ de acero ADN 420.',
+    dims: [
+      { id: 'largo',  label: 'Largo',  unit: 'm' },
+      { id: 'ancho',  label: 'Ancho',  unit: 'm' },
+      { id: 'alto',   label: 'Alto',   unit: 'm' },
+    ],
+    formula: 'largo*ancho*alto',
+    materiales: [
+      { nombre: 'Hormigón Elaborado H-21', unit: 'm³', coef: 1.05 },
+      { nombre: 'Acero ADN 420',           unit: 'kg', coef: 50   },
+    ],
+    structuralConfig: {
+      enabled: true,
+      defaultSteelRatio: 50,
+      defaultWastePercent: 5,
+      defaultFormwork: { fondo: true, lat1: true, lat2: true, lat3: false },
+      sketchVariant: 'box3d',
+      faceLabels: { fondo: 'Fondo', lat1: 'Lateral 1', lat2: 'Lateral 2', lat3: 'Extremo' },
+    },
+  },
+  {
+    id: 'FUN-002', nombre: 'Viga de Fundación de H.A.', categoria: 'Fundaciones',
+    unidad: 'm³', descripcion: 'Viga de fundación de H.A. H-21. 130 kg/m³ de acero ADN 420. Encofrado paramétrico (fondo + laterales).',
+    dims: [
+      { id: 'largo',  label: 'Largo',  unit: 'm' },
+      { id: 'ancho',  label: 'Ancho',  unit: 'm' },
+      { id: 'alto',   label: 'Alto',   unit: 'm' },
+    ],
+    formula: 'largo*ancho*alto',
+    materiales: [
+      { nombre: 'Hormigón Elaborado H-21', unit: 'm³', coef: 1.05 },
+      { nombre: 'Acero ADN 420',           unit: 'kg', coef: 130  },
+    ],
+    derivedOutputs: [
+      {
+        id: 'encofrado',
+        label: 'Sup. de encofrado',
+        formula: 'largo*(ancho+2*alto)',
+        unit: 'm²',
+        nota: 'Fondo + 2 laterales. Sin tapa superior (viga apoyada en suelo).',
+        asMaterial: {
+          nombre: 'Encofrado de viga (tablas y puntales)',
+          code: 'ENC-VIGA',
+        },
+      },
+    ],
+    structuralConfig: {
+      enabled: true,
+      defaultSteelRatio: 130,
+      defaultWastePercent: 5,
+      defaultFormwork: { fondo: true, lat1: true, lat2: true, lat3: false },
+      sketchVariant: 'box3d',
+      faceLabels: { fondo: 'Fondo', lat1: 'Lateral 1', lat2: 'Lateral 2', lat3: 'Extremo' },
+    },
+  },
+  {
+    id: 'FUN-003', nombre: 'Columna de Hormigón Armado H-21', categoria: 'Fundaciones',
+    unidad: 'm³', descripcion: 'Columna estructural de H.A. H-21. 200 kg/m³ de acero ADN 420. Encofrado de 4 caras laterales.',
+    dims: [
+      { id: 'largo',  label: 'Altura (largo)',   unit: 'm' },
+      { id: 'ancho',  label: 'Ancho de sección', unit: 'm' },
+      { id: 'alto',   label: 'Alto de sección',  unit: 'm' },
+    ],
+    formula: 'largo*ancho*alto',
+    materiales: [
+      { nombre: 'Hormigón Elaborado H-21', unit: 'm³', coef: 1.05 },
+      { nombre: 'Acero ADN 420',           unit: 'kg', coef: 200  },
+    ],
+    derivedOutputs: [
+      {
+        id: 'encofrado',
+        label: 'Sup. de encofrado',
+        formula: '2*(ancho+alto)*largo',
+        unit: 'm²',
+        nota: '4 caras laterales. Ajustable en parámetros de cómputo.',
+        asMaterial: {
+          nombre: 'Encofrado de columna (tablas y puntales)',
+          code: 'ENC-COL',
+        },
+      },
+    ],
+    structuralConfig: {
+      enabled: true,
+      defaultSteelRatio: 200,
+      defaultWastePercent: 5,
+      defaultFormwork: { fondo: false, lat1: true, lat2: true, lat3: true },
+      sketchVariant: 'column3d',
+      faceLabels: { fondo: 'Base', lat1: 'Cara A1', lat2: 'Cara A2', lat3: 'Cara B' },
+    },
+  },
+
+  // ── ESTRUCTURA H.A. ────────────────────────────────────────────────────────
+  // Elementos volumétricos de hormigón armado para estructura aérea.
+  // Familia reutilizable: cualquier tarea con structuralConfig.enabled activa
+  // la UI avanzada (cómputo, encofrado, acero) sin cambiar código.
+  {
+    id: 'FUN-004', nombre: 'Columna de H.A.', categoria: 'Estructura H.A.',
+    unidad: 'm³', descripcion: 'Columna estructural de H.A. H-21. 95 kg/m³ de acero ADN 420. Encofrado de 4 caras laterales.',
+    dims: [
+      { id: 'largo',  label: 'Altura libre',  unit: 'm' },
+      { id: 'ancho',  label: 'Ancho sección', unit: 'm' },
+      { id: 'alto',   label: 'Alto sección',  unit: 'm' },
+    ],
+    formula: 'largo*ancho*alto',
+    materiales: [
+      { nombre: 'Hormigón Elaborado H-21', unit: 'm³', coef: 1.05 },
+      { nombre: 'Acero ADN 420',           unit: 'kg', coef: 95   },
+    ],
+    derivedOutputs: [
+      {
+        id: 'encofrado',
+        label: 'Sup. de encofrado',
+        formula: '2*(ancho+alto)*largo',
+        unit: 'm²',
+        nota: '4 caras laterales. Sin base (columna sobre fundación).',
+        asMaterial: {
+          nombre: 'Encofrado de columna (tablas y puntales)',
+          code: 'ENC-COL',
+        },
+      },
+    ],
+    structuralConfig: {
+      enabled: true,
+      defaultSteelRatio: 95,
+      defaultWastePercent: 5,
+      defaultFormwork: { fondo: false, lat1: true, lat2: true, lat3: true },
+      sketchVariant: 'column3d',
+      faceLabels: { fondo: 'Base', lat1: 'Cara A1', lat2: 'Cara A2', lat3: 'Cara B' },
+    },
+  },
+  {
+    id: 'FUN-005', nombre: 'Viga de H.A. Aérea', categoria: 'Estructura H.A.',
+    unidad: 'm³', descripcion: 'Viga aérea de H.A. H-21. 120 kg/m³ de acero ADN 420. Encofrado fondo + 2 laterales.',
+    dims: [
+      { id: 'largo',  label: 'Largo',       unit: 'm' },
+      { id: 'ancho',  label: 'Ancho (base)', unit: 'm' },
+      { id: 'alto',   label: 'Alto (canto)', unit: 'm' },
+    ],
+    formula: 'largo*ancho*alto',
+    materiales: [
+      { nombre: 'Hormigón Elaborado H-21', unit: 'm³', coef: 1.05 },
+      { nombre: 'Acero ADN 420',           unit: 'kg', coef: 120  },
+    ],
+    derivedOutputs: [
+      {
+        id: 'encofrado',
+        label: 'Sup. de encofrado',
+        formula: 'largo*(ancho+2*alto)',
+        unit: 'm²',
+        nota: 'Fondo + 2 laterales. Viga aérea sobre encofrado.',
+        asMaterial: {
+          nombre: 'Encofrado de viga (tablas y puntales)',
+          code: 'ENC-VIGA',
+        },
+      },
+    ],
+    structuralConfig: {
+      enabled: true,
+      defaultSteelRatio: 120,
+      defaultWastePercent: 5,
+      defaultFormwork: { fondo: true, lat1: true, lat2: true, lat3: false },
+      sketchVariant: 'box3d',
+      faceLabels: { fondo: 'Fondo', lat1: 'Lateral 1', lat2: 'Lateral 2', lat3: 'Extremo' },
+    },
+  },
+  {
+    id: 'FUN-006', nombre: 'Losa Maciza de H.A.', categoria: 'Estructura H.A.',
+    unidad: 'm³', descripcion: 'Losa maciza de H.A. H-21. 55 kg/m³ de acero ADN 420. Cimbra en cara inferior.',
+    dims: [
+      { id: 'largo',  label: 'Largo',   unit: 'm' },
+      { id: 'ancho',  label: 'Ancho',   unit: 'm' },
+      { id: 'alto',   label: 'Espesor', unit: 'm' },
+    ],
+    formula: 'largo*ancho*alto',
+    materiales: [
+      { nombre: 'Hormigón Elaborado H-21', unit: 'm³', coef: 1.05 },
+      { nombre: 'Acero ADN 420',           unit: 'kg', coef: 55   },
+    ],
+    derivedOutputs: [
+      {
+        id: 'encofrado',
+        label: 'Sup. de cimbra (cara inf.)',
+        formula: 'largo*ancho',
+        unit: 'm²',
+        nota: 'Cara inferior de la losa (cimbra). Para incluir bordes perimetrales, activar las caras laterales.',
+        asMaterial: {
+          nombre: 'Encofrado de losa (cimbra)',
+          code: 'ENC-LOSA',
+        },
+      },
+    ],
+    structuralConfig: {
+      enabled: true,
+      defaultSteelRatio: 55,
+      defaultWastePercent: 5,
+      defaultFormwork: { fondo: true, lat1: false, lat2: false, lat3: false },
+      sketchVariant: 'floor',
+      defaultPanelOpen: true,
+      faceLabels: { fondo: 'Cimbra (inf.)', lat1: 'Borde L1', lat2: 'Borde L2', lat3: 'Borde T' },
+    },
   },
 
   // ── INSTALACIONES ────────────────────────────────────────────────────────

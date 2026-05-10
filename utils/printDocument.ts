@@ -192,9 +192,10 @@ export function printDocument({
 
   win.document.close();
 
+  win.addEventListener('afterprint', () => win.close());
+
   setTimeout(() => {
     win.focus();
     win.print();
-    win.close();
   }, delay);
 }

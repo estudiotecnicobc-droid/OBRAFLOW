@@ -318,6 +318,62 @@ export interface BudgetItem {
 
   /** Orden de visualización en el presupuesto. NULL = ordenar por created_at. */
   sortOrder?: number;
+
+  /** Vínculo opcional al computation_item de origen (Calculadora Chandías). Solo trazabilidad. */
+  computationItemId?: string;
+}
+
+// ─── Sincronización Viva ───────────────────────────────────────────────────────
+
+export type ComputationSessionStatus = 'draft' | 'approved' | 'frozen';
+
+/** Sesión de cómputo paramétrico — agrupa computation_items del mismo contexto. */
+export interface ComputationSession {
+  id: string;
+  projectId: string;
+  organizationId: string;
+  name?: string;
+  status: ComputationSessionStatus;
+  computedBy?: string;   // uuid del usuario auth
+  computedAt: string;    // ISO timestamp
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Snapshot técnico de un material (sin precios). */
+export interface MaterialSnapshot {
+  nombre: string;
+  unit: string;
+  coef: number;      // cantidad por unidad de tarea
+  cantidad: number;  // coef × quantity
+}
+
+/** Snapshot de material manual (sin precios). */
+export interface ManualMaterialSnapshot {
+  id: string;
+  nombre: string;
+  unit: string;
+  cantidad: number;
+  code?: string;
+}
+
+/** Ítem individual de cómputo — rubro calculado con dims y snapshot técnico. */
+export interface ComputationItem {
+  id: string;
+  computationId: string;
+  organizationId: string;
+  chandiasTaskId: string;    // ID en catálogo TypeScript (ej: 'FUN-001')
+  masterTaskId?: string;     // FK opcional a master_tasks
+  description?: string;
+  dims: Record<string, number>;
+  quantity: number;
+  unidad: string;
+  materialesSnapshot: MaterialSnapshot[];   // sin precios
+  manualMaterials: ManualMaterialSnapshot[]; // sin precios
+  steelDiameterMm?: number;
+  sortOrder?: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // --- RECEPTION MODULE ---
@@ -638,8 +694,38 @@ export interface MasterTask {
   materials: MasterTaskMaterial[];
   labor: MasterTaskLabor[];
   equipment: MasterTaskEquipment[];
+  /** Metadatos de origen cuando el APU fue generado automáticamente (ej: calculadora Chandías) */
+  sourceMetadata?: APUSourceMetadata;
   createdAt: string;             // ISO timestamp
   updatedAt: string;
+}
+
+/**
+ * Metadatos de trazabilidad para APUs generados automáticamente.
+ * Guardado en master_tasks.source_metadata (JSONB).
+ * Migración: 037_apu_source_metadata.sql
+ */
+export interface APUSourceMetadata {
+  /** Identificador del proceso generador */
+  source: 'chandias_computation' | string;
+  /** ID de la tarea del catálogo Chandías que originó este APU */
+  catalogTaskId?: string;
+  catalogTaskName?: string;
+  catalogTaskUnit?: string;
+  /** Cantidad total acumulada de los ítems que generaron este APU */
+  totalQuantity?: number;
+  itemCount?: number;
+  /** Diámetro de barra de acero si aplica (mm) */
+  steelDiameterMm?: number;
+  /** Snapshot de los ítems de entrada al momento de la generación */
+  inputItems?: Array<{
+    itemId: string;
+    dims: Record<string, number>;
+    quantity: number;
+    description?: string;
+  }>;
+  /** Fecha de generación (YYYY-MM-DD) */
+  snapshotDate?: string;
 }
 
 // --- BASE MAESTRA DE MATERIALES (nivel organización, persistida en Supabase) ---

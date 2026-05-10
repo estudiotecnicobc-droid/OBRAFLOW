@@ -20,6 +20,7 @@ import { QualityControl } from './components/QualityControl';
 import { ProjectHub } from './components/ProjectHub';
 import { APUBuilder } from './components/APUBuilder';
 import { InvitationAccept } from './components/InvitationAccept';
+import { BillingSuccess } from './src/features/billing/BillingSuccess';
 import { Role } from './types';
 import { SaveProvider } from './context/SaveContext';
 
@@ -55,6 +56,14 @@ const AppContent = () => {
     return t;
   });
 
+  // Leer billing_status=success de la URL al montar y limpiarla inmediatamente
+  const [billSuccess, setBillSuccess] = useState<boolean>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get('billing_status');
+    if (v) window.history.replaceState({}, '', window.location.pathname);
+    return v === 'success';
+  });
+
   // STATE 0: Resolving Supabase session
   if (loading) {
     return (
@@ -81,6 +90,11 @@ const AppContent = () => {
         onSkip={() => setInviteToken(null)}
       />
     );
+  }
+
+  // STATE 1.6: Post-Stripe checkout success
+  if (billSuccess) {
+    return <BillingSuccess onDone={() => setBillSuccess(false)} />;
   }
 
   // STATE 2: Authenticated but No Project Selected -> HUB

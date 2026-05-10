@@ -21,7 +21,8 @@ function taskFromRow(row: Record<string, any>): Omit<MasterTask, 'materials' | '
     dailyYield: Number(row.daily_yield),
     fixedCost: row.fixed_cost != null ? Number(row.fixed_cost) : undefined,
     fixedCostDescription: row.fixed_cost_description ?? undefined,
-    specifications: row.specifications ?? undefined,
+    specifications:  row.specifications   ?? undefined,
+    sourceMetadata:  row.source_metadata  ?? undefined,
     tags: row.tags ?? [],
     isActive: row.is_active,
     createdAt: row.created_at,
@@ -82,9 +83,10 @@ function taskToRow(
     unit: t.unit,
     category: t.category ?? null,
     daily_yield: Math.max(0.01, t.dailyYield),
-    fixed_cost: t.fixedCost ?? null,
+    fixed_cost: t.fixedCost ?? 0,
     fixed_cost_description: t.fixedCostDescription ?? null,
-    specifications: t.specifications ?? null,
+    specifications:  t.specifications  ?? null,
+    ...(t.sourceMetadata != null ? { source_metadata: t.sourceMetadata } : {}),
     tags: t.tags ?? [],
     is_active: t.isActive,
   };
@@ -205,14 +207,22 @@ export const masterTasksService = {
    * (Supabase no expone transacciones multi-tabla en el client — insertamos
    * secuencialmente; si falla una hija la tarea padre queda huérfana pero
    * activa; en la próxima recarga se verá sin hijas, no un estado corrupto.)
+   *
+   * Resilencia ante migraciones pendientes:
+   * - Si 037 (source_metadata) no está ejecutada: reintenta sin ese campo.
+   * - Si 017 (commercial_unit/conversion_factor) no está ejecutada: lo maneja _insertChildren.
    */
   async create(organizationId: string, input: MasterTaskInput): Promise<MasterTask> {
-    const { data: taskRow, error } = await supabase
-      .from('master_tasks')
-      .insert({ ...taskToRow({ ...input, organizationId, isActive: true }) })
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
+    const row = taskToRow({ ...input, organizationId, isActive: true });
+    let res = await supabase.from('master_tasks').insert(row).select().single();
+
+    // Fallback: migration 037 (source_metadata) puede no estar ejecutada todavía
+    if (res.error?.message.includes('source_metadata')) {
+      const { source_metadata: _ignored, ...rowWithout } = row as Record<string, any>;
+      res = await supabase.from('master_tasks').insert(rowWithout).select().single();
+    }
+    if (res.error) throw new Error(res.error.message);
+    const taskRow = res.data;
 
     const taskId = taskRow.id;
     await masterTasksService._insertChildren(taskId, input);
@@ -239,14 +249,25 @@ export const masterTasksService = {
     if (input.dailyYield !== undefined)           parentUpdates.daily_yield = Math.max(0.01, input.dailyYield);
     if (input.fixedCost !== undefined)            parentUpdates.fixed_cost = input.fixedCost ?? null;
     if (input.fixedCostDescription !== undefined) parentUpdates.fixed_cost_description = input.fixedCostDescription ?? null;
-    if (input.specifications !== undefined)       parentUpdates.specifications = input.specifications ?? null;
+    if (input.specifications !== undefined)       parentUpdates.specifications   = input.specifications   ?? null;
+    if (input.sourceMetadata !== undefined)       parentUpdates.source_metadata  = input.sourceMetadata   ?? null;
     if (input.tags !== undefined)                 parentUpdates.tags = input.tags ?? [];
 
     if (Object.keys(parentUpdates).length > 0) {
-      const { error } = await supabase
+      let { error } = await supabase
         .from('master_tasks')
         .update(parentUpdates)
         .eq('id', id);
+
+      // Fallback: migration 037 (source_metadata) puede no estar ejecutada todavía
+      if (error?.message.includes('source_metadata')) {
+        const { source_metadata: _ignored, ...updatesWithout } = parentUpdates as Record<string, any>;
+        const retryResult = await supabase
+          .from('master_tasks')
+          .update(updatesWithout)
+          .eq('id', id);
+        error = retryResult.error;
+      }
       if (error) throw new Error(error.message);
     }
 
@@ -308,28 +329,49 @@ export const masterTasksService = {
     taskId: string,
     input: Pick<MasterTaskInput, 'materials' | 'labor' | 'equipment'>,
   ): Promise<void> {
-    const inserts: Promise<any>[] = [];
-
+    // ── Materiales — separado del Promise.all para poder reintentar sin campos comerciales
     if (input.materials.length > 0) {
-      inserts.push(
-        supabase.from('master_task_materials').insert(
-          input.materials.map(m => ({
-            master_task_id:       taskId,
-            master_material_id:   m.masterMaterialId ?? null,
-            material_name:        m.materialName,
-            unit:                 m.unit,
-            quantity:             m.quantity,
-            waste_percent:        m.wastePercent ?? null,
-            last_known_unit_price: m.lastKnownUnitPrice ?? null,
-            conversion_factor:    m.conversionFactor ?? null,
-            commercial_unit:      m.commercialUnit   ?? null,
-          })),
-        ).then(r => { if (r.error) throw new Error(r.error.message); }),
-      );
+      const buildMatRow = (m: MasterTaskMaterial, withCommercial: boolean) => {
+        const cf = withCommercial && (m.conversionFactor != null && m.conversionFactor > 0)
+          ? m.conversionFactor
+          : null;
+        const cu = cf != null ? (m.commercialUnit ?? null) : null;
+        return {
+          master_task_id:        taskId,
+          master_material_id:    m.masterMaterialId ?? null,
+          material_name:         m.materialName,
+          unit:                  m.unit,
+          quantity:              m.quantity,
+          waste_percent:         m.wastePercent ?? 0,
+          last_known_unit_price: m.lastKnownUnitPrice ?? null,
+          // sub-APU anidado (migration 010) — reemplaza precio directo con costo recursivo
+          ...(m.subMasterTaskId != null ? { sub_master_task_id: m.subMasterTaskId } : {}),
+          ...(cf != null ? { conversion_factor: cf } : {}),
+          ...(cu != null ? { commercial_unit: cu } : {}),
+        };
+      };
+
+      let matRes = await supabase
+        .from('master_task_materials')
+        .insert(input.materials.map(m => buildMatRow(m, true)));
+
+      // Fallback: migration 017 (commercial_unit / conversion_factor) puede no estar ejecutada
+      if (matRes.error && (
+        matRes.error.message.includes('commercial_unit') ||
+        matRes.error.message.includes('conversion_factor')
+      )) {
+        matRes = await supabase
+          .from('master_task_materials')
+          .insert(input.materials.map(m => buildMatRow(m, false)));
+      }
+      if (matRes.error) throw new Error(matRes.error.message);
     }
 
+    // ── Labor y Equipos — sin dependencias de migraciones → en paralelo
+    const others: Promise<any>[] = [];
+
     if (input.labor.length > 0) {
-      inserts.push(
+      others.push(
         supabase.from('master_task_labor').insert(
           input.labor.map(l => ({
             master_task_id:       taskId,
@@ -342,7 +384,7 @@ export const masterTasksService = {
     }
 
     if (input.equipment.length > 0) {
-      inserts.push(
+      others.push(
         supabase.from('master_task_equipment').insert(
           input.equipment.map(e => ({
             master_task_id: taskId,
@@ -354,7 +396,7 @@ export const masterTasksService = {
       );
     }
 
-    await Promise.all(inserts);
+    await Promise.all(others);
   },
 
   /** Devuelve un MasterTask por ID con sus sub-tablas inline, o null si no existe. */
