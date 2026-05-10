@@ -31,3 +31,5 @@ OBRAFLOW/
 tu-erp-construccion/
 .claude/
 *.txt
+
+.vercel
