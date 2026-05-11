@@ -22,6 +22,7 @@ import { APUBuilder } from './components/APUBuilder';
 import { InvitationAccept } from './components/InvitationAccept';
 import { Role } from './types';
 import { SaveProvider } from './context/SaveContext';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 // Route Protection Component (Middleware Simulation)
 const ProtectedRoute: React.FC<{ 
@@ -136,6 +137,7 @@ const App = () => {
       <ERPProvider>
         <SaveProvider>
           <AppContent />
+          <SpeedInsights />
         </SaveProvider>
       </ERPProvider>
     </AuthProvider>
