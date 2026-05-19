@@ -3,6 +3,9 @@
 
 export type Role = 'admin' | 'project_manager' | 'worker' | 'client';
 
+/** Roles a nivel sistema (independientes del org role). Columna profiles.system_role. */
+export type SystemRole = 'master_admin' | 'tester' | 'user';
+
 // NEW: Cost Families based on User Request
 export type CostFamily = 'MATERIAL' | 'MANO DE OBRA' | 'EQUIPOS' | 'SUBCONTRATO' | 'COSTO INDIRECTO';
 
@@ -12,6 +15,7 @@ export interface User {
   email: string;
   role: Role;
   organizationId: string; // Tenant ID
+  systemRole?: SystemRole; // System-level role (independent of org membership)
 }
 
 export enum LinkType {
@@ -809,6 +813,7 @@ export interface Profile {
   email?: string;       // snapshot sincronizado desde auth.users
   defaultOrganizationId?: string; // UUID — org activa por defecto
   createdAt?: string;
+  systemRole?: SystemRole; // Sistema de roles global (migration 048)
 }
 
 /** Membresía de un usuario en una organización */

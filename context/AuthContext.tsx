@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../services/supabaseClient';
 import { authService } from '../services/authSupabaseService';
-import { User, Role, OrgRole, Profile, Organization, OrganizationMember } from '../types';
+import { User, Role, OrgRole, Profile, Organization, OrganizationMember, SystemRole } from '../types';
 
 // ─── Tipos del contexto ───────────────────────────────────────────────────────
 
@@ -34,6 +34,9 @@ interface AuthContextType {
 
   // Recarga membresías y perfil (útil tras aceptar una invitación)
   reloadUserData: () => Promise<void>;
+
+  // System-level role (independent of org)
+  isMasterAdmin: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -61,12 +64,14 @@ function buildUser(
 ): User {
   const activeMembership = memberships.find(m => m.organizationId === activeOrgId);
   const role: Role = activeMembership ? orgRoleToAppRole(activeMembership.role) : 'worker';
+  const systemRole: SystemRole = profile?.systemRole ?? 'user';
   return {
     id: session.user.id,
     name: profile?.fullName ?? session.user.email ?? 'Usuario',
     email: session.user.email ?? '',
     role,
-    organizationId: activeOrgId,   // ← lo que toda la app consume
+    organizationId: activeOrgId,
+    systemRole,
   };
 }
 
@@ -194,6 +199,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return requiredRoles.includes(user.role);
   };
 
+  const isMasterAdmin = user?.systemRole === 'master_admin';
+
   return (
     <AuthContext.Provider
       value={{
@@ -210,6 +217,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         logout,
         hasPermission,
         reloadUserData,
+        isMasterAdmin,
       }}
     >
       {children}
