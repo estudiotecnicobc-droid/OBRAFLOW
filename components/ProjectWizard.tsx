@@ -58,7 +58,7 @@ export const ProjectWizard: React.FC<ProjectWizardProps> = ({ onComplete }) => {
                 <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-blue-900/50">
                     <Briefcase size={24} />
                 </div>
-                <h1 className="text-3xl font-black leading-tight mb-2">Bienvenido a Construsoft</h1>
+                <h1 className="text-3xl font-black leading-tight mb-2">Bienvenido a Obraflow</h1>
                 <p className="text-slate-400 text-sm">Plataforma integral para gestión de obras y presupuestos.</p>
             </div>
 

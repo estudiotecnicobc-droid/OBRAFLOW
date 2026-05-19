@@ -32,7 +32,7 @@ export const ProjectSelector: React.FC = () => {
                 <div className="bg-blue-600 p-1.5 rounded-lg">
                     <HardHat size={20} className="text-white" />
                 </div>
-                <h1 className="font-bold text-lg">Construsoft ERP</h1>
+                <h1 className="font-bold text-lg">Obraflow</h1>
             </div>
             <div className="flex items-center gap-4">
                 <div className="text-right hidden md:block">

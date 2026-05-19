@@ -1740,7 +1740,7 @@ export const BudgetEditor: React.FC = () => {
                                               {project.address && <p><strong>Ubicación:</strong> {project.address}</p>}
                                           </div>
                                           <div className="text-right">
-                                              <p className="text-xs text-slate-400">Generado por Construsoft</p>
+                                              <p className="text-xs text-slate-400">Generado por Obraflow</p>
                                           </div>
                                       </div>
 

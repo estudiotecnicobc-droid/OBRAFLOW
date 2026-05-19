@@ -250,7 +250,7 @@ export const DataAdmin: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `construsoft_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `obraflow_backup_${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
       setMessage({ type: 'success', text: 'Copia de seguridad descargada exitosamente.' });
@@ -348,7 +348,7 @@ export const DataAdmin: React.FC = () => {
           
           // 3. Prompt de Ingeniería + Búsqueda
           const prompt = `
-            Actúa como el "Asistente de Inteligencia de Mercado" de Construsoft ERP.
+            Actúa como el "Asistente de Inteligencia de Mercado" de Obraflow.
             
             OBJETIVO:
             Tu tarea es buscar precios de mercado actualizados en Argentina para los siguientes materiales de construcción.
@@ -2359,7 +2359,7 @@ export const DataAdmin: React.FC = () => {
                         )}
 
                         <div className="mt-8 pt-4 border-t border-slate-200 text-center text-[10px] text-slate-400">
-                            Auditoría generada el {new Date().toLocaleString()} por Construsoft ERP
+                            Auditoría generada el {new Date().toLocaleString()} por Obraflow
                         </div>
                     </div>
                 </div>

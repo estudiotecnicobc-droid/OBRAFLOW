@@ -1030,7 +1030,7 @@ export const Dashboard: React.FC = () => {
                         
                         {/* Footer */}
                         <div className="mt-12 pt-4 border-t border-slate-200 text-center">
-                            <p className="text-[10px] text-slate-400 uppercase">Generado por Construsoft ERP • {new Date().getFullYear()}</p>
+                            <p className="text-[10px] text-slate-400 uppercase">Generado por Obraflow • {new Date().getFullYear()}</p>
                         </div>
                     </div>
                 </div>

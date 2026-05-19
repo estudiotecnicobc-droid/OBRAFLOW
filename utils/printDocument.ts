@@ -1,5 +1,5 @@
 /**
- * Shared print-window utility for Construsoft.
+ * Shared print-window utility for Obraflow.
  *
  * Opens a blank window, writes the HTML + CSS into it and calls window.print().
  * This avoids all problems with printing from inside fixed/overflow/scaled modals.

@@ -41,7 +41,7 @@ export const ProjectHub: React.FC = () => {
                     <HardHat size={24} className="text-white" />
                 </div>
                 <div>
-                    <h1 className="font-bold text-xl leading-none">Construsoft ERP</h1>
+                    <h1 className="font-bold text-xl leading-none">Obraflow</h1>
                     <span className="text-xs text-slate-400">Panel de Proyectos</span>
                 </div>
             </div>

@@ -73,8 +73,8 @@ export const Login: React.FC<Props> = ({ hasInvite = false }) => {
           <div className="mx-auto bg-blue-600 w-16 h-16 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200 mb-4">
             <HardHat size={32} className="text-white" />
           </div>
-          <h1 className="text-2xl font-black text-slate-800">Construsoft ERP</h1>
-          <p className="text-slate-500 text-sm mt-1">Gestión de Obras Profesional</p>
+          <h1 className="text-2xl font-black text-slate-800">Obraflow</h1>
+          <p className="text-slate-500 text-sm mt-1">Plataforma de Gestión de Obras</p>
         </div>
 
         {/* Toggle signin / signup */}
