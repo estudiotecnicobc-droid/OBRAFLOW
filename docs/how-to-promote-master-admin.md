@@ -2,56 +2,88 @@
 
 ## Prerequisitos
 
-- Migración 048 ejecutada en el Supabase Dashboard del proyecto.
+- Migración `048_master_admin_audit.sql` ejecutada en el Supabase Dashboard del proyecto.
 - Acceso al Editor SQL del Supabase Dashboard (solo owners del proyecto Supabase).
 
-## Pasos
+---
 
-### 1. Identificar el UUID del usuario a promover
+## Promover arqgonzaloblanco@gmail.com (master_admin designado)
 
-En el Supabase Dashboard → Authentication → Users, buscar el email del usuario y copiar su UUID.
-
-O via SQL:
+Ejecutar en el SQL Editor del Supabase Dashboard:
 
 ```sql
-SELECT id, email FROM auth.users WHERE email = 'usuario@email.com';
-```
-
-### 2. Ejecutar la promoción
-
-En el SQL Editor del Supabase Dashboard:
-
-```sql
+-- Promover a master_admin
 UPDATE public.profiles
 SET system_role = 'master_admin'
-WHERE id = '<UUID del usuario>';
+WHERE id = (
+  SELECT id FROM auth.users WHERE email = 'arqgonzaloblanco@gmail.com'
+);
 ```
 
 Verificar:
 
 ```sql
-SELECT id, email, system_role
-FROM public.profiles
-WHERE system_role = 'master_admin';
+SELECT p.id, u.email, p.system_role
+FROM public.profiles p
+JOIN auth.users u ON u.id = p.id
+WHERE u.email = 'arqgonzaloblanco@gmail.com';
 ```
 
-### 3. Verificar en la app
+Resultado esperado:
+```
+id      | email                          | system_role
+--------|--------------------------------|-------------
+<uuid>  | arqgonzaloblanco@gmail.com     | master_admin
+```
 
-El usuario debe cerrar sesión y volver a iniciarla para que el nuevo `system_role` se refleje en el JWT y el contexto de React. Luego verá el ítem **"Admin Sistema"** en la barra lateral.
+---
 
-## Reglas de seguridad
+## Verificar que sea el único master_admin (opcional)
 
-- **No existe auto-promoción desde la UI.** Solo un operator con acceso al Supabase Dashboard puede promover usuarios.
-- `is_master_admin()` usa `SECURITY DEFINER` con `search_path` fijo, evitando escalada de privilegios vía search_path hijacking.
-- El audit log registra automáticamente cada INSERT/UPDATE/DELETE sobre `master_tasks` y `master_materials` via triggers de base de datos.
-- Para degradar: reemplazar `'master_admin'` por `'tester'` o `'user'` en el mismo UPDATE.
+```sql
+SELECT p.id, u.email, p.system_role
+FROM public.profiles p
+JOIN auth.users u ON u.id = p.id
+WHERE p.system_role = 'master_admin';
+```
 
-## Promover un tester (acceso de solo lectura)
+---
+
+## Después de la promoción
+
+El usuario debe **cerrar sesión y volver a iniciarla** para que el nuevo `system_role` se cargue en el contexto de React. Una vez conectado, verá el ítem **"Admin Sistema"** en la barra lateral de navegación (solo visible para master_admin).
+
+---
+
+## Promover un tester (acceso de solo lectura al catálogo)
 
 ```sql
 UPDATE public.profiles
 SET system_role = 'tester'
-WHERE id = '<UUID del usuario>';
+WHERE id = (
+  SELECT id FROM auth.users WHERE email = 'email@empresa.com'
+);
 ```
 
-Los testers pueden usar la app normalmente pero no tienen acceso al área de administración del sistema ni pueden escribir el catálogo global.
+Los usuarios con rol `tester` pueden usar la app normalmente pero no tienen acceso al área de administración del sistema ni pueden escribir en el catálogo global.
+
+---
+
+## Degradar un master_admin
+
+```sql
+UPDATE public.profiles
+SET system_role = 'user'
+WHERE id = (
+  SELECT id FROM auth.users WHERE email = 'email@empresa.com'
+);
+```
+
+---
+
+## Reglas de seguridad
+
+- **No existe auto-promoción desde la UI.** Solo un operator con acceso al Supabase Dashboard puede promover usuarios. Esta es una restricción intencional.
+- `is_master_admin()` usa `SECURITY DEFINER` con `search_path` fijo, evitando privilege escalation vía search_path hijacking.
+- El frontend NO toma decisiones de acceso basándose en emails hardcodeados. El rol viene siempre de `profiles.system_role`.
+- El audit log registra automáticamente cada INSERT/UPDATE/DELETE sobre `master_tasks` y `master_materials` via triggers de base de datos (migration 048).

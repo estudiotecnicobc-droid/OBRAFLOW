@@ -37,6 +37,11 @@ interface AuthContextType {
 
   // System-level role (independent of org)
   isMasterAdmin: boolean;
+
+  // Password recovery flow
+  isPasswordRecovery: boolean;
+  clearPasswordRecovery: () => Promise<void>;
+  sendPasswordResetEmail: (email: string) => Promise<{ error: string | null }>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -85,6 +90,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [memberships, setMemberships] = useState<OrganizationMember[]>([]);
   const [activeOrganizationId, setActiveOrganizationId] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  // Early detection from URL hash so the recovery screen shows without a flash
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(
+    () => typeof window !== 'undefined' && window.location.hash.includes('type=recovery'),
+  );
 
   // ── Cargar perfil y membresías cuando cambia la sesión ────────────────────
   const loadUserData = async (s: Session) => {
@@ -118,7 +127,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // Suscripción a cambios futuros
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, s) => {
+      (event, s) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          // Recovery token processed: show update-password screen immediately
+          setIsPasswordRecovery(true);
+          setSession(s);
+          setLoading(false);
+          return;
+        }
         setSession(s);
         if (s) {
           loadUserData(s);
@@ -127,6 +143,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setProfile(null);
           setMemberships([]);
           setActiveOrganizationId('');
+          setIsPasswordRecovery(false);
         }
       },
     );
@@ -201,6 +218,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const isMasterAdmin = user?.systemRole === 'master_admin';
 
+  const clearPasswordRecovery = async (): Promise<void> => {
+    setIsPasswordRecovery(false);
+    await supabase.auth.signOut();
+  };
+
+  const sendPasswordResetEmail = async (email: string): Promise<{ error: string | null }> => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/auth/update-password`,
+    });
+    if (error) return { error: error.message };
+    return { error: null };
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -218,6 +248,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         hasPermission,
         reloadUserData,
         isMasterAdmin,
+        isPasswordRecovery,
+        clearPasswordRecovery,
+        sendPasswordResetEmail,
       }}
     >
       {children}

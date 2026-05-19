@@ -20,6 +20,7 @@ import { QualityControl } from './components/QualityControl';
 import { ProjectHub } from './components/ProjectHub';
 import { APUBuilder } from './components/APUBuilder';
 import { AdminPanel } from './components/AdminPanel';
+import { UpdatePassword } from './components/UpdatePassword';
 import { InvitationAccept } from './components/InvitationAccept';
 import { BillingSuccess } from './src/features/billing/BillingSuccess';
 import { Role } from './types';
@@ -45,7 +46,7 @@ const ProtectedRoute: React.FC<{
 };
 
 const AppContent = () => {
-  const { user, loading, isMasterAdmin } = useAuth();
+  const { user, loading, isMasterAdmin, isPasswordRecovery, clearPasswordRecovery } = useAuth();
   const { activeProjectId } = useERP();
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -65,7 +66,12 @@ const AppContent = () => {
     return v === 'success';
   });
 
-  // STATE 0: Resolving Supabase session
+  // STATE 0: Password recovery (show immediately — URL hash detected or onAuthStateChange fired)
+  if (isPasswordRecovery) {
+    return <UpdatePassword onDone={clearPasswordRecovery} />;
+  }
+
+  // STATE 0.5: Resolving Supabase session
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
