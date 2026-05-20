@@ -323,6 +323,57 @@ export const masterTasksService = {
     if (error) throw new Error(error.message);
   },
 
+  // ── Catálogo Global (organization_id IS NULL) — solo master_admin ──────────
+
+  /** Lista TODOS los APUs globales (activos e inactivos) para la vista admin */
+  async listGlobalAll(): Promise<MasterTask[]> {
+    const { data, error } = await supabase
+      .from('master_tasks')
+      .select('*')
+      .is('organization_id', null)
+      .order('name');
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(r => ({ ...taskFromRow(r), materials: [], labor: [], equipment: [] }));
+  },
+
+  /** Activa un APU global (revertir soft-delete) */
+  async activate(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('master_tasks')
+      .update({ is_active: true })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  /** Crea un APU en el catálogo global (organization_id = null) — solo campos básicos */
+  async createGlobal(input: Omit<MasterTaskInput, 'materials' | 'labor' | 'equipment'>): Promise<MasterTask> {
+    const row: Record<string, any> = {
+      ...taskToRow({ ...input, organizationId: '' } as any),
+      organization_id: null,
+      is_active: true,
+    };
+    delete row.organization_id;  // rebuild below
+    const { data, error } = await supabase
+      .from('master_tasks')
+      .insert({ ...row, organization_id: null })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return { ...taskFromRow(data), materials: [], labor: [], equipment: [] };
+  },
+
+  /** Actualiza campos básicos de un APU global */
+  async updateGlobal(id: string, input: Partial<Omit<MasterTaskInput, 'materials' | 'labor' | 'equipment'>>): Promise<void> {
+    const row = taskToRow({ ...input, organizationId: '' } as any);
+    delete row.organization_id;
+    const { error } = await supabase
+      .from('master_tasks')
+      .update(row)
+      .eq('id', id)
+      .is('organization_id', null);
+    if (error) throw new Error(error.message);
+  },
+
   // ── Internal helper ────────────────────────────────────────────────────────
 
   async _insertChildren(

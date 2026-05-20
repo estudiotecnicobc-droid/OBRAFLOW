@@ -94,4 +94,51 @@ export const masterMaterialsService = {
       .eq('id', id);
     if (error) throw new Error(error.message);
   },
+
+  // ── Catálogo Global (organization_id IS NULL) — solo master_admin ──────────
+
+  /** Lista todos los materiales del catálogo global (activos e inactivos) */
+  async listGlobalAll(): Promise<MasterMaterial[]> {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('*')
+      .is('organization_id', null)
+      .order('name');
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(fromRow);
+  },
+
+  /** Crea un material en el catálogo global (organization_id = null) */
+  async createGlobal(
+    m: Omit<MasterMaterial, 'id' | 'organizationId' | 'createdAt' | 'updatedAt' | 'isActive'>,
+  ): Promise<MasterMaterial> {
+    const row = toRow({ ...m, isActive: true } as Partial<MasterMaterial>);
+    row.organization_id = null;
+    const { data, error } = await supabase.from(TABLE).insert(row).select().single();
+    if (error) throw new Error(error.message);
+    return fromRow(data);
+  },
+
+  /** Actualiza un material del catálogo global */
+  async updateGlobal(id: string, updates: Partial<Omit<MasterMaterial, 'id' | 'organizationId'>>): Promise<MasterMaterial> {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .update(toRow(updates as Partial<MasterMaterial>))
+      .eq('id', id)
+      .is('organization_id', null)
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return fromRow(data);
+  },
+
+  /** Activa o desactiva un material del catálogo global */
+  async toggleActiveGlobal(id: string, isActive: boolean): Promise<void> {
+    const { error } = await supabase
+      .from(TABLE)
+      .update({ is_active: isActive })
+      .eq('id', id)
+      .is('organization_id', null);
+    if (error) throw new Error(error.message);
+  },
 };
