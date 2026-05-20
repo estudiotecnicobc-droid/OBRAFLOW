@@ -737,7 +737,7 @@ export interface APUSourceMetadata {
 // organization_id es text para compatibilidad con los IDs de la app actual (ej: 'org_a').
 export interface MasterMaterial {
   id: string;              // UUID generado por Supabase
-  organizationId: string;  // Mapea a organization_id en DB
+  organizationId: string | null;  // Mapea a organization_id en DB; null = catálogo global
   code?: string;           // Código interno: "MAT-0001"
   name: string;
   description?: string;

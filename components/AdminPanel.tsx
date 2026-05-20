@@ -187,12 +187,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         {/* ── Tab: Materiales Globales ───────────────────────────────────── */}
         {activeTab === 'materials' && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
-              <AlertTriangle size={13} className="text-amber-600 flex-shrink-0" />
+            <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5">
               <span>
-                Estos materiales son del <strong>catálogo global</strong> (<code>organization_id IS NULL</code>). Requiere migración
-                <code className="mx-1 bg-amber-100 px-1 rounded">049_global_materials_write</code>
-                ejecutada en Supabase Dashboard para poder escribir.
+                Materiales del <strong>catálogo global</strong> (<code>organization_id IS NULL</code>). Visibles en todos los proyectos. Solo <code>master_admin</code> puede crear, editar o desactivar.
               </span>
             </div>
             <GlobalMaterialsAdmin />

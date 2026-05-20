@@ -49,12 +49,12 @@ function toRow(m: Partial<MasterMaterial>): Record<string, any> {
 }
 
 export const masterMaterialsService = {
-  /** Devuelve todos los materiales activos de la organización, ordenados por nombre */
+  /** Devuelve todos los materiales activos de la organización + catálogo global, ordenados por nombre */
   async list(organizationId: string): Promise<MasterMaterial[]> {
     const { data, error } = await supabase
       .from(TABLE)
       .select('*')
-      .eq('organization_id', organizationId)
+      .or(`organization_id.eq.${organizationId},organization_id.is.null`)
       .eq('is_active', true)
       .order('name');
     if (error) throw new Error(error.message);

@@ -417,7 +417,14 @@ export const MasterMaterialsPanel: React.FC = () => {
                     }`}
                   >
                     <td className="px-4 py-3 font-mono text-xs text-slate-400">{m.code || '—'}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-800">{m.name}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-800">
+                      {m.name}
+                      {m.organizationId === null && (
+                        <span className="ml-1.5 inline-block text-[9px] font-bold uppercase bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full tracking-wide">
+                          Global
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-500">{m.category || '—'}</td>
                     <td className="px-4 py-3 text-slate-600">{m.unit}</td>
                     <td className="px-4 py-3 text-right font-mono font-semibold text-slate-800">
@@ -436,20 +443,26 @@ export const MasterMaterialsPanel: React.FC = () => {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => startEdit(m)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          title="Editar"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleRemove(m)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Desactivar (soft delete)"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {m.organizationId === null ? (
+                          <span className="text-[10px] text-purple-400 italic px-2">Solo Admin</span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => startEdit(m)}
+                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title="Editar"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleRemove(m)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="Desactivar (soft delete)"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
