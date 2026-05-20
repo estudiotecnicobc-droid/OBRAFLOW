@@ -889,7 +889,7 @@ export const DataAdmin: React.FC = () => {
           onClick={() => { setActiveSubTab('master'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'master' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
-          <Database size={18} /> Materiales Maestros
+          <Database size={18} /> Materiales de Empresa
         </button>
         <button
           onClick={() => { setActiveSubTab('labor'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
@@ -1090,8 +1090,10 @@ export const DataAdmin: React.FC = () => {
           </div>
       )}
 
-      {/* Base Maestra de Materiales (Supabase) */}
-      {activeSubTab === 'master' && <MasterMaterialsPanel />}
+      {/* Materiales de Empresa */}
+      {activeSubTab === 'master' && (
+        <MasterMaterialsPanel onNavigateToResources={() => setActiveSubTab('resources')} />
+      )}
 
       {/* APU Maestro — Base Maestra de Tareas (localStorage) */}
       {activeSubTab === 'master-tasks' && <MasterTasksPanel />}
