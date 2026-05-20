@@ -81,6 +81,18 @@ export const GlobalTasksAdmin: React.FC = () => {
     const dailyYield = parseFloat(form.dailyYield) || 1;
     if (dailyYield <= 0) { setError('El rendimiento diario debe ser mayor a 0.'); return; }
 
+    // Dedup: verificar nombre y código antes de crear (omitir en edición del mismo registro)
+    if (!editing) {
+      const nameLower = form.name.trim().toLowerCase();
+      const codeVal = form.code.trim().toLowerCase();
+      const dupByName = tasks.some(t => t.isActive && t.name.toLowerCase() === nameLower);
+      const dupByCode = codeVal ? tasks.some(t => t.isActive && (t.code ?? '').toLowerCase() === codeVal) : false;
+      if (dupByName || dupByCode) {
+        setError('Ya existe una tarea global con ese código o descripción equivalente.');
+        return;
+      }
+    }
+
     setSaving(true);
     setError(null);
     try {
