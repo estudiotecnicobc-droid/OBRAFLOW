@@ -26,6 +26,12 @@ function fromRow(row: Record<string, any>): MasterMaterial {
     // Se leen de forma segura: si las columnas no existen, row.x = undefined → undefined
     commercialUnit:   row.commercial_unit   ?? undefined,
     conversionFactor: row.conversion_factor != null ? Number(row.conversion_factor) : undefined,
+    // Trazabilidad de importación (migration 053)
+    globalSourceId: row.global_source_id ?? undefined,
+    importedAt:     row.imported_at ?? undefined,
+    lastSyncedAt:   row.last_synced_at ?? undefined,
+    localOverride:  row.local_override ?? false,
+    globalSourceUpdatedAtAtImport: row.global_source_updated_at_at_import ?? undefined,
   };
 }
 
@@ -45,6 +51,12 @@ function toRow(m: Partial<MasterMaterial>): Record<string, any> {
   if (m.commercialFormat !== undefined) row.commercial_format = m.commercialFormat || null;
   if (m.wastePercent !== undefined) row.waste_percent = m.wastePercent;
   if (m.isActive !== undefined) row.is_active = m.isActive;
+  // Trazabilidad de importación (migration 053)
+  if (m.globalSourceId !== undefined) row.global_source_id = m.globalSourceId || null;
+  if (m.importedAt !== undefined) row.imported_at = m.importedAt;
+  if (m.lastSyncedAt !== undefined) row.last_synced_at = m.lastSyncedAt;
+  if (m.localOverride !== undefined) row.local_override = m.localOverride;
+  if (m.globalSourceUpdatedAtAtImport !== undefined) row.global_source_updated_at_at_import = m.globalSourceUpdatedAtAtImport;
   return row;
 }
 
@@ -140,5 +152,59 @@ export const masterMaterialsService = {
       .eq('id', id)
       .is('organization_id', null);
     if (error) throw new Error(error.message);
+  },
+
+  // ── Importación de catálogo global → organización (migration 053) ──────────
+
+  /** Importa un material del catálogo global a la organización. Lanza error si ya fue importado. */
+  async importFromGlobal(globalMaterialId: string, organizationId: string): Promise<MasterMaterial> {
+    // Fetch the global material
+    const { data: globalData, error: globalError } = await supabase
+      .from(TABLE)
+      .select('*')
+      .eq('id', globalMaterialId)
+      .is('organization_id', null)
+      .single();
+    if (globalError) throw new Error(globalError.message);
+
+    // Dedup check
+    const { data: existing } = await supabase
+      .from(TABLE)
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('global_source_id', globalMaterialId)
+      .maybeSingle();
+    if (existing) throw new Error('Este material ya fue importado a tu organización.');
+
+    const now = new Date().toISOString();
+    const row = {
+      organization_id: organizationId,
+      code:              globalData.code ?? null,
+      name:              globalData.name,
+      description:       globalData.description ?? null,
+      unit:              globalData.unit,
+      unit_price:        globalData.unit_price,
+      currency:          globalData.currency,
+      category:          globalData.category ?? null,
+      supplier:          globalData.supplier ?? null,
+      commercial_format: globalData.commercial_format ?? null,
+      waste_percent:     globalData.waste_percent ?? null,
+      commercial_unit:   globalData.commercial_unit ?? null,
+      conversion_factor: globalData.conversion_factor ?? null,
+      is_active:         true,
+      global_source_id:  globalMaterialId,
+      imported_at:       now,
+      global_source_updated_at_at_import: globalData.updated_at ?? null,
+      local_override:    false,
+    };
+
+    const { data, error } = await supabase.from(TABLE).insert(row).select().single();
+    if (error) {
+      if (error.code === '42703') {
+        throw new Error('Ejecutá la migración 053 en Supabase Dashboard antes de usar esta función.');
+      }
+      throw new Error(error.message);
+    }
+    return fromRow(data);
   },
 };
