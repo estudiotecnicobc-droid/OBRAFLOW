@@ -48,13 +48,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
     { id: 'planning', label: 'Planificación', icon: CalendarDays, roles: ['admin', 'project_manager', 'worker'] },
     { id: 'reception', label: 'Recepción (Remitos)', icon: Truck, roles: ['admin', 'worker'] },
     { id: 'tools', label: 'Equipos', icon: Wrench, roles: ['admin', 'project_manager'] },
-    { id: 'admin', label: 'Base de Datos', icon: Settings, roles: ['admin', 'project_manager'] },
+    { id: 'admin', label: 'Administración de Proyecto', icon: Settings, roles: ['admin', 'project_manager'] },
     { id: 'settings', label: 'Configuración', icon: SlidersHorizontal, roles: ['admin'] },
   ];
 
   const visibleItems = [
     ...navItems.filter(item => item.roles.includes(user?.role as Role)),
-    ...(isMasterAdmin ? [{ id: 'system_admin', label: 'Admin Sistema', icon: ShieldCheck, roles: [] as Role[] }] : []),
+    ...(isMasterAdmin ? [{ id: 'system_admin', label: 'Admin del Sistema', icon: ShieldCheck, roles: [] as Role[] }] : []),
   ];
 
   return (
