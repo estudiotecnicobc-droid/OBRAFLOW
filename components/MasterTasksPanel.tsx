@@ -471,6 +471,21 @@ export const MasterTasksPanel: React.FC = () => {
   const handleImport = async (quantity: number) => {
     if (!importTarget || projectIsPhantom) return;
 
+    // Dedup: si la tarea ya fue importada al proyecto, reutilizar en lugar de duplicar
+    const existingProjectTask = projectTasks.find(t => t.masterTaskId === importTarget.id);
+    if (existingProjectTask) {
+      if (project.items.some(bi => bi.taskId === existingProjectTask.id)) {
+        showMsg('error', `"${importTarget.name}" ya fue incorporada al presupuesto. Editá la cantidad desde el ítem existente.`);
+        setImportTarget(null);
+        return;
+      }
+      // Tarea importada pero aún sin línea de presupuesto — solo crear el budget_item
+      await addBudgetItem({ id: generateId(), taskId: existingProjectTask.id, quantity, progress: 0 });
+      showMsg('success', `"${importTarget.name}" agregada al presupuesto con cantidad ${quantity}.`);
+      setImportTarget(null);
+      return;
+    }
+
     const payload = buildImportPayload(
       importTarget,
       orgId,
@@ -559,8 +574,19 @@ export const MasterTasksPanel: React.FC = () => {
     const { payloads, skippedTotal } = buildRubroImportPayloads(
       rubro, tasks, orgId, project.id, laborCategoriesMap, toolsMap, projectMaterials, masterMaterialsMap,
     );
+    let skippedDups = 0;
     // for...of serializado: cada task persiste en Supabase antes de insertar su budget_item.
     for (const p of payloads) {
+      // Dedup: si la tarea maestra ya fue importada al proyecto, reutilizar
+      const existingProjectTask = projectTasks.find(t => t.masterTaskId === p.task.masterTaskId);
+      if (existingProjectTask) {
+        if (!project.items.some(bi => bi.taskId === existingProjectTask.id)) {
+          await addBudgetItem({ id: generateId(), taskId: existingProjectTask.id, quantity: p.budgetItem.quantity, progress: 0 });
+        } else {
+          skippedDups++;
+        }
+        continue;
+      }
       p.materialsToCreate.forEach(m => addMaterial(m));
       p.materialsToUpdate.forEach(({ id, cost }) => updateMaterial(id, { cost }));
       p.laborCategoriesToUpdate.forEach(({ id, basicHourlyRate }) => updateLaborCategory(id, { basicHourlyRate }));
@@ -579,7 +605,10 @@ export const MasterTasksPanel: React.FC = () => {
     const note = skippedTotal > 0
       ? ` (${skippedTotal} línea${skippedTotal !== 1 ? 's' : ''} omitida${skippedTotal !== 1 ? 's' : ''} por FK)`
       : '';
-    showMsg('success', `${payloads.length} tarea${payloads.length !== 1 ? 's' : ''} importada${payloads.length !== 1 ? 's' : ''} al presupuesto.${note}`);
+    const dupNote = skippedDups > 0
+      ? ` · ${skippedDups} ya estaba${skippedDups !== 1 ? 'n' : ''} en el presupuesto`
+      : '';
+    showMsg('success', `${payloads.length - skippedDups} tarea${(payloads.length - skippedDups) !== 1 ? 's' : ''} importada${(payloads.length - skippedDups) !== 1 ? 's' : ''} al presupuesto.${note}${dupNote}`);
     setRubroImportOpen(false);
   };
 
