@@ -886,6 +886,12 @@ export const DataAdmin: React.FC = () => {
           <Package size={18} /> Recursos
         </button>
         <button
+          onClick={() => { setActiveSubTab('master'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
+          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'master' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-slate-500 hover:bg-slate-50'}`}
+        >
+          <Database size={18} /> Base Maestra
+        </button>
+        <button
           onClick={() => { setActiveSubTab('labor'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'labor' || activeSubTab === 'crews' ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
