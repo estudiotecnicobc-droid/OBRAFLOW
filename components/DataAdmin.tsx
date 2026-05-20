@@ -889,7 +889,7 @@ export const DataAdmin: React.FC = () => {
           onClick={() => { setActiveSubTab('master'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'master' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
-          <Database size={18} /> Base Maestra
+          <Database size={18} /> Materiales Maestros
         </button>
         <button
           onClick={() => { setActiveSubTab('labor'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
@@ -907,7 +907,7 @@ export const DataAdmin: React.FC = () => {
           onClick={() => { setActiveSubTab('resources'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'resources' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
-          <Globe size={18} /> Catálogo Global
+          <Globe size={18} /> Recursos Globales
         </button>
         <button
           onClick={() => { setActiveSubTab('templates'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
