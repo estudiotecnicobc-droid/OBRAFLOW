@@ -61,7 +61,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'audit',     label: 'Auditoría',           icon: Activity  },
-    { id: 'materials', label: 'Materiales Globales',  icon: Package   },
+    { id: 'materials', label: 'Materiales Globales (interno)',  icon: Package   },
     { id: 'tasks',     label: 'APUs Globales',         icon: BookOpen  },
   ];
 
@@ -184,12 +184,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
           </div>
         )}
 
-        {/* ── Tab: Materiales Globales ───────────────────────────────────── */}
+        {/* ── Tab: Materiales Globales (interno) ────────────────────────── */}
         {activeTab === 'materials' && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5">
+            <div className="flex items-center gap-2 text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
               <span>
-                Materiales del <strong>catálogo global</strong> (<code>organization_id IS NULL</code>). Visibles en todos los proyectos. Solo <code>master_admin</code> puede crear, editar o desactivar.
+                <strong>Catálogo interno de materiales</strong> (<code>master_materials</code>, <code>organization_id IS NULL</code>).
+                Este catálogo es mantenido por <code>master_admin</code> y es distinto del catálogo principal de referencia
+                (<strong>Recursos Globales</strong>, tabla <code>resources</code>).
+                En la arquitectura final, este catálogo se unificará con Recursos Globales.
+                Solo <code>master_admin</code> puede crear, editar o desactivar materiales aquí.
               </span>
             </div>
             <GlobalMaterialsAdmin />

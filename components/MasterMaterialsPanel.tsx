@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Save, X, RefreshCcw, AlertTriangle, CheckCircle, Loader, Database, Wand2, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, RefreshCcw, AlertTriangle, CheckCircle, Loader, Database, Wand2, ExternalLink } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useMasterMaterials } from '../hooks/useMasterMaterials';
 import { MasterMaterial } from '../types';
-import { masterMaterialsService } from '../services/masterMaterialsService';
 import { suggestMaterialCode } from '../utils/codeGenerator';
+
+interface Props {
+  onNavigateToResources?: () => void;
+}
 
 const CURRENCIES = ['ARS', 'USD'];
 
@@ -21,7 +24,7 @@ const EMPTY_DRAFT: Partial<MasterMaterial> = {
   wastePercent: 0,
 };
 
-export const MasterMaterialsPanel: React.FC = () => {
+export const MasterMaterialsPanel: React.FC<Props> = ({ onNavigateToResources }) => {
   const { user } = useAuth();
   const orgId = user?.organizationId ?? '';
   const { items, loading, error, reload, add, update, remove } = useMasterMaterials(orgId);
@@ -32,14 +35,6 @@ export const MasterMaterialsPanel: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [search, setSearch] = useState('');
-
-  // ── Import modal state ──────────────────────────────────────────────────────
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importSearch, setImportSearch] = useState('');
-  const [globalCatalog, setGlobalCatalog] = useState<MasterMaterial[]>([]);
-  const [importLoadingModal, setImportLoadingModal] = useState(false);
-  const [importingId, setImportingId] = useState<string | null>(null);
-  const [importedSet, setImportedSet] = useState<Set<string>>(new Set());
 
   // ── Autogeneración de código ────────────────────────────────────────────────
   const [autoCode, setAutoCode] = useState('');
@@ -108,7 +103,7 @@ export const MasterMaterialsPanel: React.FC = () => {
           commercialFormat: draft.commercialFormat?.trim() || undefined,
           wastePercent: draft.wastePercent != null ? Number(draft.wastePercent) : undefined,
         });
-        showMsg('success', 'Material agregado a la base maestra.');
+        showMsg('success', 'Material agregado al catálogo de la empresa.');
       } else if (editingId) {
         const updates: Partial<MasterMaterial> = {
           name: draft.name.trim(),
@@ -122,7 +117,7 @@ export const MasterMaterialsPanel: React.FC = () => {
           commercialFormat: draft.commercialFormat?.trim() || undefined,
           wastePercent: draft.wastePercent != null ? Number(draft.wastePercent) : undefined,
         };
-        // Part E: marcar como editado localmente si el material fue importado del global
+        // Si el material fue importado desde el catálogo global, marcarlo como editado localmente
         if (draft.globalSourceId) updates.localOverride = true;
         await update(editingId, updates);
         showMsg('success', 'Material actualizado.');
@@ -144,47 +139,6 @@ export const MasterMaterialsPanel: React.FC = () => {
       showMsg('error', e.message ?? 'Error al desactivar.');
     }
   };
-
-  // ── Import Modal ────────────────────────────────────────────────────────────
-  const openImportModal = async () => {
-    setShowImportModal(true);
-    setImportSearch('');
-    setImportLoadingModal(true);
-    try {
-      const globals = await masterMaterialsService.listGlobalAll();
-      setGlobalCatalog(globals.filter(m => m.isActive));
-      const alreadyImported = new Set(
-        items.map(m => m.globalSourceId).filter((id): id is string => !!id)
-      );
-      setImportedSet(alreadyImported);
-    } catch (e: any) {
-      showMsg('error', e.message ?? 'Error al cargar el catálogo global.');
-      setShowImportModal(false);
-    } finally {
-      setImportLoadingModal(false);
-    }
-  };
-
-  const handleImport = async (globalMaterial: MasterMaterial) => {
-    setImportingId(globalMaterial.id);
-    try {
-      await masterMaterialsService.importFromGlobal(globalMaterial.id, orgId);
-      setImportedSet(prev => new Set([...prev, globalMaterial.id]));
-      await reload();
-      showMsg('success', `"${globalMaterial.name}" importado al catálogo de la empresa.`);
-    } catch (e: any) {
-      showMsg('error', e.message ?? 'Error al importar.');
-    } finally {
-      setImportingId(null);
-    }
-  };
-
-  const filteredGlobal = globalCatalog.filter(m =>
-    !importSearch ||
-    m.name.toLowerCase().includes(importSearch.toLowerCase()) ||
-    m.code?.toLowerCase().includes(importSearch.toLowerCase()) ||
-    m.category?.toLowerCase().includes(importSearch.toLowerCase())
-  );
 
   const filtered = items.filter(m =>
     !search ||
@@ -220,9 +174,9 @@ export const MasterMaterialsPanel: React.FC = () => {
               <Database size={20} className="text-emerald-600" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-800">Base Maestra de Materiales</h2>
+              <h2 className="text-lg font-bold text-slate-800">Materiales de Empresa</h2>
               <p className="text-xs text-slate-500">
-                Catálogo organizacional · {items.length} materiales activos
+                Catálogo propio de la organización · {items.length} materiales activos
                 {orgId && <span className="ml-1 text-slate-400">· org: {orgId}</span>}
               </p>
             </div>
@@ -236,13 +190,14 @@ export const MasterMaterialsPanel: React.FC = () => {
             >
               <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
             </button>
-            <button
-              onClick={openImportModal}
-              disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50"
-            >
-              <Download size={16} /> Importar del Catálogo Global
-            </button>
+            {onNavigateToResources && (
+              <button
+                onClick={onNavigateToResources}
+                className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+              >
+                <ExternalLink size={16} /> Importar desde Recursos Globales
+              </button>
+            )}
             <button
               onClick={startAdd}
               disabled={loading || isAdding}
@@ -443,7 +398,7 @@ export const MasterMaterialsPanel: React.FC = () => {
         {!loading && !error && filtered.length === 0 && (
           <div className="p-12 text-center text-slate-400 text-sm">
             {items.length === 0
-              ? 'No hay materiales en la base maestra. Hacé clic en "Nuevo Material" para agregar el primero.'
+              ? 'No hay materiales en el catálogo de la empresa. Importá desde Recursos Globales o creá uno nuevo.'
               : 'No hay resultados para la búsqueda.'}
           </div>
         )}
@@ -538,133 +493,6 @@ export const MasterMaterialsPanel: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* ── Import Modal ─────────────────────────────────────────────────────── */}
-      {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-
-            {/* Modal header */}
-            <div className="flex items-center justify-between p-5 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-teal-100 rounded-lg">
-                  <Download size={18} className="text-teal-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-800">Importar del Catálogo Global</h3>
-                  <p className="text-xs text-slate-500">Seleccioná materiales para agregar al catálogo de tu empresa</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowImportModal(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Search */}
-            <div className="p-4 border-b border-slate-100">
-              <input
-                type="text"
-                placeholder="Buscar por nombre, código o categoría…"
-                value={importSearch}
-                onChange={e => setImportSearch(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500"
-                autoFocus
-              />
-            </div>
-
-            {/* List */}
-            <div className="flex-1 overflow-y-auto">
-              {importLoadingModal && (
-                <div className="flex items-center justify-center gap-3 p-12 text-slate-400">
-                  <Loader size={20} className="animate-spin" />
-                  <span className="text-sm">Cargando catálogo global…</span>
-                </div>
-              )}
-              {!importLoadingModal && filteredGlobal.length === 0 && (
-                <div className="p-12 text-center text-slate-400 text-sm">
-                  {globalCatalog.length === 0
-                    ? 'El catálogo global no tiene materiales activos.'
-                    : 'No hay resultados para la búsqueda.'}
-                </div>
-              )}
-              {!importLoadingModal && filteredGlobal.length > 0 && (
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-white border-b border-slate-100">
-                    <tr className="text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
-                      <th className="px-4 py-3">Nombre</th>
-                      <th className="px-4 py-3">Categoría</th>
-                      <th className="px-4 py-3">Unidad</th>
-                      <th className="px-4 py-3 text-right">Precio</th>
-                      <th className="px-4 py-3 text-right">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredGlobal.map((g, i) => {
-                      const alreadyImported = importedSet.has(g.id);
-                      const isImporting = importingId === g.id;
-                      return (
-                        <tr
-                          key={g.id}
-                          className={`border-b border-slate-50 ${i % 2 === 0 ? '' : 'bg-slate-50/30'}`}
-                        >
-                          <td className="px-4 py-3 font-semibold text-slate-800">
-                            {g.name}
-                            {g.code && (
-                              <span className="ml-1.5 font-mono text-[10px] text-slate-400">{g.code}</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-slate-500 text-xs">{g.category || '—'}</td>
-                          <td className="px-4 py-3 text-slate-600">{g.unit}</td>
-                          <td className="px-4 py-3 text-right font-mono text-slate-700">
-                            {g.unitPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                            <span className="ml-1 text-[10px] text-slate-400">{g.currency}</span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            {alreadyImported ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-teal-600 bg-teal-50 px-2 py-1 rounded-full">
-                                <CheckCircle size={10} /> Ya importado
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => handleImport(g)}
-                                disabled={!!importingId}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ml-auto"
-                              >
-                                {isImporting ? (
-                                  <Loader size={12} className="animate-spin" />
-                                ) : (
-                                  <Download size={12} />
-                                )}
-                                {isImporting ? 'Importando…' : 'Importar'}
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
-            {/* Modal footer */}
-            <div className="p-4 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-xs text-slate-400">
-                {globalCatalog.length} materiales globales · {importedSet.size} ya importados
-              </span>
-              <button
-                onClick={() => setShowImportModal(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm font-medium transition-colors"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
