@@ -3,8 +3,8 @@ import { Globe, Search, Loader2, AlertTriangle, HelpCircle, Download, CheckCircl
 import { resourcesService } from '../services/resourcesService';
 import { Resource } from '../types';
 import {
-  importGlobalResourcesToOrg,
-  ImportGlobalResourcesResult,
+  importResourcesToCompanyCatalog,
+  ImportToCompanyCatalogResult,
   ResourcePriceStrategy,
 } from '../services/importGlobalResourcesService';
 import { useAuth } from '../context/AuthContext';
@@ -42,7 +42,7 @@ export function GlobalResourcesPanel() {
 
   const [priceStrategy, setPriceStrategy] = useState<ResourcePriceStrategy>('missing_only');
   const [importing, setImporting]     = useState(false);
-  const [importResult, setImportResult] = useState<ImportGlobalResourcesResult | null>(null);
+  const [importResult, setImportResult] = useState<ImportToCompanyCatalogResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,7 +76,7 @@ export function GlobalResourcesPanel() {
     setImportError(null);
     setImportResult(null);
     try {
-      const result = await importGlobalResourcesToOrg(orgId, priceStrategy);
+      const result = await importResourcesToCompanyCatalog(orgId, priceStrategy);
       setImportResult(result);
       // Sincronizar ERPContext para que la solapa Recursos refleje los nuevos registros
       await reloadOrgResources();
@@ -88,7 +88,7 @@ export function GlobalResourcesPanel() {
   };
 
   const totalImported = importResult
-    ? importResult.materialsCreated + importResult.laborCreated + importResult.equipmentCreated
+    ? importResult.materialsCreated + importResult.laborCreated + importResult.equipmentCreated + importResult.masterMaterialsCreated
     : 0;
 
   return (
@@ -112,7 +112,7 @@ export function GlobalResourcesPanel() {
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <Download size={14} className="text-emerald-600 shrink-0" />
             <span className="text-xs text-emerald-800 font-medium">
-              Importar recursos a tu empresa (Recursos, MO, Herramientas)
+              Importar al Catálogo de Empresa — materiales, MO, herramientas y APUs
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -133,7 +133,7 @@ export function GlobalResourcesPanel() {
             >
               {importing
                 ? <><Loader2 size={12} className="animate-spin" /> Importando…</>
-                : <><Download size={12} /> Importar a mi empresa</>
+                : <><Download size={12} /> Importar al Catálogo de Empresa</>
               }
             </button>
           </div>
@@ -154,6 +154,7 @@ export function GlobalResourcesPanel() {
             <span className="text-xs font-bold">Importación completada</span>
           </div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs mb-2">
+            <span className="text-slate-500 font-semibold col-span-2 text-[10px] uppercase tracking-wide text-slate-400 pt-1">Tablas operativas</span>
             <span className="text-slate-500">Materiales creados</span>
             <span className="font-bold text-slate-800">{importResult.materialsCreated}</span>
             <span className="text-slate-500">Categorías MO creadas</span>
@@ -164,10 +165,15 @@ export function GlobalResourcesPanel() {
             <span className="font-bold text-slate-800">{importResult.pricesUpdated}</span>
             <span className="text-slate-500">Sin cambios</span>
             <span className="text-slate-400">{importResult.skipped}</span>
+            <span className="text-slate-500 font-semibold col-span-2 text-[10px] uppercase tracking-wide text-slate-400 pt-1">Catálogo de Empresa (APUs)</span>
+            <span className="text-slate-500">Materiales para APU creados</span>
+            <span className="font-bold text-slate-800">{importResult.masterMaterialsCreated}</span>
+            <span className="text-slate-500">Precios APU actualizados</span>
+            <span className="font-bold text-slate-800">{importResult.masterMaterialsUpdated}</span>
           </div>
           {totalImported > 0 && (
             <p className="text-xs text-emerald-700">
-              Los recursos ya están disponibles en las pestañas Recursos, MO y Herramientas.
+              Los recursos ya están disponibles en Recursos, MO, Herramientas y Materiales de Empresa.
             </p>
           )}
           <button

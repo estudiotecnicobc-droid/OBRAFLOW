@@ -32,6 +32,8 @@ function fromRow(row: Record<string, any>): MasterMaterial {
     lastSyncedAt:   row.last_synced_at ?? undefined,
     localOverride:  row.local_override ?? false,
     globalSourceUpdatedAtAtImport: row.global_source_updated_at_at_import ?? undefined,
+    // Trazabilidad de importación desde resources (migration 054)
+    globalResourceId: row.global_resource_id ?? undefined,
   };
 }
 
@@ -57,6 +59,7 @@ function toRow(m: Partial<MasterMaterial>): Record<string, any> {
   if (m.lastSyncedAt !== undefined) row.last_synced_at = m.lastSyncedAt;
   if (m.localOverride !== undefined) row.local_override = m.localOverride;
   if (m.globalSourceUpdatedAtAtImport !== undefined) row.global_source_updated_at_at_import = m.globalSourceUpdatedAtAtImport;
+  if (m.globalResourceId !== undefined) row.global_resource_id = m.globalResourceId || null;
   return row;
 }
 

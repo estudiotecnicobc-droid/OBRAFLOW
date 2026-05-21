@@ -61,7 +61,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'audit',     label: 'Auditoría',           icon: Activity  },
-    { id: 'materials', label: 'Materiales Globales (interno)',  icon: Package   },
+    { id: 'materials', label: 'Materiales Legacy / Ref. interna', icon: Package   },
     { id: 'tasks',     label: 'APUs Globales',         icon: BookOpen  },
   ];
 
@@ -189,10 +189,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
               <span>
-                <strong>Catálogo interno de materiales</strong> (<code>master_materials</code>, <code>organization_id IS NULL</code>).
-                Este catálogo es mantenido por <code>master_admin</code> y es distinto del catálogo principal de referencia
-                (<strong>Recursos Globales</strong>, tabla <code>resources</code>).
-                En la arquitectura final, este catálogo se unificará con Recursos Globales.
+                <strong>Catálogo legacy/interno</strong> (<code>master_materials</code>, <code>organization_id IS NULL</code>).
+                <strong>No es el Catálogo Global del producto.</strong> El catálogo global real es <strong>Recursos Globales</strong> (tabla <code>resources</code>), accesible desde DataAdmin.
+                Este catálogo se mantiene como auxiliar de referencia para compatibilidad.
                 Solo <code>master_admin</code> puede crear, editar o desactivar materiales aquí.
               </span>
             </div>

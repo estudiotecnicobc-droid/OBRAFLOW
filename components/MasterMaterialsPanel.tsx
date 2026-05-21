@@ -117,8 +117,8 @@ export const MasterMaterialsPanel: React.FC<Props> = ({ onNavigateToResources })
           commercialFormat: draft.commercialFormat?.trim() || undefined,
           wastePercent: draft.wastePercent != null ? Number(draft.wastePercent) : undefined,
         };
-        // Si el material fue importado desde el catálogo global, marcarlo como editado localmente
-        if (draft.globalSourceId) updates.localOverride = true;
+        // Si el material fue importado (desde master_materials global o desde resources), marcarlo como editado localmente
+        if (draft.globalSourceId || draft.globalResourceId) updates.localOverride = true;
         await update(editingId, updates);
         showMsg('success', 'Material actualizado.');
       }
@@ -435,12 +435,12 @@ export const MasterMaterialsPanel: React.FC<Props> = ({ onNavigateToResources })
                           Global
                         </span>
                       )}
-                      {m.organizationId !== null && m.globalSourceId && !m.localOverride && (
+                      {m.organizationId !== null && (m.globalSourceId || m.globalResourceId) && !m.localOverride && (
                         <span className="ml-1.5 inline-block text-[9px] font-bold uppercase bg-teal-100 text-teal-600 px-1.5 py-0.5 rounded-full tracking-wide">
                           Importado
                         </span>
                       )}
-                      {m.organizationId !== null && m.globalSourceId && m.localOverride && (
+                      {m.organizationId !== null && (m.globalSourceId || m.globalResourceId) && m.localOverride && (
                         <span className="ml-1.5 inline-block text-[9px] font-bold uppercase bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full tracking-wide">
                           Editado localmente
                         </span>

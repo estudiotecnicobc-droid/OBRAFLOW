@@ -754,12 +754,14 @@ export interface MasterMaterial {
   lastPriceUpdate?: string; // ISO timestamp
   createdAt?: string;
   updatedAt?: string;
-  // Trazabilidad de importación desde catálogo global (migration 053)
+  // Trazabilidad de importación desde master_materials global (migration 053)
   globalSourceId?: string;
   importedAt?: string;
   lastSyncedAt?: string;
   localOverride?: boolean;
   globalSourceUpdatedAtAtImport?: string;
+  // Trazabilidad de importación desde Recursos Globales — tabla resources (migration 054)
+  globalResourceId?: string;
 }
 
 export interface UnitPriceAnalysis {
