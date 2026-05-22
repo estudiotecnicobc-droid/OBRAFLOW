@@ -189,6 +189,7 @@ export async function importGlobalResourcesToOrg(
 export interface ImportToCompanyCatalogResult extends ImportGlobalResourcesResult {
   masterMaterialsCreated: number;
   masterMaterialsUpdated: number;
+  masterMaterialsProtected: number;
 }
 
 async function importMaterialResourcesToMasterCatalog(
@@ -201,7 +202,7 @@ async function importMaterialResourcesToMasterCatalog(
   // Cargar master_materials existentes para la org
   const { data: existingMM, error: mmError } = await supabase
     .from('master_materials')
-    .select('id, name, global_resource_id, unit_price')
+    .select('id, name, global_resource_id, unit_price, local_override')
     .eq('organization_id', organizationId)
     .eq('is_active', true);
 
@@ -225,11 +226,17 @@ async function importMaterialResourcesToMasterCatalog(
   const inserts: Record<string, any>[] = [];
   let created = 0;
   let updated = 0;
+  let protectedCount = 0;
 
   for (const r of materialResources) {
     const existingById = existingByResourceId.get(r.id);
     if (existingById) {
-      // Ya importado antes: actualizar precio según estrategia
+      // Materiales editados localmente nunca se pisan, sin importar la estrategia.
+      if (existingById.local_override) {
+        protectedCount++;
+        continue;
+      }
+      // Ya importado y no editado: actualizar precio según estrategia
       const shouldUpdate =
         priceStrategy === 'overwrite_all' ||
         (priceStrategy === 'zero_only' && Number(existingById.unit_price) === 0);
@@ -271,7 +278,7 @@ async function importMaterialResourcesToMasterCatalog(
     }
   }
 
-  return { created, updated };
+  return { created, updated, protected: protectedCount };
 }
 
 /**
@@ -291,5 +298,6 @@ export async function importResourcesToCompanyCatalog(
     ...baseResult,
     masterMaterialsCreated: mmResult.created,
     masterMaterialsUpdated: mmResult.updated,
+    masterMaterialsProtected: mmResult.protected,
   };
 }

@@ -170,6 +170,8 @@ export function GlobalResourcesPanel() {
             <span className="font-bold text-slate-800">{importResult.masterMaterialsCreated}</span>
             <span className="text-slate-500">Precios APU actualizados</span>
             <span className="font-bold text-slate-800">{importResult.masterMaterialsUpdated}</span>
+            <span className="text-slate-500">Protegidos por edición local</span>
+            <span className="font-bold text-amber-600">{importResult.masterMaterialsProtected}</span>
           </div>
           {totalImported > 0 && (
             <p className="text-xs text-emerald-700">
