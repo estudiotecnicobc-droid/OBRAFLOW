@@ -15,37 +15,35 @@ const COLORS = ['#0ea5e9', '#22c55e', '#9333ea', '#eab308', '#f97316', '#ef4444'
 
 // ── Tarjeta de arranque para proyectos vacíos ──────────────────────────────────
 
-interface OnboardingStep {
-  number: number;
-  title: string;
-  description: string;
-  actionLabel: string;
-  tab: string;
-  icon: React.ReactNode;
-  done: boolean;
-}
-
 const OnboardingChecklist: React.FC<{
-  hasCatalog: boolean;
+  materialsCount: number;
+  apusCount: number;
   onNavigate?: (tab: string) => void;
-}> = ({ hasCatalog, onNavigate }) => {
-  const steps: OnboardingStep[] = [
-    {
-      number: 1,
-      title: 'Prepará tu base de datos',
-      description: 'Cargá materiales, mano de obra y APUs en tu catálogo de empresa.',
-      actionLabel: 'Ir a Catálogo',
-      tab: 'admin',
-      icon: <BookOpen size={18} />,
-      done: hasCatalog,
-    },
+}> = ({ materialsCount, apusCount, onNavigate }) => {
+  const catalogDone = materialsCount > 0 && apusCount > 0;
+  const catalogInProgress = !catalogDone && (materialsCount > 0 || apusCount > 0);
+
+  const catalogStatus = catalogDone
+    ? { label: 'Listo para computar', cls: 'bg-emerald-100 text-emerald-700' }
+    : catalogInProgress
+      ? { label: 'En proceso', cls: 'bg-amber-100 text-amber-700' }
+      : { label: 'Pendiente', cls: 'bg-slate-100 text-slate-500' };
+
+  interface SimpleStep {
+    number: number;
+    title: string;
+    description: string;
+    actionLabel: string;
+    tab: string;
+    done: boolean;
+  }
+  const simpleSteps: SimpleStep[] = [
     {
       number: 2,
       title: 'Medí tu proyecto',
       description: 'Usá el Calculador Chandías para medir por dimensiones y generar ítems automáticamente.',
       actionLabel: 'Iniciar Cómputo',
       tab: 'chandias',
-      icon: <Ruler size={18} />,
       done: false,
     },
     {
@@ -54,7 +52,6 @@ const OnboardingChecklist: React.FC<{
       description: 'Revisá los ítems del presupuesto, ajustá cantidades y precios.',
       actionLabel: 'Ver Presupuesto',
       tab: 'budget',
-      icon: <DollarSign size={18} />,
       done: false,
     },
     {
@@ -63,7 +60,6 @@ const OnboardingChecklist: React.FC<{
       description: 'Descargá fichas APU, resúmenes de presupuesto y reportes de gestión.',
       actionLabel: 'Centro de Reportes',
       tab: 'reports',
-      icon: <BarChartIcon size={18} />,
       done: false,
     },
   ];
@@ -78,46 +74,86 @@ const OnboardingChecklist: React.FC<{
         </p>
       </div>
 
-      {/* Steps */}
-      <div className="divide-y divide-slate-50">
-        {steps.map((step, idx) => (
-          <div
-            key={step.number}
-            className={`flex items-center gap-4 px-6 py-4 transition-colors ${step.done ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}`}
-          >
-            {/* Status icon */}
-            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${step.done ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-              {step.done
-                ? <CheckCircle2 size={18} />
-                : <span className="text-xs font-bold">{step.number}</span>
-              }
+      {/* Step 1 — expanded catalog step */}
+      <div className={`px-6 py-5 border-b border-slate-100 ${catalogDone ? 'bg-emerald-50/40' : 'bg-white'}`}>
+        <div className="flex items-start gap-4">
+          <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-0.5 ${catalogDone ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
+            {catalogDone ? <CheckCircle2 size={18} /> : <span className="text-xs font-bold">1</span>}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span className={`text-sm font-bold ${catalogDone ? 'text-emerald-700 line-through' : 'text-slate-800'}`}>
+                Configurá tu catálogo de trabajo
+              </span>
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${catalogStatus.cls}`}>
+                {catalogStatus.label}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mb-3">
+              Importá recursos globales, revisá tus materiales de empresa y elegí las APUs que vas a usar en este proyecto.
+            </p>
+
+            {/* Progress indicators */}
+            <div className="flex gap-4 mb-3">
+              <span className="text-xs text-slate-500">
+                Materiales: <span className={`font-bold ${materialsCount > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{materialsCount > 0 ? materialsCount : '—'}</span>
+              </span>
+              <span className="text-xs text-slate-500">
+                APUs: <span className={`font-bold ${apusCount > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{apusCount > 0 ? apusCount : '—'}</span>
+              </span>
             </div>
 
-            {/* Content */}
-            <div className={`flex-1 min-w-0 ${step.done ? 'opacity-60' : ''}`}>
-              <div className="flex items-center gap-2">
-                <span className={`text-sm font-bold ${step.done ? 'text-emerald-700 line-through' : 'text-slate-800'}`}>
-                  {step.title}
-                </span>
-                {step.done && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">
-                    Listo
-                  </span>
-                )}
+            {/* Three action buttons */}
+            {onNavigate && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => onNavigate('admin_resources')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"
+                >
+                  <ArrowRight size={12} /> Importar Recursos Globales
+                </button>
+                <button
+                  onClick={() => onNavigate('admin_catalog')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-colors"
+                >
+                  <ArrowRight size={12} /> Ver Materiales de Empresa
+                </button>
+                <button
+                  onClick={() => onNavigate('admin_apu')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-colors"
+                >
+                  <ArrowRight size={12} /> Importar / Crear APUs
+                </button>
               </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Steps 2–4 */}
+      <div className="divide-y divide-slate-50">
+        {simpleSteps.map((step, idx) => (
+          <div
+            key={step.number}
+            className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50/60 transition-colors"
+          >
+            <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 text-slate-400">
+              <span className="text-xs font-bold">{step.number}</span>
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-slate-800">{step.title}</p>
               <p className="text-xs text-slate-500 mt-0.5">{step.description}</p>
             </div>
 
-            {/* Action */}
             {onNavigate && (
               <button
                 onClick={() => onNavigate(step.tab)}
                 className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-                  step.done
-                    ? 'text-emerald-700 bg-emerald-100 hover:bg-emerald-200'
-                    : idx === 0 || (idx > 0 && steps[idx - 1].done)
-                      ? 'text-white bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-200'
-                      : 'text-slate-500 bg-slate-100 hover:bg-slate-200'
+                  idx === 0 && catalogDone
+                    ? 'text-white bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-200'
+                    : 'text-slate-500 bg-slate-100 hover:bg-slate-200'
                 }`}
               >
                 {step.actionLabel} <ArrowRight size={12} />
@@ -533,12 +569,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         <div>
             <div className="flex items-center gap-2">
                 <h2 className="text-2xl font-bold text-slate-800">{project.name}</h2>
-                <button 
-                    onClick={handleOpenWizard} 
-                    className="p-1.5 hover:bg-slate-200 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
-                    title="Cambiar Proyecto"
+                <button
+                    onClick={handleOpenWizard}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
                 >
-                    <FolderPlus size={18} />
+                    <FolderPlus size={14} /> Configurar proyecto
                 </button>
             </div>
             <div className="flex items-center gap-2 mt-1">
@@ -575,7 +610,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       {/* ── TARJETA DE ARRANQUE — solo cuando el proyecto está vacío ─── */}
       {project.items.length === 0 && (
         <OnboardingChecklist
-          hasCatalog={tasks.length > 0 || materials.length > 0}
+          materialsCount={materials.length}
+          apusCount={tasks.length}
           onNavigate={onNavigate}
         />
       )}

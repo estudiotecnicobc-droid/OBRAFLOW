@@ -9,12 +9,13 @@ import { Project } from '../types';
 
 interface ProjectWizardProps {
   onComplete: () => void;
+  initialMode?: 'welcome' | 'create';
 }
 
-export const ProjectWizard: React.FC<ProjectWizardProps> = ({ onComplete }) => {
+export const ProjectWizard: React.FC<ProjectWizardProps> = ({ onComplete, initialMode = 'welcome' }) => {
   const { projects, createNewProject, setActiveProject, loadTemplate } = useERP();
-  
-  const [mode, setMode] = useState<'welcome' | 'create' | 'load'>('welcome');
+
+  const [mode, setMode] = useState<'welcome' | 'create' | 'load'>(initialMode);
   const [step, setStep] = useState(0); // 0: Info, 1: Technical, 2: Template
   
   // Create Form State

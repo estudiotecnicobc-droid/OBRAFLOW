@@ -141,6 +141,12 @@ const AppContent = () => {
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="chandias" /></ProtectedRoute>;
       case 'reports':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="reports" /></ProtectedRoute>;
+      case 'admin_resources':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="resources" /></ProtectedRoute>;
+      case 'admin_catalog':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="master" /></ProtectedRoute>;
+      case 'admin_apu':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="master-tasks" /></ProtectedRoute>;
       case 'settings':
         return <ProtectedRoute allowedRoles={['admin']}><ProjectSettings /></ProtectedRoute>;
       case 'documents':
