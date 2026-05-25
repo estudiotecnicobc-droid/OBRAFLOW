@@ -473,31 +473,70 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     return Object.values(list).sort((a, b) => a.name.localeCompare(b.name));
   }, [project, yieldsIndex, materialsMap]);
 
-  // 3. Reporte: Detalle Técnico de Tareas
+  // 3. Reporte: Detalle Técnico de Tareas (con costos, mano de obra y warnings)
   const taskDetailReport = useMemo(() => {
     return project.items.map(item => {
       const task = tasks.find(t => t.id === item.taskId);
+      const analysis = task
+        ? calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap, 9, taskLaborYieldsIndex)
+        : null;
       const itemYields = (yieldsIndex[item.taskId] || []).map(y => ({
         ...y,
         name: materialsMap[y.materialId]?.name || 'Desconocido',
         unit: materialsMap[y.materialId]?.unit || '-',
-        totalNeeded: y.quantity * item.quantity
+        totalNeeded: y.quantity * item.quantity,
+        hasNoPrice: !materialsMap[y.materialId] || materialsMap[y.materialId].cost === 0,
       }));
       const itemTools = (toolYieldsIndex[item.taskId] || []).map(ty => ({
         ...ty,
         name: toolsMap[ty.toolId]?.name || 'Equipo',
-        totalHours: ty.hoursPerUnit * item.quantity
+        totalHours: ty.hoursPerUnit * item.quantity,
       }));
-
+      const itemLabor = (taskLaborYieldsIndex[item.taskId] || []).map(ly => ({
+        ...ly,
+        name: laborCategoriesMap[ly.laborCategoryId]?.role || 'Mano de Obra',
+        totalQty: ly.quantity * item.quantity,
+        hasNoPrice: !laborCategoriesMap[ly.laborCategoryId] || laborCategoriesMap[ly.laborCategoryId].basicHourlyRate === 0,
+      }));
+      const unitPrice = analysis?.totalUnitCost || 0;
       return {
         ...item,
         taskName: task?.name || '?',
         taskUnit: task?.unit || '-',
         taskCategory: task?.category || 'S/C',
+        taskDailyYield: task?.dailyYield || 0,
         materials: itemYields,
-        tools: itemTools
+        tools: itemTools,
+        laborItems: itemLabor,
+        unitPrice,
+        total: unitPrice * item.quantity,
+        hasPriceWarning: itemYields.some(y => y.hasNoPrice) || itemLabor.some(l => l.hasNoPrice),
       };
     });
+  }, [project, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, laborCategoriesMap, taskLaborYieldsIndex, taskCrewYieldsIndex, crewsMap]);
+
+  // 4. Reporte: Planilla de Presupuesto agrupada por rubro
+  const budgetReport = useMemo(() => {
+    const grouped: Record<string, Array<{ name: string; qty: number; unit: string; unitPrice: number; total: number }>> = {};
+    project.items.forEach(item => {
+      const task = tasks.find(t => t.id === item.taskId);
+      if (!task) return;
+      const analysis = calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap, 9, taskLaborYieldsIndex);
+      const rubro = task.category?.trim() || 'Sin categoría';
+      if (!grouped[rubro]) grouped[rubro] = [];
+      grouped[rubro].push({
+        name: task.name,
+        qty: item.quantity,
+        unit: task.unit || '-',
+        unitPrice: analysis.totalUnitCost,
+        total: analysis.totalUnitCost * item.quantity,
+      });
+    });
+    return Object.entries(grouped).map(([rubro, items]) => ({
+      rubro,
+      items,
+      subtotal: items.reduce((s, i) => s + i.total, 0),
+    }));
   }, [project, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, laborCategoriesMap, taskLaborYieldsIndex, taskCrewYieldsIndex, crewsMap]);
 
   // Pie de familias: solo costos directos (COSTO INDIRECTO se muestra en tarjeta KPI aparte).
@@ -554,25 +593,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       {/* CSS Injection for Print Media */}
       <style>{`
         @media print {
-          @page { margin: 1cm; size: A4; }
+          @page { margin: 0; size: A4 portrait; }
           body * { visibility: hidden !important; }
-          #print-portal,
-          #print-portal * { visibility: visible !important; }
+          #print-portal, #print-portal * { visibility: visible !important; }
           #print-portal {
-            position: fixed !important;
+            position: absolute !important;
             top: 0 !important;
             left: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            min-height: unset !important;
-            transform: none !important;
+            width: 210mm !important;
             padding: 15mm !important;
+            transform: none !important;
             box-shadow: none !important;
             background: white !important;
             overflow: visible !important;
+            min-height: unset !important;
           }
-          .break-before-page { break-before: page; }
-          .break-inside-avoid { break-inside: avoid; }
+          .print-page-break { break-before: page !important; page-break-before: always !important; }
+          .print-avoid-break { break-inside: avoid !important; page-break-inside: avoid !important; }
         }
       `}</style>
 
@@ -997,229 +1034,276 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
              <div className="flex-1 overflow-auto bg-slate-500/10 p-8 flex justify-center items-start cursor-move">
                 
                 {/* The Paper */}
-                <div 
+                <div
                    id="print-portal"
-                   className="bg-white shadow-2xl transition-transform origin-top duration-200 ease-out"
-                   style={{ 
-                      width: '210mm', // A4 Width
-                      minHeight: '297mm', // A4 Height
-                      padding: '15mm', // Print Margins
-                      transform: `scale(${printScale})`
+                   className="bg-white shadow-2xl"
+                   style={{
+                      width: '210mm',
+                      padding: '15mm',
+                      transform: `scale(${printScale})`,
+                      transformOrigin: 'top center',
                    }}
                 >
-                    {/* Print Content Container */}
-                    <div id="print-content" className="space-y-6 font-sans text-slate-900">
+                    {/* Print Content */}
+                    <div id="print-content" className="font-sans text-slate-900 text-sm leading-snug">
 
-                        {project.items.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-24 text-center">
-                                <p className="text-2xl font-bold text-slate-400 mb-2">Sin datos</p>
-                                <p className="text-slate-400 text-sm">No hay datos suficientes para generar el reporte.</p>
-                                <p className="text-slate-300 text-xs mt-1">Agregue ítems al presupuesto y vuelva a intentarlo.</p>
-                            </div>
-                        ) : (<>
+                      {project.items.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-24 text-center">
+                          <p className="text-2xl font-bold text-slate-400 mb-2">Sin datos</p>
+                          <p className="text-slate-400 text-sm">No hay datos suficientes para generar el reporte.</p>
+                          <p className="text-slate-300 text-xs mt-1">Agregue ítems al presupuesto y vuelva a intentarlo.</p>
+                        </div>
+                      ) : (<>
 
-                        {/* Document Header */}
-                        <div className="flex justify-between items-end border-b-2 border-slate-800 pb-4 mb-8">
-                           <div>
+                        {/* ══ SECCIÓN 1: PORTADA + RESUMEN ECONÓMICO ══ */}
+                        <div>
+                          {/* Encabezado */}
+                          <div className="flex justify-between items-end border-b-2 border-slate-800 pb-4 mb-5">
+                            <div>
                               <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900">Reporte Ejecutivo de Obra</h1>
-                              <p className="text-sm font-medium text-slate-500 mt-1">{new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                           </div>
-                           {companyLogo ? (
-                               <img src={companyLogo} alt="Logo" className="h-16 object-contain max-w-[200px]" />
-                           ) : (
-                               <div className="text-right">
-                                  <div className="text-lg font-bold text-slate-800">{project.companyName || 'EMPRESA CONSTRUCTORA'}</div>
-                                  <div className="text-xs text-slate-400">ERP Construction System</div>
-                               </div>
-                           )}
+                              <p className="text-xs text-slate-400 mt-1">{new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                            </div>
+                            {companyLogo ? (
+                              <img src={companyLogo} alt="Logo" className="h-14 object-contain max-w-[180px]" />
+                            ) : (
+                              <div className="text-right">
+                                <div className="text-base font-bold text-slate-800">{project.companyName || 'EMPRESA CONSTRUCTORA'}</div>
+                                <div className="text-xs text-slate-400">Obraflow ERP</div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Datos del Proyecto */}
+                          <div className="grid grid-cols-3 gap-2 mb-5 text-xs">
+                            {([
+                              { label: 'Proyecto', value: project.name },
+                              { label: 'Cliente', value: project.client },
+                              { label: 'Ubicación', value: project.address || '—' },
+                              { label: 'Fecha de Inicio', value: project.startDate || '—' },
+                              { label: 'Superficie', value: project.surface ? `${project.surface} m²` : '—' },
+                              { label: 'Sistema Constructivo', value: project.constructionSystem || '—' },
+                            ] as { label: string; value: string }[]).map(({ label, value }) => (
+                              <div key={label} className="bg-slate-50 border border-slate-100 rounded p-2">
+                                <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{label}</span>
+                                <span className="font-semibold text-slate-800 block truncate">{value}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Resumen Económico */}
+                          <h2 className="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider border-l-4 border-blue-600 pl-2">Resumen Económico</h2>
+                          <table className="w-full text-xs border-collapse mb-2">
+                            <thead>
+                              <tr className="bg-slate-800 text-white">
+                                <th className="p-2 text-left font-bold">Categoría</th>
+                                <th className="p-2 text-right font-bold w-32">Monto</th>
+                                <th className="p-2 text-right font-bold w-16">%</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {([
+                                { label: 'Materiales', value: stats.totalMaterialCost },
+                                { label: 'Mano de Obra', value: stats.totalLaborCost },
+                                { label: 'Equipos', value: stats.totalToolCost },
+                                { label: 'Subcontratos / Costos Fijos', value: stats.totalFixedCost },
+                              ] as { label: string; value: number }[]).filter(r => r.value > 0).map((row, i) => (
+                                <tr key={row.label} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                  <td className="p-2 border-b border-slate-100">{row.label}</td>
+                                  <td className="p-2 border-b border-slate-100 text-right font-mono font-bold">${row.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                  <td className="p-2 border-b border-slate-100 text-right text-slate-500">
+                                    {stats.totalCost > 0 ? `${((row.value / stats.totalCost) * 100).toFixed(1)}%` : '—'}
+                                  </td>
+                                </tr>
+                              ))}
+                              <tr className="bg-slate-100 font-bold border-t-2 border-slate-400">
+                                <td className="p-2">Costo Directo Total</td>
+                                <td className="p-2 text-right font-mono">${stats.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                <td className="p-2 text-right text-slate-500">100%</td>
+                              </tr>
+                              <tr className="bg-white">
+                                <td className="p-2 text-slate-600">Costos Indirectos ({project.pricing?.generalExpensesPercent ?? 15}%)</td>
+                                <td className="p-2 text-right font-mono text-slate-600">${stats.indirectCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                <td className="p-2 text-right text-slate-400">—</td>
+                              </tr>
+                              <tr className="bg-slate-800 text-white font-black">
+                                <td className="p-2 uppercase tracking-wide">PRESUPUESTO TOTAL</td>
+                                <td className="p-2 text-right font-mono text-base">${stats.totalCostWithIndirects.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                <td className="p-2"></td>
+                              </tr>
+                            </tbody>
+                          </table>
                         </div>
 
-                        {/* Project Info Grid */}
-                        <div className="bg-slate-50 border border-slate-100 p-4 rounded-lg grid grid-cols-2 gap-4 text-sm mb-8">
-                            <div>
-                                <span className="block text-xs font-bold text-slate-400 uppercase">Proyecto</span>
-                                <span className="font-bold text-slate-800 text-lg">{project.name}</span>
-                            </div>
-                            <div>
-                                <span className="block text-xs font-bold text-slate-400 uppercase">Cliente</span>
-                                <span className="font-medium text-slate-700">{project.client}</span>
-                            </div>
-                            <div>
-                                <span className="block text-xs font-bold text-slate-400 uppercase">Ubicación</span>
-                                <span className="font-medium text-slate-700">{project.address}</span>
-                            </div>
-                             <div>
-                                <span className="block text-xs font-bold text-slate-400 uppercase">Presupuesto Estimado</span>
-                                <span className="font-bold text-slate-800 font-mono">${stats.totalCost.toLocaleString()}</span>
-                            </div>
+                        {/* ══ SECCIÓN 2: PLANILLA DE PRESUPUESTO ══ */}
+                        <div className="print-page-break">
+                          <h2 className="text-xs font-bold text-slate-700 mb-3 uppercase tracking-wider border-l-4 border-slate-800 pl-2">Planilla de Presupuesto</h2>
+                          <table className="w-full text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-slate-800 text-white">
+                                <th className="p-2 text-left font-bold">Rubro / Tarea</th>
+                                <th className="p-2 text-right font-bold w-20">Cantidad</th>
+                                <th className="p-2 text-right font-bold w-14">Unidad</th>
+                                <th className="p-2 text-right font-bold w-24">P. Unitario</th>
+                                <th className="p-2 text-right font-bold w-24">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {budgetReport.map((group) => (
+                                <React.Fragment key={group.rubro}>
+                                  <tr className="bg-slate-200">
+                                    <td colSpan={5} className="p-2 font-bold text-slate-800 uppercase text-[10px] tracking-wider">{group.rubro}</td>
+                                  </tr>
+                                  {group.items.map((item, ii) => (
+                                    <tr key={ii} className={ii % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                      <td className="p-2 pl-4 border-b border-slate-100">{item.name}</td>
+                                      <td className="p-2 border-b border-slate-100 text-right font-mono">{item.qty.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                                      <td className="p-2 border-b border-slate-100 text-right text-slate-500">{item.unit}</td>
+                                      <td className="p-2 border-b border-slate-100 text-right font-mono">${item.unitPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                                      <td className="p-2 border-b border-slate-100 text-right font-mono font-bold">${item.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                    </tr>
+                                  ))}
+                                  <tr className="bg-slate-100">
+                                    <td colSpan={4} className="p-2 pr-3 text-right text-[10px] font-bold text-slate-600 uppercase">Subtotal {group.rubro}</td>
+                                    <td className="p-2 text-right font-mono font-bold text-slate-800">${group.subtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                  </tr>
+                                </React.Fragment>
+                              ))}
+                              <tr className="bg-slate-800 text-white">
+                                <td colSpan={4} className="p-2 font-black uppercase text-xs">TOTAL CON INDIRECTOS</td>
+                                <td className="p-2 text-right font-mono font-black text-base">${stats.totalCostWithIndirects.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                              </tr>
+                            </tbody>
+                          </table>
                         </div>
 
-                        {/* CONTENT: CHARTS */}
-                        {includeCharts && (
-                            <div className="mb-8 break-inside-avoid">
-                                <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2 border-l-4 border-indigo-500 pl-3">
-                                    <TrendingUp size={20} className="text-indigo-500" /> Análisis Financiero y de Recursos
-                                </h2>
-                                <div className="grid grid-cols-2 gap-6">
-                                    {/* Cost Distribution */}
-                                    <div className="border border-slate-200 rounded-lg p-4 bg-white">
-                                        <h3 className="text-xs font-bold text-slate-500 uppercase mb-2 text-center">Distribución de Costos</h3>
-                                        <div className="h-48">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <PieChart>
-                                                    <Pie
-                                                        data={costData}
-                                                        cx="50%"
-                                                        cy="50%"
-                                                        innerRadius={40}
-                                                        outerRadius={60}
-                                                        paddingAngle={5}
-                                                        dataKey="value"
-                                                        isAnimationActive={false}
-                                                    >
-                                                        {costData.map((entry, index) => (
-                                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                        ))}
-                                                    </Pie>
-                                                    <Legend wrapperStyle={{ fontSize: '10px' }} />
-                                                </PieChart>
-                                            </ResponsiveContainer>
-                                        </div>
-                                    </div>
-
-                                    {/* S-Curve */}
-                                    <div className="border border-slate-200 rounded-lg p-4 bg-white col-span-2 lg:col-span-1">
-                                        <h3 className="text-xs font-bold text-slate-500 uppercase mb-2 text-center">Curva S - Valor Ganado</h3>
-                                        <div className="h-48 mb-4">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <ComposedChart data={sCurveData}>
-                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                    <XAxis dataKey="name" fontSize={8} tickLine={false} axisLine={false} />
-                                                    <YAxis fontSize={8} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v/1000}k`} />
-                                                    <Tooltip formatter={(value: number) => `$${value.toLocaleString()}`} />
-                                                    <Legend wrapperStyle={{ fontSize: '10px' }} />
-                                                    <Area type="monotone" dataKey="Valor Planificado (PV)" stroke="#94a3b8" fillOpacity={0.1} fill="#94a3b8" strokeWidth={2} isAnimationActive={false} />
-                                                    <Line type="monotone" dataKey="Costo Real (AC)" stroke="#ef4444" strokeWidth={2} dot={false} isAnimationActive={false} />
-                                                    <Line type="monotone" dataKey="Valor Ganado (EV)" stroke="#10b981" strokeWidth={2} dot={true} isAnimationActive={false} />
-                                                </ComposedChart>
-                                            </ResponsiveContainer>
-                                        </div>
-                                        
-                                        {/* EVM Metrics Summary */}
-                                        {currentMetrics && (
-                                            <div className="grid grid-cols-4 gap-2 text-[10px] border-t border-slate-100 pt-2">
-                                                <div className="text-center">
-                                                    <div className="text-slate-400">SV (Desvío Cronograma)</div>
-                                                    <div className={`font-bold ${currentMetrics.sv >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                        ${Math.round(currentMetrics.sv).toLocaleString()}
-                                                    </div>
-                                                </div>
-                                                <div className="text-center">
-                                                    <div className="text-slate-400">CV (Desvío Costo)</div>
-                                                    <div className={`font-bold ${currentMetrics.cv >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                        ${Math.round(currentMetrics.cv).toLocaleString()}
-                                                    </div>
-                                                </div>
-                                                <div className="text-center">
-                                                    <div className="text-slate-400">SPI (Eficiencia Cronograma)</div>
-                                                    <div className={`font-bold ${currentMetrics.spi >= 1 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                        {currentMetrics.spi.toFixed(2)}
-                                                    </div>
-                                                </div>
-                                                <div className="text-center">
-                                                    <div className="text-slate-400">CPI (Eficiencia Costo)</div>
-                                                    <div className={`font-bold ${currentMetrics.cpi >= 1 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                        {currentMetrics.cpi.toFixed(2)}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* CONTENT: PROCUREMENT LIST */}
+                        {/* ══ SECCIÓN 3: MATERIALES CONSOLIDADOS ══ */}
                         {includeProcurement && (
-                          <div className="mb-8 break-inside-avoid">
-                             <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2 border-l-4 border-emerald-500 pl-3">
-                                <ShoppingCart size={20} className="text-emerald-500" /> Listado Consolidado de Insumos
-                             </h2>
-                             <table className="w-full text-xs text-left border-collapse border border-slate-200">
-                                <thead className="bg-slate-100">
-                                   <tr>
-                                      <th className="p-2 border border-slate-200">Recurso</th>
-                                      <th className="p-2 border border-slate-200">Unidad</th>
-                                      <th className="p-2 border border-slate-200 text-right">Cantidad Total</th>
-                                      <th className="p-2 border border-slate-200 text-right">Costo Est.</th>
-                                   </tr>
+                          <div className="print-page-break">
+                            <h2 className="text-xs font-bold text-slate-700 mb-3 uppercase tracking-wider border-l-4 border-emerald-600 pl-2">Listado Consolidado de Insumos</h2>
+                            {materialProcurementList.length === 0 ? (
+                              <p className="text-xs text-slate-400 italic py-4">Sin datos cargados.</p>
+                            ) : (
+                              <table className="w-full text-xs border-collapse">
+                                <thead>
+                                  <tr className="bg-slate-800 text-white">
+                                    <th className="p-2 text-left font-bold">Material / Insumo</th>
+                                    <th className="p-2 text-right font-bold w-16">Unidad</th>
+                                    <th className="p-2 text-right font-bold w-24">Cantidad Total</th>
+                                    <th className="p-2 text-right font-bold w-24">P. Unit.</th>
+                                    <th className="p-2 text-right font-bold w-24">Costo Est.</th>
+                                  </tr>
                                 </thead>
                                 <tbody>
-                                   {materialProcurementList.map((m, i) => (
-                                      <tr key={i} className="even:bg-slate-50">
-                                         <td className="p-2 border border-slate-200 font-medium">{m.name}</td>
-                                         <td className="p-2 border border-slate-200 text-slate-500">{m.unit}</td>
-                                         <td className="p-2 border border-slate-200 text-right font-mono font-bold">{m.totalQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-                                         <td className="p-2 border border-slate-200 text-right font-mono text-slate-500">${(m.totalQty * m.cost).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                                      </tr>
-                                   ))}
+                                  {materialProcurementList.map((m, i) => (
+                                    <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                      <td className="p-2 border-b border-slate-100 font-medium">{m.name}</td>
+                                      <td className="p-2 border-b border-slate-100 text-right text-slate-500">{m.unit}</td>
+                                      <td className="p-2 border-b border-slate-100 text-right font-mono font-bold">{m.totalQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                                      <td className="p-2 border-b border-slate-100 text-right font-mono text-slate-500">
+                                        {m.cost > 0 ? `$${m.cost.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : <span className="text-amber-600 font-bold">S/P</span>}
+                                      </td>
+                                      <td className="p-2 border-b border-slate-100 text-right font-mono">
+                                        {m.cost > 0 ? `$${(m.totalQty * m.cost).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                  <tr className="bg-slate-200 font-bold">
+                                    <td colSpan={4} className="p-2 text-right uppercase text-[10px] tracking-wider">Total Materiales</td>
+                                    <td className="p-2 text-right font-mono">${stats.totalMaterialCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                  </tr>
                                 </tbody>
-                             </table>
+                              </table>
+                            )}
                           </div>
                         )}
 
-                        {/* CONTENT: TECH SPECS */}
+                        {/* ══ SECCIÓN 4: FICHAS TÉCNICAS ══ */}
                         {includeTechSpecs && (
-                           <div>
-                              <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2 border-l-4 border-blue-500 pl-3 break-before-page">
-                                 <FileText size={20} className="text-blue-500" /> Fichas Técnicas de Tareas
-                              </h2>
-                              <div className="space-y-6">
-                                  {taskDetailReport.map((t, idx) => (
-                                      <div key={t.id} className="border border-slate-200 rounded-lg overflow-hidden break-inside-avoid">
-                                          <div className="bg-slate-100 p-2 border-b border-slate-200 flex justify-between items-center px-4">
-                                              <h3 className="font-bold text-sm text-slate-800">#{idx + 1} {t.taskName}</h3>
-                                              <span className="text-xs font-mono font-bold text-slate-600 bg-white px-2 rounded border border-slate-300">Total: {t.quantity} {t.taskUnit}</span>
-                                          </div>
-                                          <div className="p-4 grid grid-cols-2 gap-4">
-                                              <div>
-                                                  <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Materiales</div>
-                                                  {t.materials.length > 0 ? (
-                                                      <ul className="text-xs space-y-1">
-                                                          {t.materials.map((m, i) => (
-                                                              <li key={i} className="flex justify-between border-b border-slate-100 pb-1 last:border-0">
-                                                                  <span>{m.name}</span>
-                                                                  <span className="font-mono text-slate-600">{m.totalNeeded.toLocaleString()} {m.unit}</span>
-                                                              </li>
-                                                          ))}
-                                                      </ul>
-                                                  ) : <span className="text-xs italic text-slate-400">N/A</span>}
-                                              </div>
-                                              <div>
-                                                  <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Equipos</div>
-                                                  {t.tools.length > 0 ? (
-                                                      <ul className="text-xs space-y-1">
-                                                          {t.tools.map((to, i) => (
-                                                              <li key={i} className="flex justify-between border-b border-slate-100 pb-1 last:border-0">
-                                                                  <span>{to.name}</span>
-                                                                  <span className="font-mono text-slate-600">{to.totalHours.toLocaleString()} hs</span>
-                                                              </li>
-                                                          ))}
-                                                      </ul>
-                                                  ) : <span className="text-xs italic text-slate-400">N/A</span>}
-                                              </div>
-                                          </div>
+                          <div className="print-page-break">
+                            <h2 className="text-xs font-bold text-slate-700 mb-3 uppercase tracking-wider border-l-4 border-blue-600 pl-2">Fichas Técnicas de Tareas / APUs</h2>
+                            {taskDetailReport.length === 0 ? (
+                              <p className="text-xs text-slate-400 italic py-4">Sin datos cargados.</p>
+                            ) : (
+                              <div className="space-y-3">
+                                {taskDetailReport.map((t, idx) => (
+                                  <div key={t.id} className="print-avoid-break border border-slate-200 rounded overflow-hidden">
+                                    <div className="bg-slate-100 px-3 py-2 border-b border-slate-200 flex justify-between items-start gap-2">
+                                      <div>
+                                        <h3 className="font-bold text-xs text-slate-800">#{idx + 1} {t.taskName}</h3>
+                                        <span className="text-[10px] text-slate-500">{t.taskCategory}</span>
                                       </div>
-                                  ))}
+                                      <div className="flex flex-col items-end gap-1 text-[10px] font-mono flex-shrink-0">
+                                        <span className="bg-white border border-slate-200 rounded px-2 py-0.5 font-bold">
+                                          {t.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })} {t.taskUnit}
+                                        </span>
+                                        {t.unitPrice > 0 && (
+                                          <span className="bg-slate-800 text-white rounded px-2 py-0.5 font-bold">
+                                            P.U. ${t.unitPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })} | Total ${t.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                          </span>
+                                        )}
+                                        {t.taskDailyYield > 0 && (
+                                          <span className="text-slate-500">Rend. {t.taskDailyYield} {t.taskUnit}/día</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {t.hasPriceWarning && (
+                                      <div className="bg-amber-50 border-b border-amber-200 px-3 py-1 text-[10px] text-amber-700 font-medium">
+                                        ⚠ Recursos sin precio definido — costo puede ser $0 o incompleto.
+                                      </div>
+                                    )}
+                                    <div className="p-3 grid grid-cols-3 gap-3">
+                                      <div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Materiales</div>
+                                        {t.materials.length > 0 ? (
+                                          <ul className="space-y-0.5">
+                                            {t.materials.map((m, i) => (
+                                              <li key={i} className="flex justify-between text-[10px] border-b border-slate-50 pb-0.5 last:border-0">
+                                                <span className={`truncate mr-2 ${m.hasNoPrice ? 'text-amber-600' : 'text-slate-700'}`}>{m.name}</span>
+                                                <span className="font-mono text-slate-500 flex-shrink-0">{m.totalNeeded.toLocaleString(undefined, { maximumFractionDigits: 2 })} {m.unit}</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        ) : <span className="text-[10px] italic text-slate-400">Sin datos</span>}
+                                      </div>
+                                      <div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Mano de Obra</div>
+                                        {t.laborItems.length > 0 ? (
+                                          <ul className="space-y-0.5">
+                                            {t.laborItems.map((l, i) => (
+                                              <li key={i} className="flex justify-between text-[10px] border-b border-slate-50 pb-0.5 last:border-0">
+                                                <span className="text-slate-700 truncate mr-2">{l.name}</span>
+                                                <span className="font-mono text-slate-500 flex-shrink-0">{l.totalQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        ) : <span className="text-[10px] italic text-slate-400">Sin datos</span>}
+                                      </div>
+                                      <div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Equipos</div>
+                                        {t.tools.length > 0 ? (
+                                          <ul className="space-y-0.5">
+                                            {t.tools.map((to, i) => (
+                                              <li key={i} className="flex justify-between text-[10px] border-b border-slate-50 pb-0.5 last:border-0">
+                                                <span className="text-slate-700 truncate mr-2">{to.name}</span>
+                                                <span className="font-mono text-slate-500 flex-shrink-0">{to.totalHours.toLocaleString(undefined, { maximumFractionDigits: 1 })} hs</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        ) : <span className="text-[10px] italic text-slate-400">Sin datos</span>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                           </div>
+                            )}
+                          </div>
                         )}
-                        
+
                         {/* Footer */}
-                        <div className="mt-12 pt-4 border-t border-slate-200 text-center">
-                            <p className="text-[10px] text-slate-400 uppercase">Generado por Obraflow • {new Date().getFullYear()}</p>
+                        <div className="mt-8 pt-4 border-t border-slate-200 text-center">
+                          <p className="text-[9px] text-slate-400 uppercase tracking-widest">Generado por Obraflow • {new Date().getFullYear()} • {project.name}</p>
                         </div>
-                        </>)}
+                      </>)}
                     </div>
                 </div>
 
