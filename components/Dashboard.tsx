@@ -613,6 +613,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     const sectionHeader = (label: string, colorClass: string) => (
       <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#374151', marginBottom: 10, paddingLeft: 8, borderLeft: `4px solid ${colorClass}` }}>{label}</p>
     );
+    const miniPageHeader = (sectionTitle: string, accentColor: string) => (
+      <div style={{ borderBottom: '1.5px solid #e2e8f0', marginBottom: 14, paddingBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 5 }}>
+          <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>{project.name} — Reporte Ejecutivo</span>
+          <span style={{ fontSize: '8px', color: '#94a3b8' }}>{new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+        </div>
+        <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#374151', margin: 0, paddingLeft: 8, borderLeft: `4px solid ${accentColor}` }}>{sectionTitle}</p>
+      </div>
+    );
     return (
       <div style={{ fontFamily: 'sans-serif', fontSize: '11px', color: '#0f172a', lineHeight: 1.45 }}>
 
@@ -690,8 +699,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         {/* ══ SECCIÓN 2: GRÁFICOS ══ */}
         {selectedSections.charts && (
           <div className="print-page-break">
-            {!selectedSections.summary && null /* no separator needed if summary was hidden */}
-            {sectionHeader('Análisis Financiero', '#6366f1')}
+            {miniPageHeader('Análisis Financiero', '#6366f1')}
             {costData.length === 0 && rubroChartData.length === 0 ? (
               <p style={{ color: '#94a3b8', fontSize: '11px', fontStyle: 'italic' }}>Sin datos cargados.</p>
             ) : (
@@ -730,7 +738,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         {/* ══ SECCIÓN 3: PRESUPUESTO ══ */}
         {selectedSections.budget && (
           <div className="print-page-break">
-            {sectionHeader('Planilla de Presupuesto', '#1e293b')}
+            {miniPageHeader('Planilla de Presupuesto', '#1e293b')}
             {budgetReport.length === 0 ? (
               <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>Sin datos cargados.</p>
             ) : (
@@ -779,7 +787,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         {/* ══ SECCIÓN 4: INSUMOS CONSOLIDADOS ══ */}
         {selectedSections.materials && (
           <div className="print-page-break">
-            {sectionHeader('Listado Consolidado de Insumos', '#059669')}
+            {miniPageHeader('Listado Consolidado de Insumos', '#059669')}
             {materialProcurementList.length === 0 ? (
               <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>Sin datos cargados.</p>
             ) : (
@@ -821,7 +829,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         {/* ══ SECCIÓN 5: FICHAS APU ══ */}
         {selectedSections.apuSheets && (
           <div className="print-page-break">
-            {sectionHeader('Fichas Técnicas de Tareas / APUs', '#2563eb')}
+            {miniPageHeader('Fichas Técnicas de Tareas / APUs', '#2563eb')}
             {taskDetailReport.length === 0 ? (
               <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>Sin datos cargados.</p>
             ) : (
@@ -895,10 +903,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Footer */}
-        <div style={{ marginTop: 24, paddingTop: 10, borderTop: '1px solid #e2e8f0', textAlign: 'center' }}>
-          <p style={{ margin: 0, fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '2px' }}>
-            Generado por Obraflow · {new Date().getFullYear()} · {project.name}
+        {/* Footer — visible solo en preview; en impresión lo maneja @page @bottom */}
+        <div className="preview-sep" style={{ marginTop: 24, paddingTop: 10, borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <p style={{ margin: 0, fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
+            Generado por Obraflow
+          </p>
+          <p style={{ margin: 0, fontSize: '8px', color: '#94a3b8' }}>
+            {project.name} · {new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
           </p>
         </div>
       </div>
@@ -922,7 +933,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       {/* CSS Injection for Print Media */}
       <style>{`
         @media print {
-          @page { size: A4 portrait; margin: 0; }
+          @page {
+            size: A4 portrait;
+            margin: 16mm 14mm 14mm 14mm;
+            @bottom-left {
+              content: "Generado por Obraflow";
+              font-size: 7pt;
+              color: #94a3b8;
+              font-family: Arial, sans-serif;
+            }
+            @bottom-right {
+              content: "Página " counter(page);
+              font-size: 7pt;
+              color: #94a3b8;
+              font-family: Arial, sans-serif;
+            }
+          }
           body > *:not(#print-portal) { display: none !important; }
           #print-portal {
             display: block !important;
@@ -930,7 +956,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             top: auto !important;
             left: auto !important;
             width: 100% !important;
-            padding: 15mm !important;
+            padding: 0 !important;
             transform: none !important;
             box-shadow: none !important;
             background: white !important;
