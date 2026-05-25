@@ -554,11 +554,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       {/* CSS Injection for Print Media */}
       <style>{`
         @media print {
-          @page { margin: 0.5cm; size: auto; }
-          body > *:not(#print-portal) { display: none !important; }
-          #print-portal { display: block !important; position: absolute; top: 0; left: 0; width: 100%; z-index: 9999; }
-          #print-content { width: 100% !important; transform: none !important; box-shadow: none !important; border: none !important; margin: 0 !important; }
-          .no-print { display: none !important; }
+          @page { margin: 1cm; size: A4; }
+          body * { visibility: hidden !important; }
+          #print-portal,
+          #print-portal * { visibility: visible !important; }
+          #print-portal {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            min-height: unset !important;
+            transform: none !important;
+            padding: 15mm !important;
+            box-shadow: none !important;
+            background: white !important;
+            overflow: visible !important;
+          }
           .break-before-page { break-before: page; }
           .break-inside-avoid { break-inside: avoid; }
         }
@@ -970,9 +982,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                        </label>
                     </div>
 
-                    <button 
+                    <button
                        onClick={() => window.print()}
-                       className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
+                       disabled={project.items.length === 0}
+                       className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
                     >
                        <Printer size={18} /> Imprimir / PDF
                     </button>
@@ -996,7 +1009,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 >
                     {/* Print Content Container */}
                     <div id="print-content" className="space-y-6 font-sans text-slate-900">
-                        
+
+                        {project.items.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-24 text-center">
+                                <p className="text-2xl font-bold text-slate-400 mb-2">Sin datos</p>
+                                <p className="text-slate-400 text-sm">No hay datos suficientes para generar el reporte.</p>
+                                <p className="text-slate-300 text-xs mt-1">Agregue ítems al presupuesto y vuelva a intentarlo.</p>
+                            </div>
+                        ) : (<>
+
                         {/* Document Header */}
                         <div className="flex justify-between items-end border-b-2 border-slate-800 pb-4 mb-8">
                            <div>
@@ -1198,6 +1219,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                         <div className="mt-12 pt-4 border-t border-slate-200 text-center">
                             <p className="text-[10px] text-slate-400 uppercase">Generado por Obraflow • {new Date().getFullYear()}</p>
                         </div>
+                        </>)}
                     </div>
                 </div>
 
