@@ -53,6 +53,8 @@ interface UseUnifiedMaterialsReturn {
   getUnifiedMaterial: (codeOrName: string) => UnifiedMaterial | undefined;
   loading: boolean;
   error: string | null;
+  /** Recarga materiales desde Supabase y resources. Útil para el botón "Actualizar precios". */
+  refetch: () => Promise<void>;
 }
 
 export function useUnifiedMaterials(organizationId: string): UseUnifiedMaterialsReturn {
@@ -225,5 +227,5 @@ export function useUnifiedMaterials(organizationId: string): UseUnifiedMaterials
     [byCode, byName],
   );
 
-  return { list, masterMaterialsMap, getUnifiedMaterial, loading, error };
+  return { list, masterMaterialsMap, getUnifiedMaterial, loading, error, refetch: load };
 }

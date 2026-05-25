@@ -345,7 +345,7 @@ export const MasterTasksPanel: React.FC = () => {
 
   // Data sources
   const { tasks, loading: tasksLoading, error: tasksError, add, update, remove, refetch } = useMasterTasks(orgId);
-  const { list: unifiedMaterials, masterMaterialsMap } = useUnifiedMaterials(orgId);
+  const { list: unifiedMaterials, masterMaterialsMap, refetch: refetchMaterials } = useUnifiedMaterials(orgId);
   const {
     laborCategories, laborCategoriesMap,
     tools, toolsMap,
@@ -419,10 +419,33 @@ export const MasterTasksPanel: React.FC = () => {
   const [selLabor, setSelLabor] = useState('');
   const [selEquipment, setSelEquipment] = useState('');
 
+  const [refreshingPrices, setRefreshingPrices] = useState(false);
+
   // ── Helpers ───────────────────────────────────────────────────────────────
   const showMsg = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 5000);
+  };
+
+  const handleRefreshPrices = async () => {
+    setRefreshingPrices(true);
+    try {
+      await refetchMaterials();
+      // Actualizar lastKnownUnitPrice en materiales sin FK (unlinked) desde nameIndex
+      setDraft(d => ({
+        ...d,
+        materials: d.materials.map(m => {
+          if (m.masterMaterialId) return m;
+          const freshPrice = nameIndex.get(normalizeStr(m.materialName));
+          return freshPrice && freshPrice > 0 ? { ...m, lastKnownUnitPrice: freshPrice } : m;
+        }),
+      }));
+      showMsg('success', 'Precios actualizados desde Catálogo de Empresa. Guardá el APU para conservar estos valores.');
+    } catch {
+      showMsg('error', 'Error al actualizar precios.');
+    } finally {
+      setRefreshingPrices(false);
+    }
   };
 
   const projectIsPhantom = project.id === '__phantom__';
@@ -690,13 +713,22 @@ export const MasterTasksPanel: React.FC = () => {
     if (!draft.unit.trim()) { showMsg('error', 'La unidad es obligatoria.'); return; }
     if ((draft.dailyYield ?? 0) <= 0) { showMsg('error', 'El rendimiento debe ser mayor a 0.'); return; }
 
+    // Enriquecer materiales sin FK con precio actual de nameIndex antes de persistir.
+    // Esto garantiza que lastKnownUnitPrice refleje el precio vigente del catálogo.
+    const enrichedMaterials = draft.materials.map(m => {
+      if (m.masterMaterialId) return m;
+      const freshPrice = nameIndex.get(normalizeStr(m.materialName));
+      return freshPrice && freshPrice > 0 ? { ...m, lastKnownUnitPrice: freshPrice } : m;
+    });
+    const draftToSave = { ...draft, materials: enrichedMaterials };
+
     setSaving(true);
     try {
       if (isNew) {
-        await add(draft as typeof EMPTY_TASK);
+        await add(draftToSave as typeof EMPTY_TASK);
         showMsg('success', `Tarea "${draft.name}" creada.`);
       } else {
-        await update(draft.id!, draft as typeof EMPTY_TASK);
+        await update(draft.id!, draftToSave as typeof EMPTY_TASK);
         showMsg('success', `Tarea "${draft.name}" actualizada.`);
       }
       backToList();
@@ -958,8 +990,15 @@ export const MasterTasksPanel: React.FC = () => {
                           )}
                         </td>
                         <td className="px-4 py-2.5 text-center font-mono text-xs text-slate-600">{task.dailyYield} u/d</td>
-                        <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-800">
-                          ${fmt(cost.totalUnitCost)}
+                        <td className="px-4 py-2.5 text-right font-mono font-bold">
+                          {cost.totalUnitCost === 0 && (task.materials.length > 0 || task.labor.length > 0)
+                            ? (
+                              <span className="flex items-center justify-end gap-1 text-amber-600" title="Sin precios definidos — abrí el APU para verificar fuentes">
+                                <AlertTriangle size={11}/> $0,00
+                              </span>
+                            )
+                            : <span className="text-slate-800">${fmt(cost.totalUnitCost)}</span>
+                          }
                         </td>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center justify-center gap-1">
@@ -1108,6 +1147,15 @@ export const MasterTasksPanel: React.FC = () => {
             <div className="flex items-center gap-2">
               <button onClick={backToList} className="px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
                 <X size={12} className="inline mr-1" />Cancelar
+              </button>
+              <button
+                onClick={handleRefreshPrices}
+                disabled={refreshingPrices || saving}
+                title="Recargar precios desde el Catálogo de Empresa"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <RefreshCcw size={12} className={refreshingPrices ? 'animate-spin' : ''} />
+                {refreshingPrices ? 'Actualizando…' : 'Actualizar precios'}
               </button>
               <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                 <Save size={12} /> {saving ? 'Guardando…' : 'Guardar'}
@@ -1262,13 +1310,42 @@ export const MasterTasksPanel: React.FC = () => {
                     </thead>
                     <tbody>
                       {draft.materials.map(m => {
-                        const livePrice = m.masterMaterialId ? masterMaterialsMap[m.masterMaterialId]?.unitPrice : undefined;
+                        const liveMat = m.masterMaterialId ? masterMaterialsMap[m.masterMaterialId] : undefined;
+                        const livePrice = liveMat?.unitPrice;
                         const price = livePrice ?? m.lastKnownUnitPrice ?? 0;
                         const waste = 1 + (m.wastePercent ?? 0) / 100;
                         const sub = price * m.quantity * waste;
+
+                        // Badge de fuente de precio
+                        let sourceLabel: string;
+                        let sourceCls: string;
+                        if (price === 0) {
+                          sourceLabel = 'Sin precio';
+                          sourceCls = 'bg-red-100 text-red-600';
+                        } else if (liveMat) {
+                          if (liveMat.localOverride) {
+                            sourceLabel = 'Editado localmente';
+                            sourceCls = 'bg-green-100 text-green-700';
+                          } else if (liveMat.globalSourceId || liveMat.globalResourceId) {
+                            sourceLabel = 'Importado';
+                            sourceCls = 'bg-blue-100 text-blue-700';
+                          } else {
+                            sourceLabel = 'Catálogo empresa';
+                            sourceCls = 'bg-blue-100 text-blue-700';
+                          }
+                        } else {
+                          sourceLabel = 'Snapshot';
+                          sourceCls = 'bg-amber-100 text-amber-700';
+                        }
+
                         return (
                           <tr key={m.id} className="border-t border-slate-50 hover:bg-slate-50/50">
-                            <td className="px-3 py-1.5 text-slate-800">{m.materialName}</td>
+                            <td className="px-3 py-1.5 text-slate-800">
+                              <div>{m.materialName}</div>
+                              <span className={`inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 ${sourceCls}`}>
+                                {sourceLabel}
+                              </span>
+                            </td>
                             <td className="px-3 py-1.5 text-center text-slate-500">{m.unit}</td>
                             <td className="px-3 py-1.5 text-center">
                               <input type="number" min="0" step="0.001"
@@ -1282,7 +1359,12 @@ export const MasterTasksPanel: React.FC = () => {
                                 onChange={e => setDraft(d => ({ ...d, materials: d.materials.map(x => x.id === m.id ? { ...x, wastePercent: parseFloat(e.target.value) || 0 } : x) }))}
                                 className="w-14 text-center border border-slate-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                             </td>
-                            <td className="px-3 py-1.5 text-right font-mono text-slate-600">${fmt(price)}</td>
+                            <td className="px-3 py-1.5 text-right font-mono">
+                              {price === 0
+                                ? <span className="flex items-center justify-end gap-1 text-red-500"><AlertTriangle size={10}/> $0,00</span>
+                                : <span className="text-slate-600">${fmt(price)}</span>
+                              }
+                            </td>
                             <td className="px-3 py-1.5 text-right font-mono font-bold text-slate-800">${fmt(sub)}</td>
                             <td className="px-3 py-1.5">
                               <button onClick={() => setDraft(d => ({ ...d, materials: d.materials.filter(x => x.id !== m.id) }))}
@@ -1347,16 +1429,37 @@ export const MasterTasksPanel: React.FC = () => {
                           : 0;
                         const yieldOk = (draft.dailyYield || 0) > 0;
                         const costPerUnit = yieldOk ? (rate * MASTER_WORKDAY_HOURS * l.quantity) / draft.dailyYield : 0;
+                        const hasNoCat = !cat;
+                        const hasZeroRate = !!cat && (cat.basicHourlyRate || 0) === 0;
                         return (
-                          <tr key={l.id} className="border-t border-slate-50 hover:bg-slate-50/50">
-                            <td className="px-3 py-1.5 text-slate-800">{l.laborCategoryName}</td>
+                          <tr key={l.id} className={`border-t border-slate-50 hover:bg-slate-50/50 ${hasNoCat ? 'bg-red-50/40' : hasZeroRate ? 'bg-amber-50/40' : ''}`}>
+                            <td className="px-3 py-1.5 text-slate-800">
+                              <div>{l.laborCategoryName}</div>
+                              {hasNoCat && (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 bg-red-100 text-red-600">
+                                  <AlertTriangle size={8}/> Cat. no encontrada en proyecto
+                                </span>
+                              )}
+                              {hasZeroRate && (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 bg-amber-100 text-amber-700">
+                                  <AlertTriangle size={8}/> Sin tarifa horaria
+                                </span>
+                              )}
+                            </td>
                             <td className="px-3 py-1.5 text-center">
                               <input type="number" min="0.1" step="0.1"
                                 value={l.quantity}
                                 onChange={e => setDraft(d => ({ ...d, labor: d.labor.map(x => x.id === l.id ? { ...x, quantity: parseFloat(e.target.value) || 0 } : x) }))}
                                 className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                             </td>
-                            <td className="px-3 py-1.5 text-right font-mono font-bold text-slate-800">${fmt(costPerUnit)}</td>
+                            <td className="px-3 py-1.5 text-right font-mono font-bold">
+                              {hasNoCat
+                                ? <span className="text-red-500 text-[10px] flex items-center justify-end gap-1"><AlertTriangle size={10}/> $0,00</span>
+                                : hasZeroRate
+                                  ? <span className="text-amber-600 text-[10px] flex items-center justify-end gap-1"><AlertTriangle size={10}/> Sin tarifa</span>
+                                  : <span className="text-slate-800">${fmt(costPerUnit)}</span>
+                              }
+                            </td>
                             <td className="px-3 py-1.5">
                               <button onClick={() => setDraft(d => ({ ...d, labor: d.labor.filter(x => x.id !== l.id) }))}
                                 className="p-0.5 text-slate-300 hover:text-red-500 transition-colors">
