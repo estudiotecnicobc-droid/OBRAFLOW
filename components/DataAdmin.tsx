@@ -43,7 +43,11 @@ const InfoTooltip = ({ text, formula }: { text: string, formula?: string }) => (
   </div>
 );
 
-export const DataAdmin: React.FC = () => {
+interface DataAdminProps {
+  initialSubTab?: 'materials' | 'tasks' | 'tools' | 'labor' | 'rubros' | 'apu' | 'crews' | 'system' | 'master' | 'master-tasks' | 'templates' | 'calculator' | 'chandias' | 'computo' | 'reports' | 'resources';
+}
+
+export const DataAdmin: React.FC<DataAdminProps> = ({ initialSubTab }) => {
   const { user, activeOrganizationId } = useAuth();
   const organizationId = activeOrganizationId ?? user?.organizationId ?? '';
   const {
@@ -63,7 +67,7 @@ export const DataAdmin: React.FC = () => {
     yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, laborCategoriesMap, taskCrewYieldsIndex, crewsMap, taskLaborYieldsIndex
   } = useERP();
   
-  const [activeSubTab, setActiveSubTab] = useState<'materials' | 'tasks' | 'tools' | 'labor' | 'rubros' | 'apu' | 'crews' | 'system' | 'master' | 'master-tasks' | 'templates' | 'calculator' | 'chandias' | 'computo' | 'reports' | 'resources'>('materials');
+  const [activeSubTab, setActiveSubTab] = useState<'materials' | 'tasks' | 'tools' | 'labor' | 'rubros' | 'apu' | 'crews' | 'system' | 'master' | 'master-tasks' | 'templates' | 'calculator' | 'chandias' | 'computo' | 'reports' | 'resources'>(initialSubTab ?? 'materials');
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);

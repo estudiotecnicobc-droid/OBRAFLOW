@@ -137,6 +137,15 @@ export const MeasurementSheetComponent: React.FC = () => {
               <p className="text-xs text-slate-500 mt-1">Seleccione una tarea para computar</p>
           </div>
           <div className="flex-1 overflow-y-auto">
+              {project.items.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full px-5 py-10 text-center">
+                  <Ruler size={36} className="text-slate-200 mb-3" />
+                  <p className="text-sm font-medium text-slate-500">Sin ítems en el presupuesto</p>
+                  <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                    Usá el <span className="font-semibold text-blue-600">Calculador Chandías</span> para medir y generar ítems automáticamente.
+                  </p>
+                </div>
+              )}
               {project.items.map((item) => {
                   const task = tasks.find(t => t.id === item.taskId);
                   const hasSheet = measurementSheets.some(s => s.budgetItemId === item.id);

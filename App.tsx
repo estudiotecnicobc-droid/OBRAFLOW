@@ -117,8 +117,8 @@ const AppContent = () => {
   // STATE 3: Active Project (Main Layout)
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': 
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker', 'client']}><Dashboard /></ProtectedRoute>;
+      case 'dashboard':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker', 'client']}><Dashboard onNavigate={setActiveTab} /></ProtectedRoute>;
       case 'management': 
         return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'client']}><ManagementPanel /></ProtectedRoute>;
       case 'subcontractors': 
@@ -135,8 +135,12 @@ const AppContent = () => {
         return <ProtectedRoute allowedRoles={['admin', 'worker']}><MaterialReception /></ProtectedRoute>;
       case 'tools': 
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><ToolsManager /></ProtectedRoute>;
-      case 'admin': 
+      case 'admin':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin /></ProtectedRoute>;
+      case 'chandias':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="chandias" /></ProtectedRoute>;
+      case 'reports':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="reports" /></ProtectedRoute>;
       case 'settings':
         return <ProtectedRoute allowedRoles={['admin']}><ProjectSettings /></ProtectedRoute>;
       case 'documents':

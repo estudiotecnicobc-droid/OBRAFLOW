@@ -2,17 +2,139 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useERP } from '../context/ERPContext';
 import { calculateUnitPrice, addDays, calculateDuration } from '../services/calculationService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, ComposedChart, Area, Line } from 'recharts';
-import { 
-  DollarSign, Hammer, Package, Clock, Wrench, FileText, 
+import {
+  DollarSign, Hammer, Package, Clock, Wrench, FileText,
   Download, ShoppingCart, ChevronRight, Printer, FileSpreadsheet,
   ZoomIn, ZoomOut, Image as ImageIcon, X, Move, Eye, CheckSquare, Square,
-  BarChart2, TrendingUp, FileCheck, FolderPlus, PieChart as PieChartIcon
+  BarChart2, TrendingUp, FileCheck, FolderPlus, PieChart as PieChartIcon,
+  CheckCircle2, Circle, ArrowRight, BookOpen, Ruler, BarChart as BarChartIcon,
 } from 'lucide-react';
 import { ProjectWizard } from './ProjectWizard';
 
 const COLORS = ['#0ea5e9', '#22c55e', '#9333ea', '#eab308', '#f97316', '#ef4444'];
 
-export const Dashboard: React.FC = () => {
+// ── Tarjeta de arranque para proyectos vacíos ──────────────────────────────────
+
+interface OnboardingStep {
+  number: number;
+  title: string;
+  description: string;
+  actionLabel: string;
+  tab: string;
+  icon: React.ReactNode;
+  done: boolean;
+}
+
+const OnboardingChecklist: React.FC<{
+  hasCatalog: boolean;
+  onNavigate?: (tab: string) => void;
+}> = ({ hasCatalog, onNavigate }) => {
+  const steps: OnboardingStep[] = [
+    {
+      number: 1,
+      title: 'Prepará tu base de datos',
+      description: 'Cargá materiales, mano de obra y APUs en tu catálogo de empresa.',
+      actionLabel: 'Ir a Catálogo',
+      tab: 'admin',
+      icon: <BookOpen size={18} />,
+      done: hasCatalog,
+    },
+    {
+      number: 2,
+      title: 'Medí tu proyecto',
+      description: 'Usá el Calculador Chandías para medir por dimensiones y generar ítems automáticamente.',
+      actionLabel: 'Iniciar Cómputo',
+      tab: 'chandias',
+      icon: <Ruler size={18} />,
+      done: false,
+    },
+    {
+      number: 3,
+      title: 'Valorizá la obra',
+      description: 'Revisá los ítems del presupuesto, ajustá cantidades y precios.',
+      actionLabel: 'Ver Presupuesto',
+      tab: 'budget',
+      icon: <DollarSign size={18} />,
+      done: false,
+    },
+    {
+      number: 4,
+      title: 'Generá entregables',
+      description: 'Descargá fichas APU, resúmenes de presupuesto y reportes de gestión.',
+      actionLabel: 'Centro de Reportes',
+      tab: 'reports',
+      icon: <BarChartIcon size={18} />,
+      done: false,
+    },
+  ];
+
+  return (
+    <div className="bg-white border border-blue-100 rounded-2xl shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5">
+        <h3 className="text-white font-bold text-lg">Empezá tu presupuesto en 4 pasos</h3>
+        <p className="text-blue-100 text-sm mt-0.5">
+          Este proyecto todavía no tiene ítems. Seguí el flujo para presupuestar tu obra.
+        </p>
+      </div>
+
+      {/* Steps */}
+      <div className="divide-y divide-slate-50">
+        {steps.map((step, idx) => (
+          <div
+            key={step.number}
+            className={`flex items-center gap-4 px-6 py-4 transition-colors ${step.done ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}`}
+          >
+            {/* Status icon */}
+            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${step.done ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+              {step.done
+                ? <CheckCircle2 size={18} />
+                : <span className="text-xs font-bold">{step.number}</span>
+              }
+            </div>
+
+            {/* Content */}
+            <div className={`flex-1 min-w-0 ${step.done ? 'opacity-60' : ''}`}>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-bold ${step.done ? 'text-emerald-700 line-through' : 'text-slate-800'}`}>
+                  {step.title}
+                </span>
+                {step.done && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">
+                    Listo
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">{step.description}</p>
+            </div>
+
+            {/* Action */}
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate(step.tab)}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                  step.done
+                    ? 'text-emerald-700 bg-emerald-100 hover:bg-emerald-200'
+                    : idx === 0 || (idx > 0 && steps[idx - 1].done)
+                      ? 'text-white bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-200'
+                      : 'text-slate-500 bg-slate-100 hover:bg-slate-200'
+                }`}
+              >
+                {step.actionLabel} <ArrowRight size={12} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+interface DashboardProps {
+  onNavigate?: (tab: string) => void;
+}
+
+export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const { project, tasks, materials, yields, tools, toolYields, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, receptions, snapshots, laborCategoriesMap, taskLaborYieldsIndex, taskCrewYieldsIndex, crewsMap, budgetItemsLoading, tasksLoaded } = useERP();
   const [activeView, setActiveView] = useState<'stats' | 'reports'>('stats');
 
@@ -449,6 +571,14 @@ export const Dashboard: React.FC = () => {
            </div>
         </div>
       </div>
+
+      {/* ── TARJETA DE ARRANQUE — solo cuando el proyecto está vacío ─── */}
+      {project.items.length === 0 && (
+        <OnboardingChecklist
+          hasCatalog={tasks.length > 0 || materials.length > 0}
+          onNavigate={onNavigate}
+        />
+      )}
 
       {activeView === 'stats' ? (
         <>
