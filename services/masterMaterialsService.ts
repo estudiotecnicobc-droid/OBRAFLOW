@@ -34,6 +34,10 @@ function fromRow(row: Record<string, any>): MasterMaterial {
     globalSourceUpdatedAtAtImport: row.global_source_updated_at_at_import ?? undefined,
     // Trazabilidad de importación desde resources (migration 054)
     globalResourceId: row.global_resource_id ?? undefined,
+    // Datos técnicos opcionales (migration 058)
+    technicalYield: row.technical_yield != null ? Number(row.technical_yield) : undefined,
+    technicalYieldUnit: row.technical_yield_unit ?? undefined,
+    technicalNotes: row.technical_notes ?? undefined,
   };
 }
 
@@ -60,6 +64,9 @@ function toRow(m: Partial<MasterMaterial>): Record<string, any> {
   if (m.localOverride !== undefined) row.local_override = m.localOverride;
   if (m.globalSourceUpdatedAtAtImport !== undefined) row.global_source_updated_at_at_import = m.globalSourceUpdatedAtAtImport;
   if (m.globalResourceId !== undefined) row.global_resource_id = m.globalResourceId || null;
+  if (m.technicalYield !== undefined) row.technical_yield = m.technicalYield ?? null;
+  if (m.technicalYieldUnit !== undefined) row.technical_yield_unit = m.technicalYieldUnit || null;
+  if (m.technicalNotes !== undefined) row.technical_notes = m.technicalNotes || null;
   return row;
 }
 

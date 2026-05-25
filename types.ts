@@ -762,6 +762,10 @@ export interface MasterMaterial {
   globalSourceUpdatedAtAtImport?: string;
   // Trazabilidad de importación desde Recursos Globales — tabla resources (migration 054)
   globalResourceId?: string;
+  // Datos técnicos opcionales (migration 058)
+  technicalYield?: number;
+  technicalYieldUnit?: string;
+  technicalNotes?: string;
 }
 
 export interface UnitPriceAnalysis {
