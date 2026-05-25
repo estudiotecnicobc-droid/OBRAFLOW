@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { Printer, Download, ChevronUp, ChevronDown } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { Printer, Download, FileSpreadsheet, ChevronUp, ChevronDown } from 'lucide-react';
 import { useERP } from '../../../context/ERPContext';
 import { supabase } from '../../../services/supabaseClient';
 import { budgetItemsService } from '../../../services/budgetItemsService';
@@ -51,6 +52,72 @@ function exportToCSV(lines: RpcResourceLine[], projectName: string, tab: TabKey)
   const date = new Date().toISOString().slice(0, 10);
   a.href     = url;
   a.download = `consumos_${projectName.replace(/[^a-z0-9]/gi, '_')}_${tab.replace(/ /g, '_')}_${date}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportToXLSX(lines: RpcResourceLine[], projectName: string, tab: TabKey, costDate: string): void {
+  if (lines.length === 0) return;
+  const isMat = tab === 'Materiales';
+  const date  = new Date().toISOString().slice(0, 10);
+
+  const titleRow  = [`OBRAFLOW — CONSUMOS DEL PROYECTO — ${tab.toUpperCase()}`];
+  const projRow   = [`Proyecto: ${projectName}`];
+  const dateRow   = [`Fecha base de costos: ${costDate}`];
+  const expRow    = [`Exportado: ${date}`];
+  const blankRow: string[] = [];
+
+  const headers = isMat
+    ? ['Código', 'Insumo', 'Unidad', 'Cant. Técnica', 'Cant. Compra', 'U. Compra', 'Costo Unit.', 'Costo Total', 'APUs']
+    : ['Código', 'Insumo', 'Unidad', 'Cantidad', 'Costo Unit.', 'Costo Total', 'APUs'];
+
+  const dataRows = lines.map(l => {
+    const base: (string | number)[] = [l.code || '', l.name, l.unit, l.totalQuantity];
+    if (isMat) { base.push(l.purchaseQuantity ?? ''); base.push(l.commercialUnit ?? ''); }
+    base.push(l.unitCost, l.totalCost, l.sourceTaskNames.join(' | '));
+    return base;
+  });
+
+  const total = lines.reduce((s, l) => s + l.totalCost, 0);
+  const totalRow: (string | number)[] = isMat
+    ? ['', '', '', '', '', '', 'TOTAL', total, '']
+    : ['', '', '', 'TOTAL', '', total, ''];
+
+  const aoa = [titleRow, projRow, dateRow, expRow, blankRow, headers, ...dataRows, blankRow, totalRow];
+  const ws  = XLSX.utils.aoa_to_sheet(aoa);
+
+  ws['!cols'] = isMat
+    ? [{ wch:10 },{ wch:36 },{ wch:8 },{ wch:14 },{ wch:14 },{ wch:12 },{ wch:14 },{ wch:14 },{ wch:40 }]
+    : [{ wch:10 },{ wch:36 },{ wch:8 },{ wch:14 },{ wch:14 },{ wch:14 },{ wch:40 }];
+
+  const dataStart = 6;
+  const costCol     = isMat ? 7 : 5;
+  const unitCostCol = isMat ? 6 : 4;
+
+  dataRows.forEach((_, i) => {
+    const r = dataStart + i;
+    const qtyRef  = XLSX.utils.encode_cell({ r, c: 3 });
+    const ucRef   = XLSX.utils.encode_cell({ r, c: unitCostCol });
+    const totRef  = XLSX.utils.encode_cell({ r, c: costCol });
+    if (ws[qtyRef])  ws[qtyRef].z  = '#,##0.000';
+    if (ws[ucRef])   ws[ucRef].z   = '#,##0.00';
+    if (ws[totRef])  ws[totRef].z  = '#,##0.00';
+  });
+  // Total row
+  const totalRowIdx = dataStart + dataRows.length + 1;
+  const totalRef = XLSX.utils.encode_cell({ r: totalRowIdx, c: costCol });
+  if (ws[totalRef]) ws[totalRef].z = '#,##0.00';
+
+  ws['!freeze'] = { xSplit: 0, ySplit: 6 } as any;
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, tab.slice(0, 31));
+  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `consumos_${projectName.replace(/[^a-z0-9]/gi,'_')}_${tab.replace(/ /g,'_')}_${date}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -142,14 +209,7 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
       const res = await calculateConsolidatedResources({ items, organizationId, costDate });
       setResult(res);
     } catch (e: any) {
-      const raw = e.message ?? 'Error al calcular consumos';
-      if (raw.includes('conversion_factor') || (raw.includes('does not exist') && raw.includes('column'))) {
-        setError('Error de base de datos: falta ejecutar la migración 017 en Supabase Dashboard (agrega conversion_factor a master_task_materials y catalog_task_yields). Luego ejecutar 045 para actualizar la RPC.');
-      } else if (raw.includes('function') && raw.includes('does not exist')) {
-        setError('La función RPC calculate_consolidated_resources no existe en la base de datos. Ejecutar migración 045 en Supabase Dashboard.');
-      } else {
-        setError(raw);
-      }
+      setError(e.message ?? 'Error al calcular consumos');
     } finally {
       setLoading(false);
     }
@@ -316,30 +376,32 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
           onClick={() => {
             if (!result) return;
             const projectName = projects.find(p => p.id === projectId)?.name ?? projectId;
+            exportToXLSX(currentLines, projectName, activeTab, costDate);
+          }}
+          disabled={!result}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm transition-colors font-medium"
+        >
+          <FileSpreadsheet size={14} />
+          Exportar Excel
+        </button>
+        <button
+          onClick={() => {
+            if (!result) return;
+            const projectName = projects.find(p => p.id === projectId)?.name ?? projectId;
             exportToCSV(currentLines, projectName, activeTab);
           }}
           disabled={!result}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-teal-200 text-teal-700 hover:bg-teal-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm transition-colors"
         >
           <Download size={14} />
-          Exportar CSV
+          CSV
         </button>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm space-y-2">
-          {(error.startsWith('Error de base de datos:') || error.startsWith('La función RPC')) ? (
-            <>
-              <p className="font-bold text-red-700">⚠ Falta actualizar la base de datos para este reporte.</p>
-              <p className="text-red-600">Ejecute la migración <strong>055_reports_consumption_schema_bridge.sql</strong> en el Dashboard de Supabase (SQL Editor) y vuelva a intentarlo.</p>
-              <details className="mt-1">
-                <summary className="cursor-pointer text-red-400 text-xs">Ver detalle técnico</summary>
-                <pre className="mt-1 text-red-400 text-xs whitespace-pre-wrap break-all">{error}</pre>
-              </details>
-            </>
-          ) : (
-            <p className="text-red-700">{error}</p>
-          )}
+          <p className="font-bold text-red-700">Error al calcular consumos</p>
+          <p className="text-red-500 font-mono text-xs break-all">{error}</p>
         </div>
       )}
 

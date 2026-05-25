@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import * as XLSX from 'xlsx';
 import { useERP } from '../context/ERPContext';
 import { calculateUnitPrice, addDays, calculateDuration } from '../services/calculationService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, ComposedChart, Area, Line } from 'recharts';
@@ -576,6 +577,49 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     URL.revokeObjectURL(url);
   };
 
+  const exportProcurementXLSX = (data: Array<{name: string; unit: string; totalQty: number; cost: number}>, filename: string) => {
+    if (data.length === 0) return;
+    const date = new Date().toISOString().slice(0, 10);
+    const total = data.reduce((s, m) => s + m.cost, 0);
+
+    const aoa: (string | number)[][] = [
+      ['OBRAFLOW — LISTA DE PROCURA'],
+      [`Proyecto: ${project.name}`],
+      [`Exportado: ${date}`],
+      [],
+      ['Insumo', 'Unidad', 'Cant. Total', 'Costo Estimado'],
+      ...data.map(m => [m.name, m.unit, m.totalQty, m.cost]),
+      [],
+      ['', '', 'TOTAL', total],
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 40 }, { wch: 10 }, { wch: 14 }, { wch: 16 }];
+    ws['!freeze'] = { xSplit: 0, ySplit: 5 } as any;
+
+    const dataStart = 5;
+    data.forEach((_, i) => {
+      const r = dataStart + i;
+      const qtyRef  = XLSX.utils.encode_cell({ r, c: 2 });
+      const costRef = XLSX.utils.encode_cell({ r, c: 3 });
+      if (ws[qtyRef])  ws[qtyRef].z  = '#,##0.000';
+      if (ws[costRef]) ws[costRef].z = '#,##0.00';
+    });
+    const totalRef = XLSX.utils.encode_cell({ r: dataStart + data.length + 1, c: 3 });
+    if (ws[totalRef]) ws[totalRef].z = '#,##0.00';
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Lista de compras');
+    const buf  = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${filename}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -1144,12 +1188,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   <h3 className="font-bold text-slate-800 flex items-center gap-2"><ShoppingCart size={18} className="text-emerald-500" /> Lista de Procura</h3>
                   <p className="text-[10px] text-slate-400 font-bold uppercase">Consolidado Total de Insumos</p>
                </div>
-               <button 
-                 onClick={() => exportCSV(materialProcurementList, 'lista_compras_obra')}
-                 className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-100"
-               >
-                 <FileSpreadsheet size={18} />
-               </button>
+               <div className="flex gap-1">
+                 <button
+                   onClick={() => exportProcurementXLSX(materialProcurementList, 'lista_compras_obra')}
+                   title="Exportar Excel"
+                   className="flex items-center gap-1 px-2 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200"
+                 >
+                   <FileSpreadsheet size={14} /> XLS
+                 </button>
+                 <button
+                   onClick={() => exportCSV(materialProcurementList, 'lista_compras_obra')}
+                   title="Exportar CSV"
+                   className="flex items-center gap-1 px-2 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
+                 >
+                   <Download size={14} /> CSV
+                 </button>
+               </div>
             </div>
             <div className="flex-1 overflow-auto">
                <table className="w-full text-left text-xs">
