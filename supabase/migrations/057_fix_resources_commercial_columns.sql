@@ -35,7 +35,20 @@ COMMENT ON COLUMN public.resources.conversion_factor IS
   'Ejemplo: unit=kg, commercial_unit=bolsa 50kg → conversion_factor=50.';
 
 -- ---------------------------------------------------------------------------
--- 3. Check constraint (idempotent via DO block)
+-- 3. Default values for existing rows
+--    conversion_factor = 1 where NULL (neutral: 1 unidad base = 1 unidad comercial)
+--    commercial_unit   = unit where NULL (heredar unidad técnica como comercial)
+-- ---------------------------------------------------------------------------
+UPDATE public.resources
+  SET conversion_factor = 1
+  WHERE conversion_factor IS NULL;
+
+UPDATE public.resources
+  SET commercial_unit = unit
+  WHERE commercial_unit IS NULL AND unit IS NOT NULL;
+
+-- ---------------------------------------------------------------------------
+-- 4. Check constraint (idempotent via DO block)
 -- ---------------------------------------------------------------------------
 DO $$
 BEGIN
