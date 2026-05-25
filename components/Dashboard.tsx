@@ -561,16 +561,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   const exportCSV = (data: any[], filename: string) => {
     if (data.length === 0) return;
-    const headers = Object.keys(data[0]).join(',');
-    const rows = data.map(obj => Object.values(obj).map(v => `"${v}"`).join(',')).join('\n');
-    const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + rows;
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${filename}.csv`);
+    const sep = ';';
+    const headers = Object.keys(data[0]).join(sep);
+    const rows = data.map(obj => Object.values(obj).map(v => `"${String(v).replace(/"/g, '""')}"`).join(sep)).join('\n');
+    const csv = '﻿' + headers + '\n' + rows;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

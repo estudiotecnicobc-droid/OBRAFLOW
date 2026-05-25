@@ -2140,10 +2140,11 @@ export const DataAdmin: React.FC<DataAdminProps> = ({ initialSubTab }) => {
 
       {/* --- REPORT PREVIEW MODAL --- */}
       {showReport && (
-          <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex flex-col animate-in fade-in duration-200">
-             
+          <div id="da-report-modal" className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex flex-col animate-in fade-in duration-200">
+             <style>{`@media print{@page{size:A4 portrait;margin:0;}#da-report-modal{background-color:white!important;backdrop-filter:none!important;display:block!important;}#da-report-toolbar{display:none!important;}#da-report-scroll{display:block!important;overflow:visible!important;background-color:transparent!important;padding:0!important;}#report-portal{transform:none!important;box-shadow:none!important;width:210mm!important;min-height:auto!important;padding:15mm!important;margin:0 auto!important;}}`}</style>
+
              {/* Toolbar */}
-             <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
+             <div id="da-report-toolbar" className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
                 <div className="flex items-center gap-4">
                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><BarChart3 size={20} className="text-slate-600" /> Auditoría de Base de Datos</h3>
                    <div className="h-6 w-px bg-slate-200 mx-2"></div>
@@ -2194,7 +2195,7 @@ export const DataAdmin: React.FC<DataAdminProps> = ({ initialSubTab }) => {
              </div>
 
              {/* Preview Area */}
-             <div className="flex-1 overflow-auto bg-slate-500/10 p-8 flex justify-center items-start">
+             <div id="da-report-scroll" className="flex-1 overflow-auto bg-slate-500/10 p-8 flex justify-center items-start">
                 <div 
                    id="report-portal"
                    className="bg-white shadow-2xl transition-transform origin-top duration-200"

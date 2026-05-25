@@ -506,10 +506,11 @@ export const BudgetGrid: React.FC = () => {
 
       {/* --- PDF PREVIEW MODAL --- */}
       {showPdfPreview && (
-          <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex flex-col animate-in fade-in duration-200">
-             
+          <div id="bg-print-modal" className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex flex-col animate-in fade-in duration-200">
+             <style>{`@media print{@page{size:A4 landscape;margin:0;}#bg-print-modal{background-color:white!important;backdrop-filter:none!important;display:block!important;}#bg-print-toolbar{display:none!important;}#bg-print-scroll{display:block!important;overflow:visible!important;background-color:transparent!important;padding:0!important;}#pdf-portal{transform:none!important;box-shadow:none!important;width:297mm!important;min-height:auto!important;padding:10mm!important;margin:0 auto!important;}}`}</style>
+
              {/* Toolbar */}
-             <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
+             <div id="bg-print-toolbar" className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
                 <div className="flex items-center gap-4">
                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><Printer size={20} className="text-red-600" /> Exportar Presupuesto</h3>
                    <div className="h-6 w-px bg-slate-200 mx-2"></div>
@@ -533,7 +534,7 @@ export const BudgetGrid: React.FC = () => {
              </div>
 
              {/* Preview Area (Simulating the PDF Layout) */}
-             <div className="flex-1 overflow-auto bg-slate-500/10 p-8 flex justify-center items-start">
+             <div id="bg-print-scroll" className="flex-1 overflow-auto bg-slate-500/10 p-8 flex justify-center items-start">
                 <div 
                    id="pdf-portal"
                    className="bg-white shadow-2xl transition-transform origin-top duration-200"

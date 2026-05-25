@@ -327,8 +327,19 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
-          {error}
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm space-y-2">
+          {(error.startsWith('Error de base de datos:') || error.startsWith('La función RPC')) ? (
+            <>
+              <p className="font-bold text-red-700">⚠ Falta actualizar la base de datos para este reporte.</p>
+              <p className="text-red-600">Ejecute la migración <strong>055_reports_consumption_schema_bridge.sql</strong> en el Dashboard de Supabase (SQL Editor) y vuelva a intentarlo.</p>
+              <details className="mt-1">
+                <summary className="cursor-pointer text-red-400 text-xs">Ver detalle técnico</summary>
+                <pre className="mt-1 text-red-400 text-xs whitespace-pre-wrap break-all">{error}</pre>
+              </details>
+            </>
+          ) : (
+            <p className="text-red-700">{error}</p>
+          )}
         </div>
       )}
 
