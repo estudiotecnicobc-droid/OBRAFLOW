@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import * as XLSX from 'xlsx';
+import XLSXStyle from 'xlsx-js-style';
 import { Printer, Download, FileSpreadsheet, ChevronUp, ChevronDown } from 'lucide-react';
 import { useERP } from '../../../context/ERPContext';
 import { supabase } from '../../../services/supabaseClient';
@@ -56,16 +56,31 @@ function exportToCSV(lines: RpcResourceLine[], projectName: string, tab: TabKey)
   URL.revokeObjectURL(url);
 }
 
+// ── Shared style tokens ──────────────────────────────────────────────────────
+const XS = {
+  DARK:    '0F172A',
+  WHITE:   'FFFFFF',
+  SLATE50: 'F8FAFC',
+  SLATE100:'F1F5F9',
+  SLATE200:'E2E8F0',
+  TEXT:    '1E293B',
+  MUTED:   '64748B',
+  BORDER:  { style: 'thin' as const, color: { rgb: 'CBD5E1' } },
+};
+const xsBorders = { top: XS.BORDER, bottom: XS.BORDER, left: XS.BORDER, right: XS.BORDER };
+
+function xsCell(ws: any, r: number, c: number, s: object, z?: string) {
+  const addr = XLSXStyle.utils.encode_cell({ r, c });
+  if (!ws[addr]) ws[addr] = { v: '', t: 's' };
+  ws[addr].s = s;
+  if (z) ws[addr].z = z;
+}
+
 function exportToXLSX(lines: RpcResourceLine[], projectName: string, tab: TabKey, costDate: string): void {
   if (lines.length === 0) return;
   const isMat = tab === 'Materiales';
   const date  = new Date().toISOString().slice(0, 10);
-
-  const titleRow  = [`OBRAFLOW — CONSUMOS DEL PROYECTO — ${tab.toUpperCase()}`];
-  const projRow   = [`Proyecto: ${projectName}`];
-  const dateRow   = [`Fecha base de costos: ${costDate}`];
-  const expRow    = [`Exportado: ${date}`];
-  const blankRow: string[] = [];
+  const numCols = isMat ? 9 : 7;
 
   const headers = isMat
     ? ['Código', 'Insumo', 'Unidad', 'Cant. Técnica', 'Cant. Compra', 'U. Compra', 'Costo Unit.', 'Costo Total', 'APUs']
@@ -79,40 +94,80 @@ function exportToXLSX(lines: RpcResourceLine[], projectName: string, tab: TabKey
   });
 
   const total = lines.reduce((s, l) => s + l.totalCost, 0);
+  const pad = (n: number) => Array(n).fill('');
   const totalRow: (string | number)[] = isMat
-    ? ['', '', '', '', '', '', 'TOTAL', total, '']
-    : ['', '', '', 'TOTAL', '', total, ''];
+    ? [...pad(7), 'TOTAL', total, '']
+    : [...pad(5), 'TOTAL', total, ''];
 
-  const aoa = [titleRow, projRow, dateRow, expRow, blankRow, headers, ...dataRows, blankRow, totalRow];
-  const ws  = XLSX.utils.aoa_to_sheet(aoa);
+  const blank = Array(numCols).fill('');
+  const aoa = [
+    [`OBRAFLOW — CONSUMOS DEL PROYECTO — ${tab.toUpperCase()}`, ...pad(numCols - 1)],
+    [`Proyecto: ${projectName}`,    ...pad(numCols - 1)],
+    [`Fecha base de costos: ${costDate}`, ...pad(numCols - 1)],
+    [`Exportado: ${date}`,          ...pad(numCols - 1)],
+    blank,
+    headers,
+    ...dataRows,
+    blank,
+    totalRow,
+  ];
+
+  const ws = XLSXStyle.utils.aoa_to_sheet(aoa);
 
   ws['!cols'] = isMat
     ? [{ wch:10 },{ wch:36 },{ wch:8 },{ wch:14 },{ wch:14 },{ wch:12 },{ wch:14 },{ wch:14 },{ wch:40 }]
     : [{ wch:10 },{ wch:36 },{ wch:8 },{ wch:14 },{ wch:14 },{ wch:14 },{ wch:40 }];
 
-  const dataStart = 6;
+  ws['!merges'] = [
+    { s: { r:0,c:0 }, e: { r:0, c: numCols-1 } },
+    { s: { r:1,c:0 }, e: { r:1, c: numCols-1 } },
+    { s: { r:2,c:0 }, e: { r:2, c: numCols-1 } },
+    { s: { r:3,c:0 }, e: { r:3, c: numCols-1 } },
+  ];
+  (ws as any)['!freeze'] = { xSplit: 0, ySplit: 6 };
+
+  // Title row
+  xsCell(ws, 0, 0, { fill:{ patternType:'solid', fgColor:{ rgb: XS.DARK } }, font:{ bold:true, color:{ rgb: XS.WHITE }, sz:14 }, alignment:{ horizontal:'left', vertical:'center' } });
+  // Info rows 1-3
+  [1,2,3].forEach(r => xsCell(ws, r, 0, { fill:{ patternType:'solid', fgColor:{ rgb: XS.SLATE100 } }, font:{ color:{ rgb: XS.MUTED }, sz:9 } }));
+  // Header row (row 5, 0-indexed)
+  headers.forEach((_, c) => xsCell(ws, 5, c, {
+    fill: { patternType:'solid', fgColor:{ rgb: XS.DARK } },
+    font: { bold:true, color:{ rgb: XS.WHITE }, sz:10 },
+    border: xsBorders,
+    alignment: { horizontal: c >= 3 && c !== numCols-1 ? 'right' : 'left' },
+  }));
+
   const costCol     = isMat ? 7 : 5;
   const unitCostCol = isMat ? 6 : 4;
+  const dataStart   = 6;
 
   dataRows.forEach((_, i) => {
     const r = dataStart + i;
-    const qtyRef  = XLSX.utils.encode_cell({ r, c: 3 });
-    const ucRef   = XLSX.utils.encode_cell({ r, c: unitCostCol });
-    const totRef  = XLSX.utils.encode_cell({ r, c: costCol });
-    if (ws[qtyRef])  ws[qtyRef].z  = '#,##0.000';
-    if (ws[ucRef])   ws[ucRef].z   = '#,##0.00';
-    if (ws[totRef])  ws[totRef].z  = '#,##0.00';
+    const isAlt = i % 2 === 1;
+    const bg = isAlt ? XS.SLATE50 : XS.WHITE;
+    const base = { fill:{ patternType:'solid', fgColor:{ rgb: bg } }, font:{ sz:10, color:{ rgb: XS.TEXT } }, border: xsBorders };
+    for (let c = 0; c < numCols; c++) {
+      const isNum = c === 3 || c === costCol || c === unitCostCol;
+      const isPurchaseQty = isMat && c === 4;
+      xsCell(ws, r, c, { ...base, alignment: { horizontal: (isNum || isPurchaseQty) ? 'right' : 'left' } });
+    }
+    xsCell(ws, r, 3,          { ...base, alignment:{ horizontal:'right' } }, '#,##0.000');
+    xsCell(ws, r, unitCostCol, { ...base, alignment:{ horizontal:'right' } }, '#,##0.00');
+    xsCell(ws, r, costCol,     { ...base, alignment:{ horizontal:'right' } }, '#,##0.00');
   });
+
   // Total row
   const totalRowIdx = dataStart + dataRows.length + 1;
-  const totalRef = XLSX.utils.encode_cell({ r: totalRowIdx, c: costCol });
-  if (ws[totalRef]) ws[totalRef].z = '#,##0.00';
+  const totalStyle  = { fill:{ patternType:'solid', fgColor:{ rgb: XS.SLATE200 } }, font:{ bold:true, sz:10, color:{ rgb: XS.TEXT } }, border: xsBorders };
+  for (let c = 0; c < numCols; c++) {
+    xsCell(ws, totalRowIdx, c, { ...totalStyle, alignment:{ horizontal: c === costCol ? 'right' : 'left' } });
+  }
+  xsCell(ws, totalRowIdx, costCol, { ...totalStyle, alignment:{ horizontal:'right' } }, '#,##0.00');
 
-  ws['!freeze'] = { xSplit: 0, ySplit: 6 } as any;
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, tab.slice(0, 31));
-  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const wb = XLSXStyle.utils.book_new();
+  XLSXStyle.utils.book_append_sheet(wb, ws, tab.slice(0, 31));
+  const buf  = XLSXStyle.write(wb, { bookType: 'xlsx', type: 'array' });
   const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');

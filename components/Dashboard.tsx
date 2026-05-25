@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import * as XLSX from 'xlsx';
+import XLSXStyle from 'xlsx-js-style';
 import { useERP } from '../context/ERPContext';
 import { calculateUnitPrice, addDays, calculateDuration } from '../services/calculationService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, ComposedChart, Area, Line } from 'recharts';
@@ -579,39 +579,80 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   const exportProcurementXLSX = (data: Array<{name: string; unit: string; totalQty: number; cost: number}>, filename: string) => {
     if (data.length === 0) return;
-    const date = new Date().toISOString().slice(0, 10);
+    const date  = new Date().toISOString().slice(0, 10);
     const total = data.reduce((s, m) => s + m.cost, 0);
+    const numCols = 4;
 
-    const aoa: (string | number)[][] = [
-      ['OBRAFLOW — LISTA DE PROCURA'],
-      [`Proyecto: ${project.name}`],
-      [`Exportado: ${date}`],
-      [],
+    const DARK    = '0F172A';
+    const WHITE   = 'FFFFFF';
+    const SLATE50 = 'F8FAFC';
+    const SLATE100= 'F1F5F9';
+    const SLATE200= 'E2E8F0';
+    const TEXT    = '1E293B';
+    const MUTED   = '64748B';
+    const BD      = { style: 'thin' as const, color: { rgb: 'CBD5E1' } };
+    const borders = { top: BD, bottom: BD, left: BD, right: BD };
+
+    const sc = (r: number, c: number, s: object, z?: string) => {
+      const addr = XLSXStyle.utils.encode_cell({ r, c });
+      if (!ws[addr]) ws[addr] = { v: '', t: 's' };
+      ws[addr].s = s;
+      if (z) ws[addr].z = z;
+    };
+
+    const blank = Array(numCols).fill('');
+    const aoa = [
+      ['OBRAFLOW — LISTA DE MATERIALES', '', '', ''],
+      [`Proyecto: ${project.name}`,   '', '', ''],
+      [`Exportado: ${date}`,          '', '', ''],
+      blank,
       ['Insumo', 'Unidad', 'Cant. Total', 'Costo Estimado'],
       ...data.map(m => [m.name, m.unit, m.totalQty, m.cost]),
-      [],
+      blank,
       ['', '', 'TOTAL', total],
     ];
 
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const ws = XLSXStyle.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [{ wch: 40 }, { wch: 10 }, { wch: 14 }, { wch: 16 }];
-    ws['!freeze'] = { xSplit: 0, ySplit: 5 } as any;
+    ws['!merges'] = [
+      { s:{ r:0,c:0 }, e:{ r:0,c:3 } },
+      { s:{ r:1,c:0 }, e:{ r:1,c:3 } },
+      { s:{ r:2,c:0 }, e:{ r:2,c:3 } },
+    ];
+    (ws as any)['!freeze'] = { xSplit: 0, ySplit: 5 };
 
-    const dataStart = 5;
+    // Title
+    sc(0, 0, { fill:{ patternType:'solid',fgColor:{rgb:DARK} }, font:{bold:true,color:{rgb:WHITE},sz:14}, alignment:{horizontal:'left',vertical:'center'} });
+    // Info rows
+    [1,2].forEach(r => sc(r, 0, { fill:{patternType:'solid',fgColor:{rgb:SLATE100}}, font:{color:{rgb:MUTED},sz:9} }));
+    // Header row (row 4)
+    ['Insumo','Unidad','Cant. Total','Costo Estimado'].forEach((_, c) =>
+      sc(4, c, { fill:{patternType:'solid',fgColor:{rgb:DARK}}, font:{bold:true,color:{rgb:WHITE},sz:10}, border:borders, alignment:{horizontal:c>=2?'right':'left'} })
+    );
+
+    // Data rows (start at row 5)
     data.forEach((_, i) => {
-      const r = dataStart + i;
-      const qtyRef  = XLSX.utils.encode_cell({ r, c: 2 });
-      const costRef = XLSX.utils.encode_cell({ r, c: 3 });
-      if (ws[qtyRef])  ws[qtyRef].z  = '#,##0.000';
-      if (ws[costRef]) ws[costRef].z = '#,##0.00';
+      const r = 5 + i;
+      const bg = i % 2 === 1 ? SLATE50 : WHITE;
+      const base = { fill:{patternType:'solid',fgColor:{rgb:bg}}, font:{sz:10,color:{rgb:TEXT}}, border:borders };
+      sc(r, 0, { ...base, alignment:{horizontal:'left'} });
+      sc(r, 1, { ...base, alignment:{horizontal:'center'} });
+      sc(r, 2, { ...base, alignment:{horizontal:'right'} }, '#,##0.000');
+      sc(r, 3, { ...base, alignment:{horizontal:'right'} }, '#,##0.00');
     });
-    const totalRef = XLSX.utils.encode_cell({ r: dataStart + data.length + 1, c: 3 });
-    if (ws[totalRef]) ws[totalRef].z = '#,##0.00';
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Lista de compras');
-    const buf  = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    // Total row
+    const tr  = 5 + data.length + 1;
+    const tst = { fill:{patternType:'solid',fgColor:{rgb:SLATE200}}, font:{bold:true,sz:10,color:{rgb:TEXT}}, border:borders };
+    sc(tr, 0, { ...tst, alignment:{horizontal:'left'} });
+    sc(tr, 1, { ...tst, alignment:{horizontal:'left'} });
+    sc(tr, 2, { ...tst, alignment:{horizontal:'right'} });
+    sc(tr, 3, { ...tst, alignment:{horizontal:'right'} }, '#,##0.00');
+
+    const wb   = XLSXStyle.utils.book_new();
+    XLSXStyle.utils.book_append_sheet(wb, ws, 'Lista de materiales');
+    const buf  = XLSXStyle.write(wb, { bookType:'xlsx', type:'array' });
+    const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
@@ -1185,19 +1226,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="xl:col-span-1 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[700px]">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                <div>
-                  <h3 className="font-bold text-slate-800 flex items-center gap-2"><ShoppingCart size={18} className="text-emerald-500" /> Lista de Procura</h3>
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2"><ShoppingCart size={18} className="text-emerald-500" /> Lista de Materiales</h3>
                   <p className="text-[10px] text-slate-400 font-bold uppercase">Consolidado Total de Insumos</p>
                </div>
                <div className="flex gap-1">
                  <button
-                   onClick={() => exportProcurementXLSX(materialProcurementList, 'lista_compras_obra')}
+                   onClick={() => exportProcurementXLSX(materialProcurementList, 'lista_materiales_obra')}
                    title="Exportar Excel"
                    className="flex items-center gap-1 px-2 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200"
                  >
                    <FileSpreadsheet size={14} /> XLS
                  </button>
                  <button
-                   onClick={() => exportCSV(materialProcurementList, 'lista_compras_obra')}
+                   onClick={() => exportCSV(materialProcurementList, 'lista_materiales_obra')}
                    title="Exportar CSV"
                    className="flex items-center gap-1 px-2 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
                  >
