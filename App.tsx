@@ -123,8 +123,8 @@ const AppContent = () => {
         return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'client']}><ManagementPanel /></ProtectedRoute>;
       case 'subcontractors': 
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><Subcontractors /></ProtectedRoute>;
-      case 'budget': 
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><BudgetEditor /></ProtectedRoute>;
+      case 'budget':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><BudgetEditor onNavigate={setActiveTab} /></ProtectedRoute>;
       case 'apu':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><APUBuilder /></ProtectedRoute>;
       case 'grid': 
