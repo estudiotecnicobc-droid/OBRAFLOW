@@ -460,7 +460,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
 
   // 2. Reporte: Consolidado de Materiales (Explosión de Insumos)
-  const materialProcurementList = useMemo(() => {
+  const materialList = useMemo(() => {
     const list: Record<string, { name: string, unit: string, totalQty: number, cost: number }> = {};
     
     project.items.forEach(item => {
@@ -479,6 +479,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
     return Object.values(list).sort((a, b) => a.name.localeCompare(b.name));
   }, [project, yieldsIndex, materialsMap]);
+
+  const materialListTotal = useMemo(
+    () => materialList.reduce((s, m) => s + m.totalQty * m.cost, 0),
+    [materialList]
+  );
 
   // 3. Reporte: Detalle Técnico de Tareas (con costos, mano de obra y warnings)
   const taskDetailReport = useMemo(() => {
@@ -577,11 +582,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     URL.revokeObjectURL(url);
   };
 
-  const exportProcurementXLSX = (data: Array<{name: string; unit: string; totalQty: number; cost: number}>, filename: string) => {
+  const exportMaterialsXLSX = (data: Array<{name: string; unit: string; totalQty: number; cost: number}>, filename: string) => {
     if (data.length === 0) return;
-    const date  = new Date().toISOString().slice(0, 10);
-    const total = data.reduce((s, m) => s + m.cost, 0);
-    const numCols = 4;
+    const date     = new Date().toISOString().slice(0, 10);
+    const total    = data.reduce((s, m) => s + m.totalQty * m.cost, 0);
+    const numCols  = 5;
 
     const DARK    = '0F172A';
     const WHITE   = 'FFFFFF';
@@ -602,22 +607,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
     const blank = Array(numCols).fill('');
     const aoa = [
-      ['OBRAFLOW — LISTA DE MATERIALES', '', '', ''],
-      [`Proyecto: ${project.name}`,   '', '', ''],
-      [`Exportado: ${date}`,          '', '', ''],
+      ['OBRAFLOW — LISTA DE MATERIALES', '', '', '', ''],
+      [`Proyecto: ${project.name}`,   '', '', '', ''],
+      [`Exportado: ${date} · Costos según precios actuales del catálogo`, '', '', '', ''],
       blank,
-      ['Insumo', 'Unidad', 'Cant. Total', 'Costo Estimado'],
-      ...data.map(m => [m.name, m.unit, m.totalQty, m.cost]),
+      ['Insumo', 'Unidad', 'Cant. Total', 'Precio unitario', 'Costo total'],
+      ...data.map(m => [m.name, m.unit, m.totalQty, m.cost, m.totalQty * m.cost]),
       blank,
-      ['', '', 'TOTAL', total],
+      ['', '', '', 'TOTAL', total],
     ];
 
     const ws = XLSXStyle.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{ wch: 40 }, { wch: 10 }, { wch: 14 }, { wch: 16 }];
+    ws['!cols'] = [{ wch: 38 }, { wch: 10 }, { wch: 14 }, { wch: 16 }, { wch: 16 }];
     ws['!merges'] = [
-      { s:{ r:0,c:0 }, e:{ r:0,c:3 } },
-      { s:{ r:1,c:0 }, e:{ r:1,c:3 } },
-      { s:{ r:2,c:0 }, e:{ r:2,c:3 } },
+      { s:{ r:0,c:0 }, e:{ r:0,c:4 } },
+      { s:{ r:1,c:0 }, e:{ r:1,c:4 } },
+      { s:{ r:2,c:0 }, e:{ r:2,c:4 } },
     ];
     (ws as any)['!freeze'] = { xSplit: 0, ySplit: 5 };
 
@@ -626,7 +631,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     // Info rows
     [1,2].forEach(r => sc(r, 0, { fill:{patternType:'solid',fgColor:{rgb:SLATE100}}, font:{color:{rgb:MUTED},sz:9} }));
     // Header row (row 4)
-    ['Insumo','Unidad','Cant. Total','Costo Estimado'].forEach((_, c) =>
+    ['Insumo','Unidad','Cant. Total','Precio unitario','Costo total'].forEach((_, c) =>
       sc(4, c, { fill:{patternType:'solid',fgColor:{rgb:DARK}}, font:{bold:true,color:{rgb:WHITE},sz:10}, border:borders, alignment:{horizontal:c>=2?'right':'left'} })
     );
 
@@ -639,6 +644,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       sc(r, 1, { ...base, alignment:{horizontal:'center'} });
       sc(r, 2, { ...base, alignment:{horizontal:'right'} }, '#,##0.000');
       sc(r, 3, { ...base, alignment:{horizontal:'right'} }, '#,##0.00');
+      sc(r, 4, { ...base, alignment:{horizontal:'right'}, font:{...base.font, bold:true} }, '#,##0.00');
     });
 
     // Total row
@@ -647,7 +653,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     sc(tr, 0, { ...tst, alignment:{horizontal:'left'} });
     sc(tr, 1, { ...tst, alignment:{horizontal:'left'} });
     sc(tr, 2, { ...tst, alignment:{horizontal:'right'} });
-    sc(tr, 3, { ...tst, alignment:{horizontal:'right'} }, '#,##0.00');
+    sc(tr, 3, { ...tst, alignment:{horizontal:'right'} });
+    sc(tr, 4, { ...tst, alignment:{horizontal:'right'} }, '#,##0.00');
 
     const wb   = XLSXStyle.utils.book_new();
     XLSXStyle.utils.book_append_sheet(wb, ws, 'Lista de materiales');
@@ -876,7 +883,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         {selectedSections.materials && (
           <div className="print-page-break">
             {miniPageHeader('Listado Consolidado de Insumos', '#059669')}
-            {materialProcurementList.length === 0 ? (
+            {materialList.length === 0 ? (
               <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>Sin datos cargados.</p>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
@@ -888,7 +895,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   <th style={{ padding: '5px 6px', textAlign: 'right', fontWeight: 700, width: 90 }}>Costo Est.</th>
                 </tr></thead>
                 <tbody>
-                  {materialProcurementList.map((m, i) => (
+                  {materialList.map((m, i) => (
                     <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '4px 6px', fontWeight: 500 }}>{m.name}</td>
                       <td style={{ padding: '4px 6px', textAlign: 'right', color: '#64748b' }}>{m.unit}</td>
@@ -1222,23 +1229,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         </>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Listado de Materiales (Procurement) */}
+          {/* Listado de Materiales */}
           <div className="xl:col-span-1 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[700px]">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                <div>
                   <h3 className="font-bold text-slate-800 flex items-center gap-2"><ShoppingCart size={18} className="text-emerald-500" /> Lista de Materiales</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Consolidado Total de Insumos</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Consolidado Total · Precios actuales del catálogo</p>
                </div>
                <div className="flex gap-1">
                  <button
-                   onClick={() => exportProcurementXLSX(materialProcurementList, 'lista_materiales_obra')}
+                   onClick={() => exportMaterialsXLSX(materialList, 'lista_materiales_obra')}
                    title="Exportar Excel"
                    className="flex items-center gap-1 px-2 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200"
                  >
                    <FileSpreadsheet size={14} /> XLS
                  </button>
                  <button
-                   onClick={() => exportCSV(materialProcurementList, 'lista_materiales_obra')}
+                   onClick={() => exportCSV(materialList.map(m => ({ Insumo: m.name, Unidad: m.unit, 'Cant. Total': m.totalQty, 'Precio unitario': m.cost, 'Costo total': Math.round(m.totalQty * m.cost) })), 'lista_materiales_obra')}
                    title="Exportar CSV"
                    className="flex items-center gap-1 px-2 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
                  >
@@ -1252,11 +1259,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                      <tr>
                         <th className="p-3 text-slate-500">Insumo</th>
                         <th className="p-3 text-slate-500 text-right">Cant. Total</th>
-                        <th className="p-3 text-slate-500 text-right">Est. Costo</th>
+                        <th className="p-3 text-slate-500 text-right">Costo total</th>
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                     {materialProcurementList.map((m, i) => (
+                     {materialList.map((m, i) => (
                         <tr key={i} className="hover:bg-slate-50">
                            <td className="p-3">
                               <div className="font-bold text-slate-700">{m.name}</div>
@@ -1265,12 +1272,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                            <td className="p-3 text-right font-mono font-bold text-blue-600">
                               {m.totalQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                            </td>
-                           <td className="p-3 text-right font-mono text-slate-500">
+                           <td className="p-3 text-right font-mono text-slate-600">
                               ${(m.totalQty * m.cost).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                            </td>
                         </tr>
                      ))}
                   </tbody>
+                  {materialList.length > 0 && (
+                    <tfoot>
+                      <tr className="bg-slate-100 border-t-2 border-slate-200">
+                        <td className="p-3 text-xs font-bold text-slate-500 uppercase tracking-wide" colSpan={2}>Total</td>
+                        <td className="p-3 text-right font-mono font-bold text-slate-800">
+                          ${materialListTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
                </table>
             </div>
           </div>
