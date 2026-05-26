@@ -51,7 +51,7 @@ function exportToCSV(lines: RpcResourceLine[], projectName: string, tab: TabKey)
   const a    = document.createElement('a');
   const date = new Date().toISOString().slice(0, 10);
   a.href     = url;
-  a.download = `consumos_${projectName.replace(/[^a-z0-9]/gi, '_')}_${tab.replace(/ /g, '_')}_${date}.csv`;
+  a.download = `explosion_insumos_${projectName.replace(/[^a-z0-9]/gi, '_')}_${tab.replace(/ /g, '_')}_${date}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -101,9 +101,9 @@ function exportToXLSX(lines: RpcResourceLine[], projectName: string, tab: TabKey
 
   const blank = Array(numCols).fill('');
   const aoa = [
-    [`OBRAFLOW — CONSUMOS DEL PROYECTO — ${tab.toUpperCase()}`, ...pad(numCols - 1)],
+    [`OBRAFLOW — EXPLOSIÓN DE INSUMOS — BASE PRESUPUESTO`, ...pad(numCols - 1)],
     [`Proyecto: ${projectName}`,    ...pad(numCols - 1)],
-    [`Fecha base de costos: ${costDate}`, ...pad(numCols - 1)],
+    [`Fuente: precios base del presupuesto al ${costDate}`, ...pad(numCols - 1)],
     [`Exportado: ${date}`,          ...pad(numCols - 1)],
     blank,
     headers,
@@ -172,7 +172,7 @@ function exportToXLSX(lines: RpcResourceLine[], projectName: string, tab: TabKey
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `consumos_${projectName.replace(/[^a-z0-9]/gi,'_')}_${tab.replace(/ /g,'_')}_${date}.xlsx`;
+  a.download = `explosion_insumos_${projectName.replace(/[^a-z0-9]/gi,'_')}_${tab.replace(/ /g,'_')}_${date}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -352,7 +352,7 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
     const dateStr = new Date(costDate + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const header = `
       <div style="margin-bottom:1.5rem;border-bottom:2px solid #0f172a;padding-bottom:1rem;">
-        <h1 style="font-size:1.25rem;font-weight:900;color:#0f172a;margin-bottom:0.25rem;">Consumos del Proyecto</h1>
+        <h1 style="font-size:1.25rem;font-weight:900;color:#0f172a;margin-bottom:0.25rem;">Explosión de Insumos</h1>
         <p style="color:#475569;font-size:0.875rem;">Proyecto: <strong>${projectName}</strong></p>
         <p style="color:#64748b;font-size:0.8rem;">Fecha base de costos: ${dateStr}</p>
       </div>
@@ -378,7 +378,7 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
       + buildResourceTable(result.labor, 'Mano de Obra', false)
       + buildResourceTable(result.equipment, 'Equipos', false);
     printDocument({
-      title: `Consumos — ${projectName}`,
+      title: `Explosión de Insumos — ${projectName}`,
       html: content,
       pageSize: 'a4',
       pageOrientation: 'portrait',
@@ -388,6 +388,18 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Context badge */}
+      <div className="flex items-start gap-3 bg-violet-50 border border-violet-100 rounded-lg px-4 py-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[10px] font-bold bg-violet-200 text-violet-700 px-2 py-0.5 rounded-full uppercase tracking-wide">Base presupuesto</span>
+            <span className="text-[10px] font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full uppercase tracking-wide">Precios congelados</span>
+          </div>
+          <p className="text-xs text-slate-600">Desglose técnico y costos base usados para este presupuesto.</p>
+          <p className="text-[11px] text-slate-400 mt-1 italic">Los valores pueden diferir de la Lista de Materiales si los precios actuales del catálogo cambiaron respecto de la fecha base del presupuesto.</p>
+        </div>
+      </div>
+
       {/* Controls */}
       <div className="flex flex-wrap gap-3 items-end">
         <div>

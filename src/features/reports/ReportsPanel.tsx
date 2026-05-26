@@ -24,8 +24,8 @@ const REPORTS = [
   },
   {
     id: 'consolidated' as ReportTab,
-    label: 'Consumos del Proyecto',
-    description: 'Lista de compra consolidada: materiales, MO y equipos para ejecutar el presupuesto',
+    label: 'Explosión de Insumos',
+    description: 'Desglose técnico y costos base usados para este presupuesto.',
     icon: Package,
     scope: 'Proyecto',
   },

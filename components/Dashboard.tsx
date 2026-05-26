@@ -607,9 +607,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
     const blank = Array(numCols).fill('');
     const aoa = [
-      ['OBRAFLOW — LISTA DE MATERIALES', '', '', '', ''],
+      ['OBRAFLOW — LISTA DE MATERIALES — PRECIOS ACTUALES', '', '', '', ''],
       [`Proyecto: ${project.name}`,   '', '', '', ''],
-      [`Exportado: ${date} · Costos según precios actuales del catálogo`, '', '', '', ''],
+      [`Fuente: precios actuales del Catálogo de Empresa · Exportado: ${date}`, '', '', '', ''],
       blank,
       ['Insumo', 'Unidad', 'Cant. Total', 'Precio unitario', 'Costo total'],
       ...data.map(m => [m.name, m.unit, m.totalQty, m.cost, m.totalQty * m.cost]),
@@ -1233,8 +1233,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <div className="xl:col-span-1 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[700px]">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                <div>
-                  <h3 className="font-bold text-slate-800 flex items-center gap-2"><ShoppingCart size={18} className="text-emerald-500" /> Lista de Materiales</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Consolidado Total · Precios actuales del catálogo</p>
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                    <ShoppingCart size={18} className="text-emerald-500" /> Lista de Materiales
+                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">Precios actuales</span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Cantidades del proyecto valorizadas con precios actuales del Catálogo de Empresa.</p>
                </div>
                <div className="flex gap-1">
                  <button
@@ -1290,6 +1293,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   )}
                </table>
             </div>
+            <p className="px-4 py-2 text-[10px] text-slate-400 italic border-t border-slate-100 bg-slate-50/50 flex-shrink-0">
+              Los valores pueden diferir de la Explosión de Insumos si los precios del catálogo cambiaron respecto de la fecha base del presupuesto.
+            </p>
           </div>
 
           {/* Desglose de Tareas e Ingeniería */}
