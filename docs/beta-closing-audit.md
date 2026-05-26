@@ -256,4 +256,81 @@ WHERE table_name = 'catalog_task_yields' AND column_name IN ('conversion_factor'
 
 ---
 
-*Generado por auditoría automatizada multi-agente — 2026-05-25*
+## 9. ACTUALIZACIÓN POSTERIOR A AUDITORÍA — 2026-05-26
+
+### 9.1 GAP 1 — RESUELTO: `importFromGlobal()` copia campos técnicos
+
+**Commit:** `0072c9f` fix: sync technical material fields from global catalog  
+**Archivo:** `services/masterMaterialsService.ts`  
+**Cambio:** Se agregaron 3 líneas al objeto `row` en `importFromGlobal()`:
+```typescript
+technical_yield:      globalData.technical_yield ?? null,
+technical_yield_unit: globalData.technical_yield_unit ?? null,
+technical_notes:      globalData.technical_notes ?? null,
+```
+**Estado:** ✅ En producción — `obraflowapp-pyfegcia5`
+
+### 9.2 GAP 2 — RESUELTO: `GlobalMaterialsAdmin` con campos técnicos
+
+**Commit:** `0072c9f` (mismo)  
+**Archivo:** `components/GlobalMaterialsAdmin.tsx`  
+**Cambio:** FormData extendido con `technicalYield/Unit/Notes`; sección "Datos técnicos opcionales" con input, select (YIELD_UNIT_OPTIONS) y textarea; badge "Ficha técnica" en tabla.  
+**Estado:** ✅ En producción
+
+### 9.3 Fix adicional: Dashboard Lista de Materiales — totales correctos
+
+**Commit:** `2729785` fix: align dashboard materials list totals with consumption report  
+**Archivo:** `components/Dashboard.tsx`  
+**Problema:** La columna "Costo Estimado" sumaba precios unitarios en lugar de `totalQty × unitCost`.  
+**Fix:** `materialListTotal = materialList.reduce((s, m) => s + m.totalQty * m.cost, 0)`  
+**Excel:** 5 columnas: Insumo / Unidad / Cant. Total / Precio unitario / Costo total  
+**Estado:** ✅ En producción
+
+### 9.4 Fix adicional: Naming y badges de contexto
+
+**Commit:** `29074cc` fix: clarify materials reports naming and price context  
+**Cambios:**
+- "Consumos del Proyecto" → **"Explosión de Insumos"** (UI, Excel, CSV, print)
+- Badges: "Base presupuesto" + "Precios congelados" en Explosión de Insumos
+- Badge "Precios actuales" en Lista de Materiales
+- Subtítulos diferenciados por fuente temporal de precios
+- Nota sobre posible divergencia entre ambos reportes
+- Títulos Excel: "OBRAFLOW — EXPLOSIÓN DE INSUMOS — BASE PRESUPUESTO" / "LISTA DE MATERIALES — PRECIOS ACTUALES"  
+**Estado:** ✅ En producción — `obraflowapp-6azh9ostk`
+
+### 9.5 Estado de migraciones al cierre
+
+| Migración | Estado |
+|-----------|--------|
+| 055 | ✅ ejecutada |
+| 056 | ✅ ejecutada |
+| 057 | ✅ ejecutada (+ UPDATE defaults en resources) |
+| 058 | ✅ ejecutada |
+
+### 9.6 Estado de reportes al cierre
+
+| Reporte | Estado |
+|---------|--------|
+| Explosión de Insumos (antes: Consumos del Proyecto) | ✅ funciona — RPC v3 |
+| Lista de Materiales (Dashboard) | ✅ costo total correcto |
+| APUSummaryReport | ✅ funciona |
+| BudgetBreakdownReport | ✅ funciona |
+| Reporte Completo (impresión) | ✅ funciona |
+| Excel Explosión | ✅ estilizado, filenames `explosion_insumos_*` |
+| Excel Lista de Materiales | ✅ 5 columnas, título actualizado |
+
+### 9.7 Pendientes al 2026-05-26
+
+| Item | Tipo | Prioridad |
+|------|------|-----------|
+| Beta con colegas (tracking + feedback) | Feature | 🔴 Alta |
+| Verificar local_override protege campos técnicos en re-sync | QA | 🟡 Media |
+| Excel premium (estética, branding) | Feature | 🟡 Media |
+| Cómputo por dimensiones (ChandiasCalculator) | Feature | 🟡 Media |
+| Billing Stripe (038+039) | Feature | 🟢 Backlog |
+| Sincronización viva (040) | Feature | 🟢 Backlog |
+| Migración 044 seed names | Bug menor | 🟢 Backlog |
+
+---
+
+*Auditoría original: 2026-05-25 · Actualización: 2026-05-26*
