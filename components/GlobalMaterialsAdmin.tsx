@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Search, Edit2, CheckCircle2, XCircle, Loader2, AlertTriangle, Save, X } from 'lucide-react';
+import { Plus, Search, Edit2, CheckCircle2, XCircle, Loader2, AlertTriangle, Save, X, FlaskConical } from 'lucide-react';
 import { MasterMaterial } from '../types';
 import { masterMaterialsService } from '../services/masterMaterialsService';
+
+const YIELD_UNIT_OPTIONS = [
+  'm²/l', 'm²/kg', 'kg/m²', 'ml/un', 'm²/rollo',
+  'un/m²', 'l/m²', 'm/rollo', 'un/caja', 'ml/m²',
+];
 
 type FormData = {
   name: string;
@@ -14,11 +19,15 @@ type FormData = {
   commercialFormat: string;
   wastePercent: string;
   description: string;
+  technicalYield: string;
+  technicalYieldUnit: string;
+  technicalNotes: string;
 };
 
 const EMPTY_FORM: FormData = {
   name: '', code: '', unit: '', unitPrice: '0', currency: 'ARS',
   category: '', supplier: '', commercialFormat: '', wastePercent: '', description: '',
+  technicalYield: '', technicalYieldUnit: '', technicalNotes: '',
 };
 
 function toForm(m: MasterMaterial): FormData {
@@ -33,6 +42,9 @@ function toForm(m: MasterMaterial): FormData {
     commercialFormat: m.commercialFormat ?? '',
     wastePercent: m.wastePercent != null ? String(m.wastePercent) : '',
     description: m.description ?? '',
+    technicalYield: m.technicalYield != null ? String(m.technicalYield) : '',
+    technicalYieldUnit: m.technicalYieldUnit ?? '',
+    technicalNotes: m.technicalNotes ?? '',
   };
 }
 
@@ -96,6 +108,9 @@ export const GlobalMaterialsAdmin: React.FC = () => {
         commercialFormat: form.commercialFormat.trim() || undefined,
         wastePercent: form.wastePercent ? parseFloat(form.wastePercent) : undefined,
         description: form.description.trim() || undefined,
+        technicalYield: form.technicalYield ? parseFloat(form.technicalYield) : undefined,
+        technicalYieldUnit: form.technicalYieldUnit.trim() || undefined,
+        technicalNotes: form.technicalNotes.trim() || undefined,
       };
       if (editing) {
         await masterMaterialsService.updateGlobal(editing.id, payload);
@@ -180,6 +195,7 @@ export const GlobalMaterialsAdmin: React.FC = () => {
             </div>
           )}
 
+          {/* Datos principales */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {F('name', 'Nombre *')}
             {F('code', 'Código')}
@@ -202,6 +218,41 @@ export const GlobalMaterialsAdmin: React.FC = () => {
             {F('wastePercent', 'Desperdicio %', 'number', { min: '0', max: '100', step: '0.1' })}
           </div>
           <div>{F('description', 'Descripción')}</div>
+
+          {/* Datos técnicos opcionales */}
+          <div className="border-t border-blue-200 pt-3 space-y-3">
+            <div className="flex items-center gap-2">
+              <FlaskConical size={13} className="text-sky-500 shrink-0" />
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Datos técnicos opcionales</p>
+            </div>
+            <p className="text-[10px] text-slate-400 leading-relaxed -mt-1">
+              Usá estos campos solo cuando el material tenga un rendimiento técnico propio, por ejemplo pinturas, adhesivos, impermeabilizantes o membranas.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {F('technicalYield', 'Rendimiento', 'number', { min: '0', step: '0.01', placeholder: 'Ej: 10' })}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Unidad de rendimiento</label>
+                <select
+                  value={form.technicalYieldUnit}
+                  onChange={e => setForm(p => ({ ...p, technicalYieldUnit: e.target.value }))}
+                  className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">— seleccionar —</option>
+                  {YIELD_UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Observación técnica</label>
+              <textarea
+                value={form.technicalNotes}
+                onChange={e => setForm(p => ({ ...p, technicalNotes: e.target.value }))}
+                placeholder="Rendimiento promedio, condiciones de aplicación, referencias normativas…"
+                rows={2}
+                className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+              />
+            </div>
+          </div>
 
           <div className="flex gap-2 justify-end pt-1">
             <button onClick={closeForm} className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded transition-colors">
@@ -245,7 +296,17 @@ export const GlobalMaterialsAdmin: React.FC = () => {
               {filtered.map(m => (
                 <tr key={m.id} className={`hover:bg-slate-50 transition-colors ${!m.isActive ? 'opacity-50' : ''}`}>
                   <td className="px-4 py-2 font-mono text-slate-400">{m.code ?? '—'}</td>
-                  <td className="px-4 py-2 font-medium text-slate-700">{m.name}</td>
+                  <td className="px-4 py-2 font-medium text-slate-700">
+                    {m.name}
+                    {m.technicalYield != null && (
+                      <span
+                        title={`Rendimiento: ${m.technicalYield}${m.technicalYieldUnit ? ' ' + m.technicalYieldUnit : ''}${m.technicalNotes ? ' — ' + m.technicalNotes : ''}`}
+                        className="ml-1.5 inline-flex items-center gap-0.5 text-[9px] font-bold bg-sky-100 text-sky-600 px-1.5 py-0.5 rounded-full"
+                      >
+                        <FlaskConical size={8} /> Ficha técnica
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-slate-500">{m.unit}</td>
                   <td className="px-4 py-2 text-right text-slate-700 font-mono">
                     {m.unitPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}

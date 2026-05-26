@@ -201,6 +201,10 @@ export const masterMaterialsService = {
       waste_percent:     globalData.waste_percent ?? null,
       commercial_unit:   globalData.commercial_unit ?? null,
       conversion_factor: globalData.conversion_factor ?? null,
+      // Campos técnicos opcionales (migration 058)
+      technical_yield:      globalData.technical_yield ?? null,
+      technical_yield_unit: globalData.technical_yield_unit ?? null,
+      technical_notes:      globalData.technical_notes ?? null,
       is_active:         true,
       global_source_id:  globalMaterialId,
       imported_at:       now,
