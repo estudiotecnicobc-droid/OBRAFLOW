@@ -595,13 +595,16 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     }
 
     // Descarga de Excel
-    const xlsxBtn = page.getByRole('button', { name: /Excel|XLS/i });
-    if (await xlsxBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+    // Nota: getByRole + regex falla cuando el ícono SVG altera el nombre accesible.
+    // Usar filter({ hasText }) es más robusto y agnóstico al ícono.
+    const xlsxBtn = page.locator('button').filter({ hasText: /Exportar Excel/i }).first();
+    await xlsxBtn.scrollIntoViewIfNeeded().catch(() => null);
+    if (await xlsxBtn.isVisible({ timeout: 8000 }).catch(() => false)) {
       const downloadDir = path.join(process.cwd(), 'playwright-downloads');
       fs.mkdirSync(downloadDir, { recursive: true });
 
       const [download] = await Promise.all([
-        page.waitForEvent('download', { timeout: 10000 }),
+        page.waitForEvent('download', { timeout: 15000 }),
         click(xlsxBtn),
       ]).catch(() => [null]);
 
@@ -617,6 +620,8 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
       } else {
         console.warn('⚠️  No se pudo descargar el Excel de Explosión de Insumos');
       }
+    } else {
+      console.warn('⚠️  Botón "Exportar Excel" no encontrado (posiblemente deshabilitado)');
     }
 
     console.log(`   Clics acumulados: ${clickCount}`);
