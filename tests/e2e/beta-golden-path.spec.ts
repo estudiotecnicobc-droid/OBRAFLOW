@@ -60,8 +60,8 @@ async function waitForAppIdle(page: Page, ms = 2000): Promise<void> {
 }
 
 /** Navega al sidebar y hace click en un ítem del menú por label */
-async function navTo(page: Page, label: string): Promise<void> {
-  const btn = page.getByRole('button', { name: label, exact: false });
+async function navTo(page: Page, label: string, exact = true): Promise<void> {
+  const btn = page.getByRole('button', { name: label, exact }).first();
   await btn.waitFor({ state: 'visible', timeout: 10000 });
   await click(btn);
   clickCount++;
@@ -122,7 +122,7 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await page.fill('input[type="password"]', E2E_PASSWORD);
     clickCount++;
 
-    await click(page.getByRole('button', { name: /Ingresar/i }));
+    await click(page.locator('button[type="submit"]'));
 
     // Esperar que llegue al ProjectHub o al dashboard
     await page.waitForFunction(
@@ -151,7 +151,7 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
       if (await emailInput.isVisible()) {
         await page.fill('input[type="email"]', E2E_EMAIL);
         await page.fill('input[type="password"]', E2E_PASSWORD);
-        await click(page.getByRole('button', { name: /Ingresar/i }));
+        await click(page.locator('button[type="submit"]'));
         await waitForAppIdle(page, 2500);
       }
     }
@@ -203,12 +203,13 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     }
 
     // Step 2: template — crear sin plantilla
-    const createFinalBtn = page.getByRole('button', { name: /Crear Proyecto|Finalizar|Crear/i });
+    // Narrow regex to avoid matching "Crear ahora" (ProjectHub empty-state behind the modal)
+    const createFinalBtn = page.getByRole('button', { name: /Crear Proyecto|Finalizar/i });
     await click(createFinalBtn.first());
     await waitForAppIdle(page, 3000);
 
-    // Verificar que el proyecto se creó y estamos en él
-    await expect(page.getByText(PROJECT_NAME, { exact: false })).toBeVisible({ timeout: 15000 });
+    // Verificar que el proyecto se creó y estamos en él (puede aparecer en sidebar y heading)
+    await expect(page.getByText(PROJECT_NAME, { exact: false }).first()).toBeVisible({ timeout: 15000 });
     console.log(`✅ Proyecto creado: ${PROJECT_NAME} (clics usados: ${clickCount})`);
   });
 
@@ -569,6 +570,13 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await navTo(page, 'Dashboard');
     await waitForAppIdle(page, 2000);
 
+    // Cambiar al tab "Reportes e Ingeniería" — ahí está el widget Lista de Materiales
+    const reportesTab = page.getByRole('button', { name: 'Reportes e Ingeniería', exact: true });
+    if (await reportesTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await click(reportesTab);
+      await waitForAppIdle(page, 1500);
+    }
+
     const content = await page.textContent('body') ?? '';
 
     // Verificar widget Lista de Materiales
@@ -683,9 +691,14 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
       results[label] = adminContent.includes(label);
     }
 
-    // Dashboard
+    // Dashboard — cambiar al tab "Reportes e Ingeniería" para ver Lista de Materiales
     await navTo(page, 'Dashboard');
     await waitForAppIdle(page, 2000);
+    const reportesIngBtn = page.getByRole('button', { name: 'Reportes e Ingeniería', exact: true });
+    if (await reportesIngBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await click(reportesIngBtn);
+      await waitForAppIdle(page, 1500);
+    }
     const dashContent = await page.textContent('body') ?? '';
     results['Lista de Materiales'] = dashContent.includes('Lista de Materiales');
     results['Precios actuales'] = dashContent.includes('Precios actuales');
@@ -770,7 +783,7 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     if (await emailInput.isVisible({ timeout: 3000 }).catch(() => false)) {
       await page.fill('input[type="email"]', E2E_EMAIL);
       await page.fill('input[type="password"]', E2E_PASSWORD);
-      await click(page.getByRole('button', { name: /Ingresar/i }));
+      await click(page.locator('button[type="submit"]'));
       await waitForAppIdle(page, 3000);
     }
 
