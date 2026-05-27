@@ -21,7 +21,9 @@
     "db:verify": "tsx scripts/cost-versioning/verify-schema.ts",
     "gen:snapshots": "tsx scripts/cost-versioning/runGenerateSnapshots.ts",
     "demo:sb": "tsx scripts/demo/runSupabaseCostDemo.ts",
-    "demo:budget": "tsx scripts/demo/runBudgetRecalculation.ts"
+    "demo:budget": "tsx scripts/demo/runBudgetRecalculation.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@google/genai": "^1.39.0",
@@ -40,6 +42,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "tsx": "^4.19.2",
