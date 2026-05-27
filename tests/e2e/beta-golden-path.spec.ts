@@ -250,58 +250,43 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await waitForAppIdle(page, 2500);
     await ensureProjectActive(page);
 
-    // Navegar a Administración de Proyecto
     await navTo(page, 'Administración de Proyecto');
     await waitForAppIdle(page, 1500);
 
-    // Click en "Materiales de Empresa"
+    // Ir a Materiales de Empresa y click en "Importar desde Recursos Globales"
     await dataAdminTab(page, 'Materiales de Empresa');
     await waitForAppIdle(page, 1500);
 
-    // Click en "Importar desde Recursos Globales"
-    const importBtn = page.getByRole('button', { name: /Importar desde Recursos Globales/i });
-    await importBtn.waitFor({ state: 'visible', timeout: 10000 });
-    await click(importBtn);
-    await waitForAppIdle(page, 2000);
+    const navGlobalBtn = page.getByRole('button', { name: /Importar desde Recursos Globales/i });
+    await navGlobalBtn.waitFor({ state: 'visible', timeout: 10000 });
+    await click(navGlobalBtn);
+    await waitForAppIdle(page, 2500);
 
-    // Ahora deberíamos estar en el tab "Recursos Globales"
-    await expect(page.getByText('Recursos Globales', { exact: false })).toBeVisible({ timeout: 10000 });
+    // Estamos en "Recursos Globales" — buscar el botón de importación masiva
+    await expect(page.getByText('Catálogo Global de Recursos', { exact: false })).toBeVisible({ timeout: 10000 });
 
-    const pageContent = await page.textContent('body') ?? '';
-    const resourcesFound: string[] = [];
+    const bulkBtn = page.getByRole('button', { name: /Importar al Catálogo de Empresa/i });
+    if (await bulkBtn.isVisible({ timeout: 8000 }).catch(() => false)) {
+      await click(bulkBtn);
 
-    // Intentar importar cada material
-    for (const materialKeyword of MATERIALS_TO_IMPORT) {
-      // Buscar fila que contenga el keyword
-      const rows = page.locator('tr').filter({ hasText: materialKeyword });
-      const count = await rows.count();
-      if (count === 0) {
-        console.warn(`⚠️  Material "${materialKeyword}" no encontrado en Recursos Globales`);
-        continue;
-      }
-      // Click en el primer botón de importar de esa fila
-      const importRowBtn = rows.first().getByRole('button').filter({ hasText: /Importar/i });
-      const btnCount = await importRowBtn.count();
-      if (btnCount > 0) {
-        await click(importRowBtn.first());
-        await waitForAppIdle(page, 1500);
-        resourcesFound.push(materialKeyword);
-        console.log(`  ✅ Importado: ${materialKeyword}`);
-      } else {
-        // Puede que el botón diga "Importar al Catálogo" y esté en la fila pero fuera
-        const anyImport = rows.first().locator('button').first();
-        if (await anyImport.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await click(anyImport);
-          await waitForAppIdle(page, 1500);
-          resourcesFound.push(materialKeyword);
-          console.log(`  ✅ Importado (alt): ${materialKeyword}`);
-        } else {
-          console.warn(`⚠️  Botón importar no encontrado para "${materialKeyword}"`);
-        }
-      }
+      // Esperar "Importación completada" o que el botón desaparezca (loading)
+      await page.waitForFunction(
+        () =>
+          document.body.innerText.includes('Importación completada') ||
+          document.body.innerText.includes('Cerrar'),
+        { timeout: 30000 },
+      ).catch(() => null);
+      await waitForAppIdle(page, 2000);
+
+      const body = await page.textContent('body') ?? '';
+      const mc  = body.match(/Materiales creados\s+(\d+)/)?.[1]      ?? '?';
+      const mmc = body.match(/Materiales para APU creados\s+(\d+)/)?.[1] ?? '?';
+      console.log(`📦 Importación completada — Recursos: ${mc} | APU materiales: ${mmc}`);
+    } else {
+      // Botón no visible: recursos ya importados (importResult desde sesión anterior)
+      console.log('ℹ️  Recursos globales ya importados previamente');
     }
 
-    console.log(`📦 Materiales importados: ${resourcesFound.join(', ')}`);
     console.log(`   Clics acumulados: ${clickCount}`);
   });
 
@@ -386,7 +371,7 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 6 — Importar o crear APU "Muro Exterior Cerámico 18 cm"
   // ═══════════════════════════════════════════════════════════════════════════
-  test('06 — Importar o crear APU de muro', async ({ page }) => {
+  test('06 — Crear APU de muro con materiales y usarlo en presupuesto', async ({ page }) => {
     test.skip(!E2E_EMAIL || !E2E_PASSWORD, 'Credenciales QA no configuradas');
 
     await page.goto('/');
@@ -395,53 +380,130 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
 
     await navTo(page, 'Administración de Proyecto');
     await dataAdminTab(page, 'Analisis de Precios');
-    await waitForAppIdle(page, 2000);
+    await waitForAppIdle(page, 2500);
 
-    const content = await page.textContent('body') ?? '';
+    const bodyBefore = await page.textContent('body') ?? '';
+    const apuExists = bodyBefore.includes('Muro Exterior Cerámico');
 
-    // Verificar si ya existe un APU de muro
-    if (content.includes('Muro') || content.includes('muro')) {
-      console.log('ℹ️  APU de Muro ya existe en el catálogo de la empresa');
+    // ── PARTE A: Crear APU si no existe ──────────────────────────────────────
+    if (!apuExists) {
+      console.log('  Creando APU "Muro Exterior Cerámico 18 cm" con materiales…');
 
-      // Intentar importarlo al proyecto si hay botón de importar
-      const importApuBtn = page.getByRole('button', { name: /Importar al Proyecto|Usar en Proyecto/i });
-      if (await importApuBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await click(importApuBtn.first());
-        await waitForAppIdle(page, 2000);
-        console.log('  ✅ APU de Muro importado al proyecto');
-      }
-      return;
-    }
-
-    // Crear nuevo APU mínimo
-    const newApuBtn = page.getByRole('button', { name: /Nuevo APU|Nuevo Análisis|Nueva Tarea/i });
-    if (await newApuBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await click(newApuBtn);
+      await click(page.getByRole('button', { name: 'Nueva Tarea', exact: true }));
       await waitForAppIdle(page, 1500);
 
-      // Completar nombre
-      const nameInput = page.locator('input[placeholder*="nombre"], input[placeholder*="Nombre"], input[type="text"]').first();
-      if (await nameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // Nombre
+      const nameInput = page.locator('input[placeholder*="Mampostería"]');
+      if (await nameInput.isVisible({ timeout: 5000 }).catch(() => false)) {
         await nameInput.fill('Muro Exterior Cerámico 18 cm');
         clickCount++;
       }
 
-      // Completar unidad
-      const unitInput = page.locator('input[placeholder*="unidad"], input[placeholder*="Unidad"]').first();
+      // Unidad
+      const unitInput = page.locator('input[placeholder="m2"]');
       if (await unitInput.isVisible({ timeout: 3000 }).catch(() => false)) {
         await unitInput.fill('m²');
         clickCount++;
       }
 
+      // Materiales con rendimientos reales (yields por m²)
+      const MATERIAL_YIELDS: Array<{ keyword: string; qty: string }> = [
+        { keyword: 'CEMENTO PORTLAND', qty: '0.5'  },
+        { keyword: 'ARENA GRUESA',     qty: '0.01' },
+        { keyword: 'LADRILLO HUECO 18', qty: '6'   },
+      ];
+
+      // El select de materiales se identifica por su option placeholder
+      const matSelect = page.locator('select').filter({
+        has: page.locator('option').filter({ hasText: '— Seleccionar material —' }),
+      });
+
+      for (const { keyword, qty } of MATERIAL_YIELDS) {
+        // Buscar option que contenga el keyword (los nombres vienen en MAYÚSCULAS del seed)
+        const optionEls = await matSelect.locator('option').all();
+        let matchValue: string | null = null;
+        for (const opt of optionEls) {
+          const text = (await opt.textContent() ?? '').toUpperCase();
+          if (text.includes(keyword)) {
+            matchValue = await opt.getAttribute('value');
+            break;
+          }
+        }
+
+        if (!matchValue) {
+          console.warn(`⚠️  Material "${keyword}" no disponible en catálogo — posiblemente el paso 04 no importó`);
+          continue;
+        }
+
+        await matSelect.selectOption({ value: matchValue });
+        clickCount++;
+        await waitForAppIdle(page, 300);
+
+        // El primer botón "Agregar" en el DOM corresponde a la sección Materiales
+        await click(page.getByRole('button', { name: 'Agregar', exact: true }).first());
+        await waitForAppIdle(page, 500);
+
+        // Actualizar cantidad en el último input de la tabla de materiales
+        const qtyInputs = page.locator('tbody input[type="number"]');
+        if (await qtyInputs.count() > 0) {
+          await qtyInputs.last().fill(qty);
+          await qtyInputs.last().press('Tab');
+          clickCount++;
+        }
+      }
+
       // Guardar APU
-      const saveApuBtn = page.getByRole('button', { name: /Guardar|Crear APU|Agregar/i });
-      if (await saveApuBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await click(saveApuBtn);
-        await waitForAppIdle(page, 2000);
-        console.log('  ✅ APU "Muro Exterior Cerámico 18 cm" creado');
+      const saveBtn = page.getByRole('button', { name: 'Guardar', exact: true }).first();
+      if (await saveBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await click(saveBtn);
+        await waitForAppIdle(page, 3000);
+        console.log('  ✅ APU "Muro Exterior Cerámico 18 cm" creado con materiales');
+      } else {
+        console.warn('⚠️  Botón "Guardar" no visible — APU posiblemente no guardado');
       }
     } else {
-      console.warn('⚠️  No se encontró botón para crear nuevo APU — flujo no completado');
+      console.log('ℹ️  APU "Muro Exterior Cerámico 18 cm" ya existe en el catálogo');
+    }
+
+    // ── PARTE B: Usar APU en presupuesto ─────────────────────────────────────
+    await waitForAppIdle(page, 1000);
+
+    const apuRow = page.locator('tr').filter({ hasText: /Muro Exterior Cerámico/i }).first();
+    if (!(await apuRow.isVisible({ timeout: 8000 }).catch(() => false))) {
+      console.warn('⚠️  Fila APU no encontrada — el APU puede no haberse guardado');
+      return;
+    }
+
+    const usarBtn = apuRow.getByRole('button', { name: 'Usar', exact: true });
+    if (!(await usarBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
+      console.warn('⚠️  Botón "Usar" no encontrado en la fila del APU');
+      return;
+    }
+
+    await click(usarBtn);
+    await waitForAppIdle(page, 1500);
+
+    // Modal "Usar en Presupuesto" — scoped al overlay fixed
+    const modalOverlay = page.locator('[class*="fixed"][class*="inset-0"]').last();
+    const modalQtyInput = modalOverlay.locator('input[type="number"]');
+    if (await modalQtyInput.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await modalQtyInput.fill('45');
+      clickCount++;
+    }
+
+    const importBtn = modalOverlay.getByRole('button', { name: 'Importar al Proyecto', exact: true });
+    if (await importBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await click(importBtn);
+      await waitForAppIdle(page, 3000);
+
+      const afterBody = await page.textContent('body') ?? '';
+      if (afterBody.includes('ya fue incorporada')) {
+        console.log('ℹ️  APU ya estaba en el presupuesto — estado válido');
+      } else {
+        console.log('  ✅ APU "Muro Exterior Cerámico 18 cm" importado al presupuesto (45 m²)');
+      }
+    } else {
+      console.warn('⚠️  Botón "Importar al Proyecto" no encontrado en modal');
     }
 
     console.log(`   Clics acumulados: ${clickCount}`);
@@ -465,15 +527,15 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     // Verificar que no hay error de RLS / 500
     expect(failedRequests.filter(r => r.startsWith('5')).length, '5xx requests detectadas').toBe(0);
 
-    // Buscar si hay items en el presupuesto
-    const hasItems = content.includes('Muro') || content.includes('tarea') || content.includes('APU');
-    console.log(`   Items en presupuesto visibles: ${hasItems}`);
+    // Verificar que hay al menos un ítem "Muro Exterior" en el presupuesto
+    const hasMuroItem = content.includes('Muro Exterior Cerámico');
+    console.log(`   Ítem "Muro Exterior Cerámico" en presupuesto: ${hasMuroItem ? '✅' : '❌'}`);
 
-    // Verificar que no hay "$0.00 - Requiere asignación" sin razón
-    const zeroCostWarning = content.match(/\$0[,.]00.*Requiere/gi) ?? [];
-    if (zeroCostWarning.length > 0) {
-      console.warn(`⚠️  FALLA CRÍTICA: Ítems con costo $0.00 detectados (${zeroCostWarning.length})`);
-    }
+    // Verificar que hay al menos un costo > $0 en el presupuesto
+    // Regex: $ seguido de dígito 1-9 (descarta $0.00)
+    const hasPositiveCost = /\$[1-9][0-9,\.]+/.test(content);
+    console.log(`   Subtotal > $0 detectado: ${hasPositiveCost ? '✅' : '❌'}`);
+    expect(hasPositiveCost, 'El presupuesto debe tener al menos un ítem con subtotal > $0').toBe(true);
 
     console.log(`   Clics acumulados: ${clickCount}`);
   });
@@ -524,9 +586,12 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     const hasMaterials = contentAfter.includes('Materiales') || contentAfter.includes('Material');
     console.log(`  Tabla con materiales: ${hasMaterials ? '✅' : '❌'}`);
 
-    // Verificar que no hay tabla vacía sin empty state
-    if (contentAfter.includes('Sin datos') && contentAfter.includes('Error')) {
-      console.warn('⚠️  Explosión de Insumos muestra error o está vacía');
+    // Verificar que hay al menos una fila de datos en la tabla
+    const tableRow = page.locator('table tbody tr').first();
+    const hasTableRow = await tableRow.isVisible({ timeout: 8000 }).catch(() => false);
+    console.log(`  Tabla tiene filas de datos: ${hasTableRow ? '✅' : '❌'}`);
+    if (!hasTableRow) {
+      console.warn('⚠️  Explosión de Insumos sin filas — APU puede no tener materiales con costo');
     }
 
     // Descarga de Excel
