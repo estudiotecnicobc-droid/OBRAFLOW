@@ -6,6 +6,14 @@
 
 ---
 
+> **ADVERTENCIA METODOLÓGICA**  
+> Los rendimientos y precios utilizados en este diagnóstico son **valores provisionales del fixture QA** elegidos para verificar que la multiplicación lineal `qty × precio` funciona correctamente.  
+> **No constituyen una receta editorial validada por Chandías, Di Fiore ni ninguna otra fuente técnica.**  
+> No deben sembrarse en el Catálogo Global sin revisión profesional independiente.  
+> El objetivo del test es confirmar que `6 × precio ≠ 1 × precio`; los valores concretos (6 u/m², $250/u, etc.) son placeholders de fixture, no datos de referencia.
+
+---
+
 ## 1. Síntoma observado
 
 El test E2E `step 07 - APU cost appears in budget row` reporta:
@@ -72,49 +80,51 @@ El test nunca agrega categorías de mano de obra al APU. Resultado: `laborYields
 
 ---
 
-## 3. Fórmulas canónicas vs fórmulas en uso
+## 3. Fórmulas del sistema vs comportamiento con el bug
 
-### Costo unitario APU (por m² de muro 18 cm)
+> Los importes en $ son valores provisionales del fixture QA, no precios de referencia editorial.
+
+### Costo unitario APU — valores del fixture QA (por m² de muro 18 cm)
 
 ```
 CostoUnitario = Σ Materiales + Mano de Obra
 
-Materiales:
-  Ladrillo:  6 u/m²    × $250/u   = $1.500
+Materiales (rendimientos del fixture):
+  Ladrillo:  6 u/m²    × $250/u    = $1.500
   Arena:     0,01 m³/m² × $12.000/m³ = $120
   Cemento:   0,5 kg/m²  × $250/kg  = $125
   ─────────────────────────────────────────
   SubtotalMat = $1.745 / m²
 
-MO (fórmula calculationService.ts):
-  MO = (dailyRate × 8h × laborQty) / dailyYield
-     = ($15.000 × 8 × 1) / 8
-     = $15.000 / m²
+MO (fórmula real: calculationService.ts — constante WORKDAY_HOURS = 9 h):
+  hourlyRate = basicHourlyRate × (1 + (socialCharges + insurance) / 100)
+  MO = (hourlyRate × 9h × laborQty) / dailyYield
+  [El fixture QA no carga MO → laborCost = 0 en el test actual]
 
-CostoUnitario = $1.745 + $15.000 = $16.745 / m²
+CostoUnitario(fixture, sin MO) = $1.745 / m²
 ```
 
-### Explosión para 45 m²
+### Explosión para 45 m² — con fixture sin bugs
 
 ```
 SubtotalPresupuesto = CostoUnitario × 45 m²
-                    = $16.745 × 45
-                    = $753.525
+                    = $1.745 × 45
+                    = $78.525   (solo materiales; MO = 0 porque el test no la carga)
 ```
 
 ### Lo que el bug produce actualmente
 
 ```
 Materiales con qty=1 (en lugar de 6 / 0,01 / 0,5):
-  Ladrillo:  1 u/m²    × $250    = $250   (debería ser $1.500)
+  Ladrillo:  1 u/m²    × $250    = $250    (debería ser $1.500)
   Arena:     1 m³/m²   × $12.000 = $12.000 (debería ser $120)
-  Cemento:   1 kg/m²   × $250    = $250   (debería ser $125)
-  SubtotalMat(bug) = $12.500 / m²  ← inflado 7,2×
+  Cemento:   1 kg/m²   × $250    = $250    (debería ser $125)
+  SubtotalMat(bug) = $12.500 / m²  ← inflado 7,2× por qty=1
 
-MO = $0 (sin labor yields)
+MO = $0 (sin labor yields — igual que sin bug; el fixture no carga MO)
 
-CostoUnitario(bug) = $12.500 / m²   (debería ser $16.745)
-SubtotalPresupuesto(bug) = $562.500  (debería ser $753.525)
+CostoUnitario(bug) = $12.500 / m²   (debería ser $1.745)
+SubtotalPresupuesto(bug) = $562.500  (debería ser $78.525)
 ```
 
 El motor de cálculo (`calculationService.ts`) es **correcto**. El error está en los datos de entrada.
@@ -223,21 +233,21 @@ await page.getByLabel(/categor[ií]a|rubro/i).selectOption({ label: 'Mamposterí
 
 ---
 
-## 7. Rangos de sanidad para APU Muro 18 cm
+## 7. Rangos de sanidad para el fixture QA
 
-Usados para validar que los fixes producen valores razonables:
+> Estos rangos verifican que el test usa los rendimientos provisionales correctos,  
+> **no** que los rendimientos sean técnicamente precisos para una obra real.
 
-| Métrica | Mínimo esperado | Máximo esperado | Unidad |
-|---------|-----------------|-----------------|--------|
+| Métrica | Mínimo fixture | Máximo fixture | Unidad |
+|---------|----------------|----------------|--------|
 | Rendimiento ladrillo | 5 | 8 | u/m² |
 | Rendimiento arena | 0.005 | 0.02 | m³/m² |
 | Rendimiento cemento | 0.3 | 0.8 | kg/m² |
-| Costo material/m² | 1.000 | 5.000 | $/m² |
-| Costo MO/m² | 5.000 | 30.000 | $/m² |
-| Costo total/m² | 6.000 | 35.000 | $/m² |
-| Costo total 45 m² | 270.000 | 1.575.000 | $ |
+| Costo material/m² (solo fixture) | 500 | 5.000 | $/m² |
+| Costo total 45 m² (solo materiales) | 22.500 | 225.000 | $ |
 
-Si el test reporta valores fuera de estos rangos, el bug no está corregido.
+Si el test reporta `qty = 1` para ladrillo, el bug no está corregido.  
+Si el test reporta `qty = 6` para ladrillo (el valor del fixture), el selector está arreglado.
 
 ---
 

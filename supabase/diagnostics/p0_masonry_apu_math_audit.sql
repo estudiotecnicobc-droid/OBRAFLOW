@@ -7,16 +7,24 @@
 -- ============================================================
 
 -- ─────────────────────────────────────────────────────────────
--- 0. Contexto: Valores canónicos esperados para Muro 18 cm
+-- ADVERTENCIA METODOLÓGICA
+-- Los rendimientos y precios de la tabla siguiente son valores
+-- PROVISIONALES DEL FIXTURE QA, elegidos para verificar que la
+-- multiplicación lineal qty × precio funciona. NO son una receta
+-- editorial validada por Chandías, Di Fiore ni otra fuente técnica.
+-- No sembrar en el Catálogo Global sin revisión profesional.
+-- ─────────────────────────────────────────────────────────────
+-- 0. Valores provisionales del fixture QA para Muro 18 cm
 --    (APU por m²)
---    Material          | Rendimiento | Precio ref.  | Costo/m²
---    ------------------+-----------+--------------+-----------
---    Ladrillo hueco 18 | 6 u/m²    | ~$250/u      | $1.500
---    Arena gruesa      | 0.01 m³/m²| ~$12.000/m³  | $120
---    Cemento portland  | 0.5 kg/m²  | ~$250/kg     | $125
---    MO Albañil        | 1 jornada  | ~$15.000/día | $15.000
---    ------------------+-----------+--------------+-----------
---    Costo total/m²    |            |              | ~$16.745
+--    Material          | Rendimiento fixture | Precio ref. fixture
+--    ------------------+--------------------+--------------------
+--    Ladrillo hueco 18 | 6 u/m²             | ~$250/u
+--    Arena gruesa      | 0.01 m³/m²         | ~$12.000/m³
+--    Cemento portland  | 0.5 kg/m²          | ~$250/kg
+--    MO Albañil        | no cargada en test | —
+--    ------------------+--------------------+--------------------
+--    Nota: WORKDAY_HOURS real del sistema = 9 h
+--          (masterTaskCostService.ts + calculationService.ts)
 -- ─────────────────────────────────────────────────────────────
 
 
@@ -104,8 +112,9 @@ SELECT
     lc.name                AS labor_category,
     tly.quantity           AS labor_qty,
     lc.daily_rate,
-    -- MO por unidad APU = (daily_rate × 8h × labor_qty) / daily_yield
-    -- pero daily_yield debe leerse de tasks
+    -- MO por unidad APU = (basicHourlyRate × cargosFactor × 9h × labor_qty) / daily_yield
+    -- WORKDAY_HOURS = 9 (constante real en calculationService.ts y masterTaskCostService.ts)
+    -- daily_yield debe leerse de la tabla tasks
     CASE
         WHEN tly.quantity IS NULL THEN '🔴 qty=NULL'
         WHEN tly.quantity = 0    THEN '⚠️ qty=0 (sin MO)'
@@ -274,12 +283,19 @@ LIMIT 100;
 
 
 -- ─────────────────────────────────────────────────────────────
--- 10. Cálculo canónico manual (verificación de fórmulas)
---     Dado un task_id específico, reconstruye el costo unitario
---     como lo haría calculationService.ts
+-- 10. Reconstrucción del costo unitario (verificación de fórmulas)
+--     Replica la lógica de calculationService.calculateUnitPrice()
+--     para un task_id específico del proyecto QA.
+--
+-- INSTRUCCIONES:
+--   1. Ejecutar consultas 1-5 primero para obtener el task_id correcto.
+--   2. Reemplazar '<TASK_ID>' (dos ocurrencias) con el UUID real.
+--   3. Descomentar el bloque WITH...SELECT y ejecutarlo.
+--
+-- Nota: calculationService.ts usa basicHourlyRate × cargosFactor × 9h.
+--       Esta consulta aproxima con daily_rate / daily_yield si no hay
+--       access directo a basicHourlyRate desde SQL.
 -- ─────────────────────────────────────────────────────────────
--- Reemplazar '<TASK_ID>' con el UUID del APU de muro en el proyecto QA.
--- Ejecutar consultas 2-5 primero para obtener el task_id correcto.
 
 /*
 WITH
@@ -297,8 +313,12 @@ material_cost AS (
     WHERE ty.task_id = '<TASK_ID>'
 ),
 labor_cost_derived AS (
+    -- WORKDAY_HOURS = 9 según calculationService.ts y masterTaskCostService.ts
+    -- lc.basic_hourly_rate × cargos_factor × 9h × qty / daily_yield
+    -- Aproximación simplificada: si labor_categories expone daily_rate,
+    -- usar daily_rate × qty / daily_yield (sin multiplicar por horas)
     SELECT
-        SUM( (lc.daily_rate * 8.0 * tly.quantity) / NULLIF(t.daily_yield, 0) ) AS total_labor_cost
+        SUM( (lc.daily_rate * tly.quantity) / NULLIF(t.daily_yield, 0) ) AS total_labor_cost
     FROM task_labor_yields tly
     JOIN labor_categories lc ON lc.id = tly.labor_category_id
     JOIN tasks t             ON t.id = tly.task_id
