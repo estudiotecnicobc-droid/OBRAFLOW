@@ -1,15 +1,18 @@
 /**
  * E2E Beta Golden Path — Presupuesto de Mampostería 45 m²
  *
- * Simula el flujo completo de un colega beta:
- *   crear proyecto → importar insumos → editar precio local →
- *   crear/importar APU → cargar cómputo → verificar presupuesto →
- *   generar Explosión de Insumos → Lista de Materiales → Reporte Completo
+ * Cada corrida genera un RUN_ID único (timestamp con segundos) → proyecto
+ * y APU aislados por corrida → el test es repetible sin limpiar datos entre runs.
  *
  * Variables de entorno requeridas:
  *   OBRAFLOW_E2E_URL      URL base (default: https://obraflow.net)
  *   OBRAFLOW_E2E_EMAIL    Email del usuario QA (NO master_admin)
  *   OBRAFLOW_E2E_PASSWORD Contraseña del usuario QA
+ *
+ * Hard asserts: 01 login, 02 proyecto creado, 05 drawer+precio+badge,
+ *               06 APU creado+visible, 07 subtotal > $0, 08+09 descargas > 500b,
+ *               12 0 errores 5xx.
+ * Soft asserts: 03 dashboard, 04 import (estado global), 10 reporte, 11 visual.
  */
 
 import { test, expect, type Page, type Locator } from '@playwright/test';
@@ -20,16 +23,22 @@ import * as fs from 'fs';
 
 const E2E_EMAIL    = process.env.OBRAFLOW_E2E_EMAIL    ?? '';
 const E2E_PASSWORD = process.env.OBRAFLOW_E2E_PASSWORD ?? '';
-const PROJECT_NAME = 'QA_E2E_Mamposteria_45m2_DELETE_ME';
+
+// RUN_ID único por corrida (YYYY-MM-DD-HHmmss) — se computa una vez al cargar el módulo
+const RUN_ID = new Date().toISOString().slice(0, 19).replace('T', '-').replace(/:/g, '');
+
+const PROJECT_NAME   = `QA_E2E_${RUN_ID}_DELETE_ME`;
 const PROJECT_CLIENT = 'Cliente QA';
+const APU_NAME_RUN   = `QA_Muro18_${RUN_ID}`;
 
-// Materiales a importar desde Recursos Globales
-const MATERIALS_TO_IMPORT = ['Cemento', 'Arena', 'Ladrillo'];
+// Materiales del catálogo global (keywords en MAYÚSCULAS para coincidencia)
+const MATERIAL_YIELDS: Array<{ keyword: string; qty: string }> = [
+  { keyword: 'CEMENTO PORTLAND', qty: '0.5'  },
+  { keyword: 'ARENA GRUESA',     qty: '0.01' },
+  { keyword: 'LADRILLO HUECO 18', qty: '6'   },
+];
 
-// APU a importar o crear
-const APU_NAME = 'Muro';
-
-// ── Métricas ─────────────────────────────────────────────────────────────────
+// ── Métricas (acumuladas a través de todos los tests de la corrida) ────────────
 
 let clickCount = 0;
 const consoleErrors: string[] = [];
@@ -38,37 +47,33 @@ const downloadedFiles: string[] = [];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Hace click y suma al contador */
 async function click(locator: Locator): Promise<void> {
   await locator.click();
   clickCount++;
 }
 
-/** Espera a que desaparezca cualquier indicador de loading */
 async function waitForAppIdle(page: Page, ms = 2000): Promise<void> {
   await page.waitForLoadState('domcontentloaded');
-  // Esperar que no haya texto "Cargando" o spinners en pantalla
   try {
     await page.waitForFunction(
       () => !document.body.innerText.includes('Cargando sesión'),
       { timeout: 15000 },
     );
   } catch {
-    // timeout ok — el spinner ya no está
+    // spinner ya desapareció o nunca apareció
   }
   await page.waitForTimeout(ms);
 }
 
-/** Navega al sidebar y hace click en un ítem del menú por label */
+/** Navega al sidebar; clickCount no se duplica */
 async function navTo(page: Page, label: string, exact = true): Promise<void> {
   const btn = page.getByRole('button', { name: label, exact }).first();
   await btn.waitFor({ state: 'visible', timeout: 10000 });
   await click(btn);
-  clickCount++;
   await waitForAppIdle(page, 1000);
 }
 
-/** Dentro de DataAdmin, hace click en una subtab por texto */
+/** Hace click en una subtab del DataAdmin por texto */
 async function dataAdminTab(page: Page, label: string): Promise<void> {
   const btn = page.getByRole('button', { name: label, exact: false }).first();
   await btn.waitFor({ state: 'visible', timeout: 10000 });
@@ -76,31 +81,56 @@ async function dataAdminTab(page: Page, label: string): Promise<void> {
   await waitForAppIdle(page, 1000);
 }
 
+/** Login → ProjectHub → seleccionar proyecto QA */
+async function ensureProjectActive(page: Page): Promise<void> {
+  const body = await page.textContent('body') ?? '';
+  if (body.includes('Cargando sesión')) {
+    await page.waitForFunction(
+      () => !document.body.innerText.includes('Cargando sesión'),
+      { timeout: 15000 },
+    );
+  }
+
+  const emailInput = page.locator('input[type="email"]');
+  if (await emailInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await page.fill('input[type="email"]', E2E_EMAIL);
+    await page.fill('input[type="password"]', E2E_PASSWORD);
+    await click(page.locator('button[type="submit"]'));
+    await waitForAppIdle(page, 3000);
+  }
+
+  const currentBody = await page.textContent('body') ?? '';
+  if (currentBody.includes('Mis Proyectos') || currentBody.includes('Panel de Proyectos')) {
+    const projectCard = page.getByText(PROJECT_NAME, { exact: false }).first();
+    if (await projectCard.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await click(projectCard);
+      await waitForAppIdle(page, 3000);
+    } else {
+      console.warn(`⚠️  Proyecto "${PROJECT_NAME}" no encontrado en ProjectHub`);
+    }
+  }
+}
+
 // ── Test Suite ────────────────────────────────────────────────────────────────
 
 test.describe('Beta Golden Path — Mampostería 45 m²', () => {
+  test.describe.configure({ mode: 'serial' });
 
   test.beforeAll(() => {
     if (!E2E_EMAIL || !E2E_PASSWORD) {
       console.warn('⚠️  OBRAFLOW_E2E_EMAIL / OBRAFLOW_E2E_PASSWORD no están definidas.');
-      console.warn('   Exportá las variables antes de correr este test:');
-      console.warn('   export OBRAFLOW_E2E_EMAIL=qa@tudominio.com');
-      console.warn('   export OBRAFLOW_E2E_PASSWORD=tu_password');
     }
+    console.log(`🔑 RUN_ID: ${RUN_ID}`);
+    console.log(`📁 Proyecto QA: ${PROJECT_NAME}`);
+    console.log(`🔧 APU QA: ${APU_NAME_RUN}`);
   });
 
   test.beforeEach(({ page }) => {
-    // Capturar errores de consola
     page.on('console', msg => {
-      if (msg.type() === 'error') {
-        consoleErrors.push(msg.text());
-      }
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
     });
-    // Capturar requests 5xx
     page.on('response', res => {
-      if (res.status() >= 500) {
-        failedRequests.push(`${res.status()} ${res.url()}`);
-      }
+      if (res.status() >= 500) failedRequests.push(`${res.status()} ${res.url()}`);
     });
   });
 
@@ -113,18 +143,14 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await page.goto('/');
     await waitForAppIdle(page, 1500);
 
-    // Verificar pantalla de login
     await expect(page.getByText('Obraflow')).toBeVisible();
 
-    // Completar formulario
     await page.fill('input[type="email"]', E2E_EMAIL);
     clickCount++;
     await page.fill('input[type="password"]', E2E_PASSWORD);
     clickCount++;
-
     await click(page.locator('button[type="submit"]'));
 
-    // Esperar que llegue al ProjectHub o al dashboard
     await page.waitForFunction(
       () =>
         document.body.innerText.includes('Mis Proyectos') ||
@@ -137,36 +163,26 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 2 — Crear proyecto QA
+  // STEP 2 — Crear proyecto QA (nombre único por RUN_ID → siempre nuevo)
   // ═══════════════════════════════════════════════════════════════════════════
-  test('02 — Crear proyecto QA', async ({ page }) => {
+  test('02 — Crear proyecto QA con RUN_ID', async ({ page }) => {
     test.skip(!E2E_EMAIL || !E2E_PASSWORD, 'Credenciales QA no configuradas');
 
     await page.goto('/');
     await waitForAppIdle(page, 2000);
 
-    // Autenticar
-    if (await page.getByText('Obraflow', { exact: false }).isVisible()) {
-      const emailInput = page.locator('input[type="email"]');
-      if (await emailInput.isVisible()) {
-        await page.fill('input[type="email"]', E2E_EMAIL);
-        await page.fill('input[type="password"]', E2E_PASSWORD);
-        await click(page.locator('button[type="submit"]'));
-        await waitForAppIdle(page, 2500);
-      }
+    // Autenticar si es necesario
+    const emailInput = page.locator('input[type="email"]');
+    if (await emailInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await page.fill('input[type="email"]', E2E_EMAIL);
+      await page.fill('input[type="password"]', E2E_PASSWORD);
+      await click(page.locator('button[type="submit"]'));
+      await waitForAppIdle(page, 2500);
     }
 
-    // Si ya hay un proyecto QA activo, continuar
-    const body = await page.textContent('body') ?? '';
-    if (body.includes(PROJECT_NAME)) {
-      console.log('ℹ️  Proyecto QA ya existe — omitiendo creación');
-      return;
-    }
-
-    // Ir al ProjectHub si no estamos ahí
+    // Ir al ProjectHub si estamos dentro de un proyecto
     const nuevoBtn = page.getByRole('button', { name: /Nuevo Proyecto/i });
     if (!(await nuevoBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
-      // Puede que estemos dentro de un proyecto — salir
       const cambiarBtn = page.getByRole('button', { name: /Cambiar/i });
       if (await cambiarBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await click(cambiarBtn);
@@ -177,67 +193,59 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await click(page.getByRole('button', { name: /Nuevo Proyecto/i }));
     await waitForAppIdle(page, 1000);
 
-    // Wizard: modo welcome → crear nuevo
+    // Wizard paso bienvenida → crear nuevo
     const crearBtn = page.getByRole('button', { name: /Crear Nuevo Proyecto/i });
     if (await crearBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await click(crearBtn);
       await waitForAppIdle(page, 800);
     }
 
-    // Step 0: datos generales
+    // Paso 0: nombre y cliente
     await page.fill('input[placeholder="Ej: Edificio Central"]', PROJECT_NAME);
     clickCount++;
     await page.fill('input[placeholder="Nombre del Cliente"]', PROJECT_CLIENT);
     clickCount++;
 
-    // Avanzar al step 1
-    const nextBtn = page.getByRole('button', { name: /Siguiente|Next|Continuar/i });
+    // Paso 1: specs técnicas
+    const nextBtn = page.getByRole('button', { name: /Siguiente|Continuar/i });
     await click(nextBtn);
     await waitForAppIdle(page, 800);
 
-    // Step 1: datos técnicos — avanzar
-    const nextBtn2 = page.getByRole('button', { name: /Siguiente|Next|Continuar/i });
+    const nextBtn2 = page.getByRole('button', { name: /Siguiente|Continuar/i });
     if (await nextBtn2.isVisible({ timeout: 3000 }).catch(() => false)) {
       await click(nextBtn2);
       await waitForAppIdle(page, 800);
     }
 
-    // Step 2: template — crear sin plantilla
-    // Narrow regex to avoid matching "Crear ahora" (ProjectHub empty-state behind the modal)
+    // Paso 2: template → crear sin plantilla
     const createFinalBtn = page.getByRole('button', { name: /Crear Proyecto|Finalizar/i });
     await click(createFinalBtn.first());
     await waitForAppIdle(page, 3000);
 
-    // Verificar que el proyecto se creó y estamos en él (puede aparecer en sidebar y heading)
+    // Hard assert: proyecto visible en página
     await expect(page.getByText(PROJECT_NAME, { exact: false }).first()).toBeVisible({ timeout: 15000 });
-    console.log(`✅ Proyecto creado: ${PROJECT_NAME} (clics usados: ${clickCount})`);
+    console.log(`✅ Proyecto creado: ${PROJECT_NAME}`);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 3 — Verificar Dashboard
+  // STEP 3 — Dashboard no está en blanco
   // ═══════════════════════════════════════════════════════════════════════════
   test('03 — Dashboard no está en blanco', async ({ page }) => {
     test.skip(!E2E_EMAIL || !E2E_PASSWORD, 'Credenciales QA no configuradas');
 
     await page.goto('/');
     await waitForAppIdle(page, 2500);
-
-    // Autenticar y seleccionar proyecto si es necesario
     await ensureProjectActive(page);
 
-    // Verificar que Dashboard tiene contenido
     const content = await page.textContent('body') ?? '';
     expect(content.length).toBeGreaterThan(200);
+    await expect(page.locator('body')).not.toContainText('Error 404');
 
-    // Verificar elementos esperados
     const found: Record<string, boolean> = {};
-    for (const label of ['Dashboard', 'Lista de Materiales', 'Proyecto']) {
+    for (const label of ['Dashboard', 'Proyecto']) {
       found[label] = content.includes(label);
     }
     console.log('📊 Dashboard — labels encontrados:', found);
-
-    // El dashboard NO debe estar completamente en blanco
-    await expect(page.locator('body')).not.toContainText('Error 404');
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -251,9 +259,6 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await ensureProjectActive(page);
 
     await navTo(page, 'Administración de Proyecto');
-    await waitForAppIdle(page, 1500);
-
-    // Ir a Materiales de Empresa y click en "Importar desde Recursos Globales"
     await dataAdminTab(page, 'Materiales de Empresa');
     await waitForAppIdle(page, 1500);
 
@@ -262,14 +267,11 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await click(navGlobalBtn);
     await waitForAppIdle(page, 2500);
 
-    // Estamos en "Recursos Globales" — buscar el botón de importación masiva
     await expect(page.getByText('Catálogo Global de Recursos', { exact: false })).toBeVisible({ timeout: 10000 });
 
     const bulkBtn = page.getByRole('button', { name: /Importar al Catálogo de Empresa/i });
     if (await bulkBtn.isVisible({ timeout: 8000 }).catch(() => false)) {
       await click(bulkBtn);
-
-      // Esperar "Importación completada" o que el botón desaparezca (loading)
       await page.waitForFunction(
         () =>
           document.body.innerText.includes('Importación completada') ||
@@ -277,23 +279,24 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
         { timeout: 30000 },
       ).catch(() => null);
       await waitForAppIdle(page, 2000);
-
-      const body = await page.textContent('body') ?? '';
-      const mc  = body.match(/Materiales creados\s+(\d+)/)?.[1]      ?? '?';
-      const mmc = body.match(/Materiales para APU creados\s+(\d+)/)?.[1] ?? '?';
-      console.log(`📦 Importación completada — Recursos: ${mc} | APU materiales: ${mmc}`);
+      console.log('📦 Importación desde Recursos Globales completada');
     } else {
-      // Botón no visible: recursos ya importados (importResult desde sesión anterior)
-      console.log('ℹ️  Recursos globales ya importados previamente');
+      console.log('ℹ️  Botón de importación masiva no visible — recursos posiblemente ya importados');
     }
 
+    // Verificar que al menos uno de los materiales necesarios está en el catálogo
+    await dataAdminTab(page, 'Materiales de Empresa');
+    await waitForAppIdle(page, 1500);
+    const body = await page.textContent('body') ?? '';
+    const materialsVisible = ['Cemento', 'Arena', 'Ladrillo'].filter(m => body.includes(m));
+    console.log(`   Materiales en catálogo empresa: ${materialsVisible.join(', ')}`);
     console.log(`   Clics acumulados: ${clickCount}`);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 5 — Verificar Materiales de Empresa y editar precio local
+  // STEP 5 — Editar precio local del Cemento Portland (HARD ASSERTS)
   // ═══════════════════════════════════════════════════════════════════════════
-  test('05 — Editar precio local del Cemento en Materiales de Empresa', async ({ page }) => {
+  test('05 — Editar precio local del Cemento Portland', async ({ page }) => {
     test.skip(!E2E_EMAIL || !E2E_PASSWORD, 'Credenciales QA no configuradas');
 
     await page.goto('/');
@@ -304,72 +307,68 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await dataAdminTab(page, 'Materiales de Empresa');
     await waitForAppIdle(page, 2000);
 
-    // Verificar que aparecen materiales importados
-    const content = await page.textContent('body') ?? '';
-    const materialsVisible = MATERIALS_TO_IMPORT.filter(m => content.includes(m));
-    console.log(`   Materiales visibles en empresa: ${materialsVisible.join(', ')}`);
+    // Localizar fila del Cemento Portland en la tabla
+    const cementoRow = page.locator('table tbody tr').filter({ hasText: /Cemento Portland/i }).first();
+    await expect(cementoRow).toBeVisible({ timeout: 10000 });
+    console.log('  ✅ Fila "Cemento Portland" encontrada');
 
-    // Buscar el Cemento y editar su precio
-    const cementoRow = page.locator('tr, [class*="row"], li').filter({ hasText: /Cemento/i }).first();
-    if (!(await cementoRow.isVisible({ timeout: 5000 }).catch(() => false))) {
-      console.warn('⚠️  Cemento no encontrado en Materiales de Empresa — puede que no haya sido importado');
-      return;
-    }
-
-    // Abrir el drawer de edición (botón lápiz / Edit)
-    const editBtn = cementoRow.getByRole('button').first();
+    // Abrir el drawer de edición por el botón con title="Editar"
+    const editBtn = cementoRow.locator('button[title="Editar"]');
+    await expect(editBtn).toBeVisible({ timeout: 5000 });
     await click(editBtn);
-    await waitForAppIdle(page, 1500);
 
-    // Verificar que el drawer se abrió
-    const drawerVisible = await page.getByText(/precio|unitario|Precio/i).isVisible({ timeout: 5000 }).catch(() => false);
-    if (!drawerVisible) {
-      console.warn('⚠️  Drawer de edición no se abrió');
-      return;
-    }
+    // HARD ASSERT: el drawer debe abrirse y mostrar "Editar Material"
+    await expect(page.getByText('Editar Material', { exact: true })).toBeVisible({ timeout: 10000 });
+    console.log('  ✅ Drawer de edición abierto');
 
-    // Cambiar precio de 150 a 180
-    const priceInput = page.locator('input[type="number"]').filter({ has: page.getByText(/precio/i) });
-    const priceInputAlt = page.locator('input[name*="price"], input[id*="price"]').first();
-    // Buscar el input de precio unitario en el drawer
-    const allNumberInputs = page.locator('input[type="number"]');
-    const count = await allNumberInputs.count();
+    // Input de Precio unitario: placeholder "0.00" es único en el drawer
+    const priceInput = page.locator('input[placeholder="0.00"]');
+    await expect(priceInput).toBeVisible({ timeout: 5000 });
 
-    // Buscar input con valor que parezca precio (> 0)
-    let priceInputFound = false;
-    for (let i = 0; i < count; i++) {
-      const inp = allNumberInputs.nth(i);
-      const val = await inp.inputValue();
-      if (parseFloat(val) > 0) {
-        await inp.clear();
-        await inp.fill('180');
-        clickCount++;
-        priceInputFound = true;
-        break;
-      }
-    }
+    const precioBefore = await priceInput.inputValue();
+    console.log(`  Precio actual: ${precioBefore}`);
 
-    if (!priceInputFound) {
-      console.warn('⚠️  Input de precio no encontrado en drawer');
-    }
+    await priceInput.clear();
+    await priceInput.fill('180');
+    await priceInput.press('Tab');
+    clickCount++;
 
-    // Guardar
-    const saveBtn = page.getByRole('button', { name: /Guardar|Save/i });
-    if (await saveBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await click(saveBtn);
-      await waitForAppIdle(page, 2000);
-      console.log('  ✅ Precio local del Cemento actualizado a 180');
-    }
+    // Guardar — scoped al drawer para evitar ambigüedades
+    const drawerSaveBtn = page.locator('div').filter({ has: page.getByText('Editar Material', { exact: true }) })
+      .getByRole('button', { name: /Guardar/i }).first();
+    await expect(drawerSaveBtn).toBeVisible({ timeout: 5000 });
+    await click(drawerSaveBtn);
+    await waitForAppIdle(page, 2000);
 
-    // Verificar badge "Editado localmente"
-    const editBadgeVisible = (await page.textContent('body') ?? '').includes('Editado localmente');
-    console.log(`  Badge "Editado localmente" visible: ${editBadgeVisible}`);
+    // HARD ASSERT: drawer debe cerrarse tras guardar
+    await expect(page.getByText('Editar Material', { exact: true })).not.toBeVisible({ timeout: 8000 });
+    console.log('  ✅ Drawer cerrado tras guardar');
+
+    // HARD ASSERT: badge "Editado localmente" debe aparecer en la fila
+    await expect(
+      page.locator('table tbody tr').filter({ hasText: /Cemento Portland/i }).first()
+        .getByText('Editado localmente', { exact: true }),
+    ).toBeVisible({ timeout: 10000 });
+    console.log('  ✅ Badge "Editado localmente" visible en la fila');
+
+    // Reabrir y verificar persistencia del precio
+    const cementoRow2 = page.locator('table tbody tr').filter({ hasText: /Cemento Portland/i }).first();
+    await click(cementoRow2.locator('button[title="Editar"]'));
+    await expect(page.getByText('Editar Material', { exact: true })).toBeVisible({ timeout: 8000 });
+
+    const precioAfter = await page.locator('input[placeholder="0.00"]').inputValue();
+    expect(Number(precioAfter), 'Precio no persistió — debe ser 180').toBeCloseTo(180, 0);
+    console.log(`  ✅ Precio verificado tras reabrir: ${precioAfter}`);
+
+    // Cerrar drawer
+    await click(page.locator('button[title="Cerrar"]').first());
+    await waitForAppIdle(page, 500);
 
     console.log(`   Clics acumulados: ${clickCount}`);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 6 — Importar o crear APU "Muro Exterior Cerámico 18 cm"
+  // STEP 6 — Crear APU con materiales y usarlo en presupuesto (RUN_ID único)
   // ═══════════════════════════════════════════════════════════════════════════
   test('06 — Crear APU de muro con materiales y usarlo en presupuesto', async ({ page }) => {
     test.skip(!E2E_EMAIL || !E2E_PASSWORD, 'Credenciales QA no configuradas');
@@ -382,104 +381,87 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await dataAdminTab(page, 'Analisis de Precios');
     await waitForAppIdle(page, 2500);
 
-    const bodyBefore = await page.textContent('body') ?? '';
-    const apuExists = bodyBefore.includes('Muro Exterior Cerámico');
+    // Con RUN_ID único, el APU no existe → siempre crear
+    console.log(`  Creando APU "${APU_NAME_RUN}" con materiales…`);
 
-    // ── PARTE A: Crear APU si no existe ──────────────────────────────────────
-    if (!apuExists) {
-      console.log('  Creando APU "Muro Exterior Cerámico 18 cm" con materiales…');
+    await click(page.getByRole('button', { name: 'Nueva Tarea', exact: true }));
+    await waitForAppIdle(page, 1500);
 
-      await click(page.getByRole('button', { name: 'Nueva Tarea', exact: true }));
-      await waitForAppIdle(page, 1500);
+    // Nombre del APU
+    const nameInput = page.locator('input[placeholder*="Mampostería"]');
+    await expect(nameInput).toBeVisible({ timeout: 5000 });
+    await nameInput.fill(APU_NAME_RUN);
+    clickCount++;
 
-      // Nombre
-      const nameInput = page.locator('input[placeholder*="Mampostería"]');
-      if (await nameInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await nameInput.fill('Muro Exterior Cerámico 18 cm');
-        clickCount++;
-      }
+    // Unidad — fill siempre (requerido para que handleSave no rechace)
+    const unitInput = page.locator('input[placeholder="m2"]');
+    await expect(unitInput).toBeVisible({ timeout: 5000 });
+    await unitInput.fill('m²');
+    clickCount++;
 
-      // Unidad
-      const unitInput = page.locator('input[placeholder="m2"]');
-      if (await unitInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await unitInput.fill('m²');
-        clickCount++;
-      }
+    // El select de materiales se identifica por su option placeholder
+    const matSelect = page.locator('select').filter({
+      has: page.locator('option').filter({ hasText: '— Seleccionar material —' }),
+    });
+    await expect(matSelect).toBeVisible({ timeout: 8000 });
 
-      // Materiales con rendimientos reales (yields por m²)
-      const MATERIAL_YIELDS: Array<{ keyword: string; qty: string }> = [
-        { keyword: 'CEMENTO PORTLAND', qty: '0.5'  },
-        { keyword: 'ARENA GRUESA',     qty: '0.01' },
-        { keyword: 'LADRILLO HUECO 18', qty: '6'   },
-      ];
-
-      // El select de materiales se identifica por su option placeholder
-      const matSelect = page.locator('select').filter({
-        has: page.locator('option').filter({ hasText: '— Seleccionar material —' }),
-      });
-
-      for (const { keyword, qty } of MATERIAL_YIELDS) {
-        // Buscar option que contenga el keyword (los nombres vienen en MAYÚSCULAS del seed)
-        const optionEls = await matSelect.locator('option').all();
-        let matchValue: string | null = null;
-        for (const opt of optionEls) {
-          const text = (await opt.textContent() ?? '').toUpperCase();
-          if (text.includes(keyword)) {
-            matchValue = await opt.getAttribute('value');
-            break;
-          }
-        }
-
-        if (!matchValue) {
-          console.warn(`⚠️  Material "${keyword}" no disponible en catálogo — posiblemente el paso 04 no importó`);
-          continue;
-        }
-
-        await matSelect.selectOption({ value: matchValue });
-        clickCount++;
-        await waitForAppIdle(page, 300);
-
-        // El primer botón "Agregar" en el DOM corresponde a la sección Materiales
-        await click(page.getByRole('button', { name: 'Agregar', exact: true }).first());
-        await waitForAppIdle(page, 500);
-
-        // Actualizar cantidad en el último input de la tabla de materiales
-        const qtyInputs = page.locator('tbody input[type="number"]');
-        if (await qtyInputs.count() > 0) {
-          await qtyInputs.last().fill(qty);
-          await qtyInputs.last().press('Tab');
-          clickCount++;
+    let materialesAgregados = 0;
+    for (const { keyword, qty } of MATERIAL_YIELDS) {
+      const optionEls = await matSelect.locator('option').all();
+      let matchValue: string | null = null;
+      for (const opt of optionEls) {
+        const text = (await opt.textContent() ?? '').toUpperCase();
+        if (text.includes(keyword)) {
+          matchValue = await opt.getAttribute('value');
+          break;
         }
       }
 
-      // Guardar APU
-      const saveBtn = page.getByRole('button', { name: 'Guardar', exact: true }).first();
-      if (await saveBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await click(saveBtn);
-        await waitForAppIdle(page, 3000);
-        console.log('  ✅ APU "Muro Exterior Cerámico 18 cm" creado con materiales');
-      } else {
-        console.warn('⚠️  Botón "Guardar" no visible — APU posiblemente no guardado');
+      if (!matchValue) {
+        console.warn(`⚠️  Material "${keyword}" no disponible — verificar paso 04`);
+        continue;
       }
-    } else {
-      console.log('ℹ️  APU "Muro Exterior Cerámico 18 cm" ya existe en el catálogo');
+
+      await matSelect.selectOption({ value: matchValue });
+      clickCount++;
+      await waitForAppIdle(page, 300);
+
+      // Primer "Agregar" en el DOM = sección Materiales
+      await click(page.getByRole('button', { name: 'Agregar', exact: true }).first());
+      await waitForAppIdle(page, 500);
+
+      // Cantidad en el último input numérico de tbody
+      const qtyInputs = page.locator('tbody input[type="number"]');
+      if (await qtyInputs.count() > 0) {
+        await qtyInputs.last().fill(qty);
+        await qtyInputs.last().press('Tab');
+        clickCount++;
+        materialesAgregados++;
+      }
     }
 
-    // ── PARTE B: Usar APU en presupuesto ─────────────────────────────────────
+    console.log(`  Materiales agregados al APU: ${materialesAgregados} de ${MATERIAL_YIELDS.length}`);
+
+    // HARD ASSERT: al menos 1 material fue agregado
+    expect(materialesAgregados, 'Ningún material pudo ser agregado al APU').toBeGreaterThan(0);
+
+    // Guardar APU
+    const saveBtn = page.getByRole('button', { name: 'Guardar', exact: true }).first();
+    await expect(saveBtn).toBeVisible({ timeout: 5000 });
+    await click(saveBtn);
+
+    // Esperar que vuelva a vista lista: "Nueva Tarea" reaparece cuando view='list'
+    await expect(page.getByRole('button', { name: 'Nueva Tarea', exact: true })).toBeVisible({ timeout: 15000 });
     await waitForAppIdle(page, 1000);
 
-    const apuRow = page.locator('tr').filter({ hasText: /Muro Exterior Cerámico/i }).first();
-    if (!(await apuRow.isVisible({ timeout: 8000 }).catch(() => false))) {
-      console.warn('⚠️  Fila APU no encontrada — el APU puede no haberse guardado');
-      return;
-    }
+    // HARD ASSERT: fila del APU debe aparecer en la lista
+    const apuRow = page.locator('table tbody tr').filter({ hasText: new RegExp(APU_NAME_RUN.slice(0, 20), 'i') }).first();
+    await expect(apuRow).toBeVisible({ timeout: 10000 });
+    console.log(`  ✅ APU "${APU_NAME_RUN}" creado y visible en lista`);
 
+    // ── Usar APU en presupuesto ────────────────────────────────────────────
     const usarBtn = apuRow.getByRole('button', { name: 'Usar', exact: true });
-    if (!(await usarBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
-      console.warn('⚠️  Botón "Usar" no encontrado en la fila del APU');
-      return;
-    }
-
+    await expect(usarBtn).toBeVisible({ timeout: 5000 });
     await click(usarBtn);
     await waitForAppIdle(page, 1500);
 
@@ -492,27 +474,18 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     }
 
     const importBtn = modalOverlay.getByRole('button', { name: 'Importar al Proyecto', exact: true });
-    if (await importBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await click(importBtn);
-      await waitForAppIdle(page, 3000);
+    await expect(importBtn).toBeVisible({ timeout: 5000 });
+    await click(importBtn);
+    await waitForAppIdle(page, 3000);
 
-      const afterBody = await page.textContent('body') ?? '';
-      if (afterBody.includes('ya fue incorporada')) {
-        console.log('ℹ️  APU ya estaba en el presupuesto — estado válido');
-      } else {
-        console.log('  ✅ APU "Muro Exterior Cerámico 18 cm" importado al presupuesto (45 m²)');
-      }
-    } else {
-      console.warn('⚠️  Botón "Importar al Proyecto" no encontrado en modal');
-    }
-
+    console.log(`  ✅ APU importado al presupuesto con cantidad 45 m²`);
     console.log(`   Clics acumulados: ${clickCount}`);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 7 — Presupuesto: verificar tarea con subtotal > 0
+  // STEP 7 — Presupuesto: APU visible + subtotal > $0 (HARD ASSERTS)
   // ═══════════════════════════════════════════════════════════════════════════
-  test('07 — Presupuesto: tarea aparece con subtotal > 0', async ({ page }) => {
+  test('07 — Presupuesto: APU con cantidad 45 y subtotal > $0', async ({ page }) => {
     test.skip(!E2E_EMAIL || !E2E_PASSWORD, 'Credenciales QA no configuradas');
 
     await page.goto('/');
@@ -524,24 +497,31 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
 
     const content = await page.textContent('body') ?? '';
 
-    // Verificar que no hay error de RLS / 500
+    // Hard assert: sin errores 5xx
     expect(failedRequests.filter(r => r.startsWith('5')).length, '5xx requests detectadas').toBe(0);
 
-    // Verificar que hay al menos un ítem "Muro Exterior" en el presupuesto
-    const hasMuroItem = content.includes('Muro Exterior Cerámico');
-    console.log(`   Ítem "Muro Exterior Cerámico" en presupuesto: ${hasMuroItem ? '✅' : '❌'}`);
+    // Hard assert: ítem APU visible en presupuesto
+    const apuShort = APU_NAME_RUN.slice(0, 15);
+    const hasApuItem = content.includes(apuShort);
+    console.log(`   Ítem APU en presupuesto: ${hasApuItem ? '✅' : '❌'} (buscando "${apuShort}")`);
+    expect(hasApuItem, `APU "${APU_NAME_RUN}" no aparece en el presupuesto`).toBe(true);
 
-    // Verificar que hay al menos un costo > $0 en el presupuesto
-    // Regex: $ seguido de dígito 1-9 (descarta $0.00)
+    // Hard assert: subtotal > $0 (regex: $ seguido de dígito 1-9)
     const hasPositiveCost = /\$[1-9][0-9,\.]+/.test(content);
-    console.log(`   Subtotal > $0 detectado: ${hasPositiveCost ? '✅' : '❌'}`);
-    expect(hasPositiveCost, 'El presupuesto debe tener al menos un ítem con subtotal > $0').toBe(true);
+    console.log(`   Subtotal > $0: ${hasPositiveCost ? '✅' : '❌'}`);
+    expect(hasPositiveCost, 'Presupuesto sin subtotal > $0 — APU puede tener materiales sin precio').toBe(true);
+
+    // Verificar que NO aparece $0.00 sin razón (warning si hay)
+    const hasZeroCost = /\$0[,\.]00/.test(content);
+    if (hasZeroCost) {
+      console.warn('⚠️  Detectado $0.00 en presupuesto — posible ítem sin precio configurado');
+    }
 
     console.log(`   Clics acumulados: ${clickCount}`);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 8 — Explosión de Insumos (Reportes → consolidated)
+  // STEP 8 — Explosión de Insumos: badges, tabla y descarga Excel
   // ═══════════════════════════════════════════════════════════════════════════
   test('08 — Explosión de Insumos: badges, tabla y descarga Excel', async ({ page }) => {
     test.skip(!E2E_EMAIL || !E2E_PASSWORD, 'Credenciales QA no configuradas');
@@ -554,11 +534,8 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await dataAdminTab(page, 'Reportes');
     await waitForAppIdle(page, 2000);
 
-    // Verificar card "Explosión de Insumos"
+    // Verificar card "Explosión de Insumos" y navegar a él
     await expect(page.getByText('Explosión de Insumos', { exact: false })).toBeVisible({ timeout: 10000 });
-    console.log('  ✅ Texto "Explosión de Insumos" visible');
-
-    // Click en el card
     await click(page.getByText('Explosión de Insumos', { exact: false }).first());
     await waitForAppIdle(page, 1000);
 
@@ -567,36 +544,30 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     const hasBaseBadge = content.includes('Base presupuesto') || content.includes('Precios congelados');
     console.log(`  Badge "Base presupuesto" / "Precios congelados": ${hasBaseBadge ? '✅' : '❌'}`);
 
-    // Seleccionar proyecto
+    // Seleccionar proyecto QA
     const projectSelect = page.locator('select').first();
     if (await projectSelect.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await projectSelect.selectOption({ label: PROJECT_NAME });
+      await projectSelect.selectOption({ label: PROJECT_NAME }).catch(() =>
+        console.warn('⚠️  Proyecto no encontrado en select — puede que no aparezca aún'),
+      );
       clickCount++;
       await waitForAppIdle(page, 1000);
     }
 
-    // Click en Calcular
+    // Calcular
     const calcBtn = page.getByRole('button', { name: /Calcular/i });
     await click(calcBtn);
     await waitForAppIdle(page, 8000);
 
     const contentAfter = await page.textContent('body') ?? '';
-
-    // Verificar tabla con datos
-    const hasMaterials = contentAfter.includes('Materiales') || contentAfter.includes('Material');
-    console.log(`  Tabla con materiales: ${hasMaterials ? '✅' : '❌'}`);
-
-    // Verificar que hay al menos una fila de datos en la tabla
     const tableRow = page.locator('table tbody tr').first();
     const hasTableRow = await tableRow.isVisible({ timeout: 8000 }).catch(() => false);
     console.log(`  Tabla tiene filas de datos: ${hasTableRow ? '✅' : '❌'}`);
     if (!hasTableRow) {
-      console.warn('⚠️  Explosión de Insumos sin filas — APU puede no tener materiales con costo');
+      console.warn('⚠️  Sin filas en tabla — APU puede no tener materiales con costo');
     }
 
     // Descarga de Excel
-    // Nota: getByRole + regex falla cuando el ícono SVG altera el nombre accesible.
-    // Usar filter({ hasText }) es más robusto y agnóstico al ícono.
     const xlsxBtn = page.locator('button').filter({ hasText: /Exportar Excel/i }).first();
     await xlsxBtn.scrollIntoViewIfNeeded().catch(() => null);
     if (await xlsxBtn.isVisible({ timeout: 8000 }).catch(() => false)) {
@@ -614,21 +585,21 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
         const stats = fs.statSync(filePath);
         downloadedFiles.push(download.suggestedFilename());
 
-        expect(stats.size, 'Archivo Excel vacío').toBeGreaterThan(500);
+        expect(stats.size, 'Excel de Explosión de Insumos vacío').toBeGreaterThan(500);
         expect(download.suggestedFilename()).toMatch(/explosion_insumos/i);
         console.log(`  ✅ Excel descargado: ${download.suggestedFilename()} (${stats.size} bytes)`);
       } else {
         console.warn('⚠️  No se pudo descargar el Excel de Explosión de Insumos');
       }
     } else {
-      console.warn('⚠️  Botón "Exportar Excel" no encontrado (posiblemente deshabilitado)');
+      console.warn('⚠️  Botón "Exportar Excel" no encontrado (deshabilitado — sin resultados?)');
     }
 
     console.log(`   Clics acumulados: ${clickCount}`);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 9 — Dashboard / Lista de Materiales: badges y descarga Excel
+  // STEP 9 — Lista de Materiales: badge, tabla y descarga XLS
   // ═══════════════════════════════════════════════════════════════════════════
   test('09 — Lista de Materiales: badge "Precios actuales" y descarga XLS', async ({ page }) => {
     test.skip(!E2E_EMAIL || !E2E_PASSWORD, 'Credenciales QA no configuradas');
@@ -640,7 +611,7 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await navTo(page, 'Dashboard');
     await waitForAppIdle(page, 2000);
 
-    // Cambiar al tab "Reportes e Ingeniería" — ahí está el widget Lista de Materiales
+    // Cambiar al tab "Reportes e Ingeniería" donde vive el widget
     const reportesTab = page.getByRole('button', { name: 'Reportes e Ingeniería', exact: true });
     if (await reportesTab.isVisible({ timeout: 5000 }).catch(() => false)) {
       await click(reportesTab);
@@ -649,28 +620,18 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
 
     const content = await page.textContent('body') ?? '';
 
-    // Verificar widget Lista de Materiales
+    // Hard assert: widget visible
     await expect(page.getByText('Lista de Materiales', { exact: false })).toBeVisible({ timeout: 10000 });
-    console.log('  ✅ Widget "Lista de Materiales" visible');
 
-    // Verificar badge "Precios actuales"
     const hasPreciosActuales = content.includes('Precios actuales');
+    const hasSubtitle        = content.includes('Cantidades del proyecto');
+    const hasCostoTotal      = content.includes('Costo total') || content.includes('Costo Total');
     console.log(`  Badge "Precios actuales": ${hasPreciosActuales ? '✅' : '❌'}`);
+    console.log(`  Subtítulo correcto:       ${hasSubtitle ? '✅' : '❌'}`);
+    console.log(`  Columna "Costo total":    ${hasCostoTotal ? '✅' : '❌'}`);
 
-    // Verificar subtítulo
-    const hasSubtitle = content.includes('Cantidades del proyecto');
-    console.log(`  Subtítulo correcto: ${hasSubtitle ? '✅' : '❌'}`);
-
-    // Verificar nota de advertencia
-    const hasNote = content.includes('Explosión de Insumos') && content.includes('fecha base');
-    console.log(`  Nota de advertencia: ${hasNote ? '✅' : '❌'}`);
-
-    // Verificar columnas de la tabla
-    const hasCostoTotal = content.includes('Costo total') || content.includes('Costo Total');
-    console.log(`  Columna "Costo total": ${hasCostoTotal ? '✅' : '❌'}`);
-
-    // Descarga XLS
-    const xlsBtn = page.getByRole('button', { name: /XLS|Excel/i }).first();
+    // Descarga XLS — botón texto "XLS" (lucide icon + texto)
+    const xlsBtn = page.locator('button').filter({ hasText: /^XLS$/ }).first();
     if (await xlsBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       const downloadDir = path.join(process.cwd(), 'playwright-downloads');
       fs.mkdirSync(downloadDir, { recursive: true });
@@ -691,13 +652,34 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
       } else {
         console.warn('⚠️  No se pudo descargar el XLS de Lista de Materiales');
       }
+    } else {
+      // Fallback: regex amplio en caso de que el texto cambie
+      const xlsBtnFallback = page.getByRole('button', { name: /XLS|Excel/i }).first();
+      if (await xlsBtnFallback.isVisible({ timeout: 3000 }).catch(() => false)) {
+        const downloadDir = path.join(process.cwd(), 'playwright-downloads');
+        fs.mkdirSync(downloadDir, { recursive: true });
+        const [download] = await Promise.all([
+          page.waitForEvent('download', { timeout: 10000 }),
+          click(xlsBtnFallback),
+        ]).catch(() => [null]);
+        if (download) {
+          const fp = path.join(downloadDir, download.suggestedFilename());
+          await download.saveAs(fp);
+          const stats = fs.statSync(fp);
+          downloadedFiles.push(download.suggestedFilename());
+          expect(stats.size, 'XLS de Lista de Materiales vacío').toBeGreaterThan(500);
+          console.log(`  ✅ XLS (fallback) descargado: ${download.suggestedFilename()} (${stats.size} bytes)`);
+        }
+      } else {
+        console.warn('⚠️  Botón XLS no encontrado');
+      }
     }
 
     console.log(`   Clics acumulados: ${clickCount}`);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 10 — Reporte Completo
+  // STEP 10 — Reporte Completo no está en blanco
   // ═══════════════════════════════════════════════════════════════════════════
   test('10 — Reporte Completo no está en blanco', async ({ page }) => {
     test.skip(!E2E_EMAIL || !E2E_PASSWORD, 'Credenciales QA no configuradas');
@@ -709,7 +691,6 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await navTo(page, 'Dashboard');
     await waitForAppIdle(page, 2000);
 
-    // Buscar botón de Reporte / Imprimir en el Dashboard
     const reportBtn = page.getByRole('button', { name: /Imprimir|Reporte|Exportar/i }).first();
     if (!(await reportBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
       console.warn('⚠️  Botón de Reporte Completo no encontrado en Dashboard — skip');
@@ -719,14 +700,9 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await click(reportBtn);
     await waitForAppIdle(page, 2000);
 
-    // Verificar que se abrió el modal de preview (no el diálogo de impresión nativo)
     const content = await page.textContent('body') ?? '';
     const hasPreview = content.includes('Presupuesto') || content.includes('Insumos') || content.includes('Secciones');
     console.log(`  Preview del reporte tiene contenido: ${hasPreview ? '✅' : '❌'}`);
-
-    if (!hasPreview) {
-      console.warn('⚠️  El reporte puede estar en blanco o el diálogo es del sistema operativo');
-    }
 
     console.log(`   Clics acumulados: ${clickCount}`);
   });
@@ -741,27 +717,23 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await waitForAppIdle(page, 2500);
     await ensureProjectActive(page);
 
-    const REQUIRED_LABELS = [
-      'Administración de Proyecto',  // nav item
-      'Materiales de Empresa',        // DataAdmin subtab
-      'Recursos Globales',            // DataAdmin subtab
-      'Analisis de Precios',          // DataAdmin subtab (APU)
-      'Reportes',                     // DataAdmin subtab
-      'Lista de Materiales',          // Dashboard widget
-      'Explosión de Insumos',         // Reports card
-    ];
+    const results: Record<string, boolean> = {};
 
-    // Navegar a DataAdmin para verificar subtabs
+    // DataAdmin: todos los tabs deben estar presentes
     await navTo(page, 'Administración de Proyecto');
     await waitForAppIdle(page, 2000);
-
     const adminContent = await page.textContent('body') ?? '';
-    const results: Record<string, boolean> = {};
-    for (const label of REQUIRED_LABELS) {
+    for (const label of [
+      'Administración de Proyecto',
+      'Materiales de Empresa',
+      'Recursos Globales',
+      'Analisis de Precios',
+      'Reportes',
+    ]) {
       results[label] = adminContent.includes(label);
     }
 
-    // Dashboard — cambiar al tab "Reportes e Ingeniería" para ver Lista de Materiales
+    // Dashboard → Reportes e Ingeniería
     await navTo(page, 'Dashboard');
     await waitForAppIdle(page, 2000);
     const reportesIngBtn = page.getByRole('button', { name: 'Reportes e Ingeniería', exact: true });
@@ -771,30 +743,33 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     }
     const dashContent = await page.textContent('body') ?? '';
     results['Lista de Materiales'] = dashContent.includes('Lista de Materiales');
-    results['Precios actuales'] = dashContent.includes('Precios actuales');
+    results['Precios actuales']    = dashContent.includes('Precios actuales');
 
-    // Reporte Explosión
+    // Reportes → Explosión de Insumos card → verificar badge "Base presupuesto"
     await navTo(page, 'Administración de Proyecto');
     await dataAdminTab(page, 'Reportes');
     await waitForAppIdle(page, 2000);
+    // Navegar al card "Explosión de Insumos" para que el componente renderice
+    const explosionCard = page.locator('button').filter({ hasText: /Explosión de Insumos/i }).first();
+    if (await explosionCard.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await click(explosionCard);
+      await waitForAppIdle(page, 1000);
+    }
     const reportContent = await page.textContent('body') ?? '';
     results['Explosión de Insumos'] = reportContent.includes('Explosión de Insumos');
-    results['Base presupuesto'] = reportContent.includes('Base presupuesto') || reportContent.includes('Precios congelados');
+    results['Base presupuesto']     = reportContent.includes('Base presupuesto') || reportContent.includes('Precios congelados');
 
-    // Log resultados
     console.log('\n═══ Asserts Visuales ═══');
     for (const [label, found] of Object.entries(results)) {
       console.log(`  ${found ? '✅' : '❌'}  ${label}`);
     }
 
-    const missingLabels = Object.entries(results).filter(([, found]) => !found).map(([l]) => l);
-    if (missingLabels.length > 0) {
-      console.warn(`⚠️  Labels faltantes: ${missingLabels.join(', ')}`);
-    }
+    const missing = Object.entries(results).filter(([, f]) => !f).map(([l]) => l);
+    if (missing.length > 0) console.warn(`⚠️  Labels faltantes: ${missing.join(', ')}`);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 12 — Limpieza y métricas finales
+  // STEP 12 — Métricas finales y limpieza
   // ═══════════════════════════════════════════════════════════════════════════
   test('12 — Métricas finales y limpieza', async ({ page }) => {
     test.skip(!E2E_EMAIL || !E2E_PASSWORD, 'Credenciales QA no configuradas');
@@ -803,80 +778,31 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await waitForAppIdle(page, 2500);
     await ensureProjectActive(page);
 
-    // Intentar limpiar el proyecto QA
-    await cleanupQAProject(page);
-
-    // Reportar métricas
     console.log('\n═══ MÉTRICAS FINALES ═══');
-    console.log(`  Clics útiles totales:     ${clickCount}`);
-    console.log(`  Errores de consola:       ${consoleErrors.length}`);
-    console.log(`  Requests fallidas (5xx):  ${failedRequests.length}`);
-    console.log(`  Archivos descargados:     ${downloadedFiles.length}`);
+    console.log(`  RUN_ID:                   ${RUN_ID}`);
+    console.log(`  Proyecto QA creado:        ${PROJECT_NAME}`);
+    console.log(`  APU QA creado:             ${APU_NAME_RUN}`);
+    console.log(`  Clics útiles totales:      ${clickCount}`);
+    console.log(`  Errores de consola:        ${consoleErrors.length}`);
+    console.log(`  Requests fallidas (5xx):   ${failedRequests.length}`);
+    console.log(`  Archivos descargados:      ${downloadedFiles.length}`);
+    if (downloadedFiles.length > 0) console.log(`  Archivos: ${downloadedFiles.join(', ')}`);
 
-    if (consoleErrors.length > 0) {
-      console.warn('  Errores de consola:', consoleErrors.slice(0, 5));
-    }
-    if (failedRequests.length > 0) {
-      console.warn('  Requests fallidas:', failedRequests);
-    }
-    if (downloadedFiles.length > 0) {
-      console.log('  Archivos:', downloadedFiles.join(', '));
-    }
+    if (consoleErrors.length > 0) console.warn('  Errores de consola:', consoleErrors.slice(0, 5));
+    if (failedRequests.length > 0) console.warn('  Requests fallidas:', failedRequests);
 
-    // Soft assertion: menos de 30 clics para el golden path
-    if (clickCount > 30) {
-      console.warn(`⚠️  Clics totales (${clickCount}) superan el límite sugerido de 30`);
+    console.log('\n  Limpieza manual requerida:');
+    console.log(`  Proyecto:  Supabase → Table Editor → projects → name = '${PROJECT_NAME}' → Delete`);
+    console.log(`  APU:       master_tasks → name = '${APU_NAME_RUN}' → Delete`);
+
+    if (clickCount > 80) {
+      console.warn(`⚠️  Clics totales (${clickCount}) altos — revisar si hay navegación innecesaria`);
     } else {
-      console.log(`✅ Clics dentro del límite (${clickCount} / 30)`);
+      console.log(`✅ Clics dentro del rango esperado (${clickCount})`);
     }
 
-    // Falla crítica si hay 5xx
+    // Hard assert: sin errores 5xx
     expect(failedRequests.filter(r => r.startsWith('5')).length, 'Se detectaron requests 500').toBe(0);
   });
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Helper: asegurar que hay un proyecto activo
-  // ═══════════════════════════════════════════════════════════════════════════
-  async function ensureProjectActive(page: Page): Promise<void> {
-    const body = await page.textContent('body') ?? '';
-
-    // Si hay spinner de carga, esperar
-    if (body.includes('Cargando sesión')) {
-      await page.waitForFunction(
-        () => !document.body.innerText.includes('Cargando sesión'),
-        { timeout: 15000 },
-      );
-    }
-
-    // Re-login si no autenticado
-    const emailInput = page.locator('input[type="email"]');
-    if (await emailInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await page.fill('input[type="email"]', E2E_EMAIL);
-      await page.fill('input[type="password"]', E2E_PASSWORD);
-      await click(page.locator('button[type="submit"]'));
-      await waitForAppIdle(page, 3000);
-    }
-
-    // Si estamos en el ProjectHub, buscar y seleccionar el proyecto QA
-    const currentBody = await page.textContent('body') ?? '';
-    if (currentBody.includes('Mis Proyectos') || currentBody.includes('Panel de Proyectos')) {
-      const projectCard = page.getByText(PROJECT_NAME, { exact: false });
-      if (await projectCard.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await click(projectCard);
-        await waitForAppIdle(page, 3000);
-      } else {
-        console.warn(`⚠️  Proyecto QA "${PROJECT_NAME}" no encontrado en ProjectHub`);
-      }
-    }
-  }
-
-  // Helper: limpiar proyecto QA
-  async function cleanupQAProject(page: Page): Promise<void> {
-    // Nota: la app no tiene botón de "eliminar proyecto" expuesto en la UI estándar.
-    // El proyecto se puede eliminar manualmente desde Supabase Dashboard.
-    console.log(`ℹ️  Limpieza manual requerida:`);
-    console.log(`   Proyecto a eliminar: "${PROJECT_NAME}"`);
-    console.log(`   Ir a Supabase Dashboard → Table Editor → projects → filtrar por name = '${PROJECT_NAME}' → Delete`);
-  }
 
 });

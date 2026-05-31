@@ -223,7 +223,42 @@ Tipos
 
 ---
 
-## 8. PROMPTS DE ARRANQUE PARA NUEVO CHAT
+## 8. ANÁLISIS COMPETITIVO FAENA — IMPACTO EN ROADMAP
+
+**Referencia:** `docs/COMPETITIVE_FAENA_ROADMAP.md` (análisis completo)  
+**Fecha:** 2026-05-31
+
+### Posicionamiento
+
+FAENA es fuerte en la capa operativa (Gantt, avance diario, ciclo de compras). Obraflow compite en la capa de **ingeniería de costos** — su diferenciador es el contrato matemático del APU con trazabilidad de precios.
+
+### Roadmap de alto nivel
+
+| Prioridad | Objetivo | Estado |
+|---|---|---|
+| **P0** | Contrato matemático APU canónico (mampostería 18 cm) + E2E con assert matemático | 🔴 En curso |
+| **P1** | Estados workflow APU (draft/approved/published) + sincronización explícita Insumos→APU→Presupuesto | ⬜ Pendiente tras P0 |
+| **P2** | Perfiles de empresa, RBAC granular, jerarquía de rubros (3 niveles) | ⬜ Backlog |
+| **P3** | Capa operativa: Gantt, avance diario, ciclo de compras | ⬜ No diseñar hasta P2 cerrado |
+
+### Impacto inmediato en decisiones técnicas
+
+1. **APU canónico P0:** El test E2E step 07 debe verificar que `subtotal APU = Σ(mat.qty × mat.unitPrice) + costo_MO`. No es suficiente con `> $0`.
+2. **No implementar P3 todavía:** Gantt, informes periódicos, ciclo de compras y avance diario quedan fuera del scope hasta tener usuarios Constructora activos.
+3. **ADR-001 (APU inmutable):** Cuando se usa en presupuesto, los precios quedan congelados como snapshot implícito. Documentar esto en código.
+4. **ADR-002 (rendimiento no derivado):** `dailyYield` siempre lo ingresa el profesional. El sistema nunca lo infiere.
+5. **Sincronización explícita (ADR-004):** Los cambios en el catálogo global NUNCA se propagan automáticamente al catálogo de empresa.
+
+### Lo que NO copiar de FAENA ahora
+
+- Gantt con dependencias (alta complejidad, no es el diferenciador)
+- Ciclo de compras Req→Orden→Bodega (módulo operativo, fuera del scope)
+- Informe diario de avance (requiere P3.2 primero)
+- RBAC granular por acción (cubrir con roles de org hasta P2.2)
+
+---
+
+## 9. PROMPTS DE ARRANQUE PARA NUEVO CHAT
 
 ### Claude Code
 ```
@@ -283,4 +318,4 @@ Necesito revisión de:
 
 ---
 
-*Generado: 2026-05-26*
+*Generado: 2026-05-26 · Actualizado: 2026-05-31 (análisis competitivo FAENA)*
