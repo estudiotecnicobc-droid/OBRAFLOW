@@ -169,7 +169,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     password: string,
   ): Promise<{ error: string | null }> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: error.message };
+    if (error) {
+      if (error.message === 'Failed to fetch' || error.message.includes('NetworkError')) {
+        console.error('[Auth] signIn network error:', error.message);
+        return { error: 'No se pudo conectar con el servicio de autenticación. Revisá tu conexión o intentá nuevamente.' };
+      }
+      return { error: error.message };
+    }
     return { error: null };
   };
 
@@ -180,7 +186,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     orgName: string,
   ): Promise<{ error: string | null }> => {
     const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) return { error: error.message };
+    if (error) {
+      if (error.message === 'Failed to fetch' || error.message.includes('NetworkError')) {
+        console.error('[Auth] signUp network error:', error.message);
+        return { error: 'No se pudo conectar con el servicio de autenticación. Revisá tu conexión o intentá nuevamente.' };
+      }
+      return { error: error.message };
+    }
     if (!data.user) return { error: 'No se pudo crear el usuario.' };
 
     try {
@@ -227,7 +239,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${window.location.origin}/auth/update-password`,
     });
-    if (error) return { error: error.message };
+    if (error) {
+      if (error.message === 'Failed to fetch' || error.message.includes('NetworkError')) {
+        console.error('[Auth] sendPasswordResetEmail network error:', error.message);
+        return { error: 'No se pudo conectar con el servicio de autenticación. Revisá tu conexión o intentá nuevamente.' };
+      }
+      return { error: error.message };
+    }
     return { error: null };
   };
 
