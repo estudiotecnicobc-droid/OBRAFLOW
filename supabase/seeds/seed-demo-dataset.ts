@@ -9,8 +9,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = sb_publishable_IXQrZnC_9CSmdvSO_9nlYA_7YeBhrsv;
-const SUPABASE_SERVICE_ROLE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZXdvZHp0d2V3Z3Joc29hdm1nIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjU3MzAyNiwiZXhwIjoyMDg4MTQ5MDI2fQ.rE-pQcSStMUSeBaf0VacGOnqVxZGAPABIg0ldideQaI;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Ajustar antes de ejecutar
 const ORG_UUID = '00000000-0000-0000-0000-000000000001';
