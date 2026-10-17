@@ -46,7 +46,7 @@ export const LandingPage: React.FC<Props> = ({ onLogin }) => {
           <span className="bg-blue-600 w-8 h-8 rounded-lg flex items-center justify-center">
             <HardHat size={18} className="text-white" />
           </span>
-          obraf<span className="text-blue-600">low</span>
+          <span>obraf<span className="text-blue-600">low</span></span>
         </a>
         <div className="hidden md:flex items-center gap-6 text-sm text-slate-600">
           <a href="#producto" className="hover:text-slate-900">Producto</a>
@@ -167,8 +167,41 @@ export const LandingPage: React.FC<Props> = ({ onLogin }) => {
       </section>
 
       {/* Solución */}
-      <section id="producto" className="py-24 px-6 md:px-10 bg-slate-900 text-white">
-        <div className="max-w-6xl mx-auto">
+      <section id="producto" className="relative py-24 px-6 md:px-10 bg-slate-900 text-white overflow-hidden">
+        {/* Ilustración propia (grúa + edificio en construcción), no es una foto */}
+        <svg
+          viewBox="0 0 420 420"
+          className="hidden lg:block absolute -right-10 top-1/2 -translate-y-1/2 w-[420px] h-[420px] text-blue-400/20 pointer-events-none"
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          {/* Mástil de la grúa */}
+          <line x1="110" y1="40" x2="110" y2="340" />
+          {/* Pluma y contrapluma */}
+          <line x1="20" y1="60" x2="300" y2="60" />
+          <line x1="110" y1="40" x2="130" y2="60" />
+          <line x1="110" y1="40" x2="80" y2="60" />
+          {/* Cable y gancho */}
+          <line x1="230" y1="60" x2="230" y2="150" />
+          <path d="M 224 150 q 6 14 12 0" />
+          {/* Base */}
+          <line x1="90" y1="340" x2="130" y2="340" />
+          {/* Edificio en construcción — grilla de losas */}
+          <rect x="170" y="150" width="160" height="190" />
+          <line x1="170" y1="190" x2="330" y2="190" />
+          <line x1="170" y1="230" x2="330" y2="230" />
+          <line x1="170" y1="270" x2="330" y2="270" />
+          <line x1="170" y1="310" x2="330" y2="310" />
+          <line x1="210" y1="150" x2="210" y2="340" />
+          <line x1="250" y1="150" x2="250" y2="340" />
+          <line x1="290" y1="150" x2="290" y2="340" />
+          {/* Línea de piso */}
+          <line x1="20" y1="340" x2="400" y2="340" />
+        </svg>
+
+        <div className="relative max-w-6xl mx-auto">
           <p className="text-xs font-semibold text-blue-300 tracking-widest mb-4">02 / LA PROPUESTA</p>
           <h2 className="text-3xl md:text-4xl font-bold max-w-2xl leading-tight">
             Un sistema operativo<br />para la <span className="text-blue-400">gestión de obra.</span>
