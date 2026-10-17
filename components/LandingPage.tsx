@@ -1,27 +1,35 @@
 import React from 'react';
-import { HardHat, ArrowRight, ArrowUpRight } from 'lucide-react';
+import {
+  HardHat, ArrowRight, ArrowUpRight,
+  Package, Calculator, FileSpreadsheet, CalendarClock, Activity, FolderOpen,
+  MessageSquare, Folder, Brain, FileX2,
+  TrendingUp, Users2, Building2,
+  XCircle, CheckCircle2,
+} from 'lucide-react';
 
 interface Props {
   onLogin: () => void;
 }
 
-const MODULES: [string, string][] = [
-  ['Recursos', 'Materiales, herramientas y mano de obra con una base común.'],
-  ['APU', 'Rendimientos y costos reutilizables para presupuestar con criterio.'],
-  ['Presupuesto', 'Partidas trazables desde la estimación hasta la ejecución.'],
-  ['Planificación', 'Tareas, responsables y avances conectados al costo real.'],
-  ['Control', 'Desvíos visibles a tiempo para decidir antes de perder margen.'],
-  ['Documentación', 'La información de obra ordenada, accesible y contextual.'],
+const MODULES: [typeof Package, string, string][] = [
+  [Package, 'Recursos', 'Materiales, herramientas y mano de obra con una base común.'],
+  [Calculator, 'APU', 'Rendimientos y costos reutilizables para presupuestar con criterio.'],
+  [FileSpreadsheet, 'Presupuesto', 'Partidas trazables desde la estimación hasta la ejecución.'],
+  [CalendarClock, 'Planificación', 'Tareas, responsables y avances conectados al costo real.'],
+  [Activity, 'Control', 'Desvíos visibles a tiempo para decidir antes de perder margen.'],
+  [FolderOpen, 'Documentación', 'La información de obra ordenada, accesible y contextual.'],
 ];
 
 const FLOW = ['Empresa', 'Proyecto', 'Presupuesto', 'Plan', 'Obra', 'Aprendizaje'];
 
-const FRAGMENTS: [string, string][] = [
-  ['PLANILLA', 'Presupuesto_v8_FINAL.xlsx'],
-  ['MENSAJE', '"¿Cuánto hormigón queda?"'],
-  ['CARPETA', 'Certificados / Julio / nuevos'],
-  ['MEMORIA', '"Ese rendimiento lo tenía Juan"'],
+const FRAGMENTS: [typeof FileX2, string, string][] = [
+  [FileSpreadsheet, 'PLANILLA', 'Presupuesto_v8_FINAL.xlsx'],
+  [MessageSquare, 'MENSAJE', '"¿Cuánto hormigón queda?"'],
+  [Folder, 'CARPETA', 'Certificados / Julio / nuevos'],
+  [Brain, 'MEMORIA', '"Ese rendimiento lo tenía Juan"'],
 ];
+
+const STAT_ICONS = [TrendingUp, Users2, Building2];
 
 const STATS: [string, string, string, string][] = [
   ['14–15%', 'ganancias potenciales de productividad mediante transformación digital.', 'McKinsey', 'https://www.mckinsey.com/capabilities/operations/our-insights/decoding-digital-transformation-in-construction'],
@@ -53,8 +61,23 @@ export const LandingPage: React.FC<Props> = ({ onLogin }) => {
       </nav>
 
       {/* Hero */}
-      <section id="inicio" className="pt-32 pb-20 px-6 md:px-10 bg-gradient-to-b from-blue-50/60 to-white">
-        <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center">
+      <section id="inicio" className="relative pt-32 pb-20 px-6 md:px-10 bg-gradient-to-b from-blue-50/60 to-white overflow-hidden">
+        {/* Fondo decorativo tipo "plano técnico" — gráfico propio, sin fotos de stock */}
+        <svg
+          className="absolute inset-0 w-full h-full opacity-[0.07] pointer-events-none"
+          aria-hidden="true"
+          preserveAspectRatio="xMidYMid slice"
+        >
+          <defs>
+            <pattern id="blueprint-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#2563eb" strokeWidth="1" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#blueprint-grid)" />
+        </svg>
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-200/30 rounded-full blur-3xl pointer-events-none" aria-hidden="true" />
+
+        <div className="relative max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center">
           <div>
             <div className="inline-flex items-center gap-2 text-xs font-semibold text-blue-700 bg-blue-100 px-3 py-1.5 rounded-full mb-6">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-600" /> Gestión integral para constructoras
@@ -130,10 +153,13 @@ export const LandingPage: React.FC<Props> = ({ onLogin }) => {
             </div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-px mt-16 bg-slate-200 border border-slate-200 rounded-xl overflow-hidden">
-            {FRAGMENTS.map(([label, value]) => (
+            {FRAGMENTS.map(([Icon, label, value]) => (
               <div key={label} className="bg-white p-5 flex flex-col justify-between min-h-[120px]">
-                <span className="text-[10px] font-mono text-slate-400">{label}</span>
-                <span className="font-semibold text-slate-800 text-sm">{value}</span>
+                <Icon size={18} className="text-slate-300" />
+                <div>
+                  <span className="text-[10px] font-mono text-slate-400 block mb-1">{label}</span>
+                  <span className="font-semibold text-slate-800 text-sm">{value}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -185,12 +211,17 @@ export const LandingPage: React.FC<Props> = ({ onLogin }) => {
             <p className="text-slate-500">Cada módulo resuelve una tarea concreta. Juntos construyen trazabilidad de punta a punta.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 border border-slate-200 rounded-xl overflow-hidden">
-            {MODULES.map(([name, description], i) => (
-              <div key={name} className="p-6 border-slate-200 [&:not(:last-child)]:border-r [&:not(:nth-last-child(-n+3))]:border-b md:[&:not(:nth-last-child(-n+3))]:border-b relative">
-                <span className="text-xs font-mono text-slate-400">{String(i + 1).padStart(2, '0')}</span>
+            {MODULES.map(([Icon, name, description], i) => (
+              <div key={name} className="group p-6 border-slate-200 [&:not(:last-child)]:border-r [&:not(:nth-last-child(-n+3))]:border-b md:[&:not(:nth-last-child(-n+3))]:border-b relative">
+                <div className="flex items-center justify-between">
+                  <span className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Icon size={18} />
+                  </span>
+                  <span className="text-xs font-mono text-slate-300">{String(i + 1).padStart(2, '0')}</span>
+                </div>
                 <h3 className="font-bold text-lg mt-6 mb-2">{name}</h3>
                 <p className="text-sm text-slate-500 max-w-[260px]">{description}</p>
-                <ArrowUpRight className="absolute top-6 right-6 text-blue-500" size={16} />
+                <ArrowUpRight className="absolute top-6 right-6 text-blue-500 opacity-0 group-hover:opacity-100" size={16} />
               </div>
             ))}
           </div>
@@ -232,13 +263,17 @@ export const LandingPage: React.FC<Props> = ({ onLogin }) => {
             <p className="text-slate-600">La digitalización de la construcción no se trata de sumar aplicaciones. Se trata de conectar decisiones, personas y resultados.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-px bg-slate-200 border border-slate-200 rounded-xl overflow-hidden">
-            {STATS.map(([value, desc, source, url]) => (
-              <div key={source} className="bg-white p-6">
-                <strong className="text-4xl font-bold text-blue-600">{value}</strong>
-                <p className="text-sm text-slate-600 mt-3 max-w-[260px]">{desc}</p>
-                <a href={url} target="_blank" rel="noreferrer" className="text-xs font-mono text-slate-400 hover:text-blue-600 mt-3 inline-block">{source} ↗</a>
-              </div>
-            ))}
+            {STATS.map(([value, desc, source, url], i) => {
+              const Icon = STAT_ICONS[i];
+              return (
+                <div key={source} className="bg-white p-6">
+                  <Icon size={20} className="text-blue-400 mb-3" />
+                  <strong className="text-4xl font-bold text-blue-600">{value}</strong>
+                  <p className="text-sm text-slate-600 mt-3 max-w-[260px]">{desc}</p>
+                  <a href={url} target="_blank" rel="noreferrer" className="text-xs font-mono text-slate-400 hover:text-blue-600 mt-3 inline-block">{source} ↗</a>
+                </div>
+              );
+            })}
           </div>
           <p className="text-[11px] text-slate-400 mt-4">Cifras de referencia sectorial; no constituyen resultados propios ni promesas de desempeño de Obraflow.</p>
         </div>
@@ -253,22 +288,22 @@ export const LandingPage: React.FC<Props> = ({ onLogin }) => {
           </h2>
           <div className="grid md:grid-cols-2 gap-px bg-slate-200 border border-slate-200 rounded-xl overflow-hidden">
             <div className="bg-slate-50 p-6">
-              <span className="text-xs font-mono text-slate-400">ANTES</span>
+              <span className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-400"><XCircle size={13} /> ANTES</span>
               <b className="block text-lg mt-4 mb-1">Buscar la información</b>
               <p className="text-sm text-slate-500">Datos aislados, versiones duplicadas y contexto repartido.</p>
             </div>
             <div className="bg-blue-600 text-white p-6">
-              <span className="text-xs font-mono text-blue-200">CON OBRAFLOW</span>
+              <span className="inline-flex items-center gap-1.5 text-xs font-mono text-blue-200"><CheckCircle2 size={13} /> CON OBRAFLOW</span>
               <b className="block text-lg mt-4 mb-1">Actuar con información</b>
               <p className="text-sm text-blue-100">Una lectura común del proyecto, actualizada y trazable.</p>
             </div>
             <div className="bg-slate-50 p-6">
-              <span className="text-xs font-mono text-slate-400">ANTES</span>
+              <span className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-400"><XCircle size={13} /> ANTES</span>
               <b className="block text-lg mt-4 mb-1">Repetir el aprendizaje</b>
               <p className="text-sm text-slate-500">Cada obra vuelve a resolver problemas que la empresa ya vivió.</p>
             </div>
             <div className="bg-blue-600 text-white p-6">
-              <span className="text-xs font-mono text-blue-200">CON OBRAFLOW</span>
+              <span className="inline-flex items-center gap-1.5 text-xs font-mono text-blue-200"><CheckCircle2 size={13} /> CON OBRAFLOW</span>
               <b className="block text-lg mt-4 mb-1">Capitalizar experiencia</b>
               <p className="text-sm text-blue-100">Cada proyecto mejora la base con la que comienza el siguiente.</p>
             </div>
