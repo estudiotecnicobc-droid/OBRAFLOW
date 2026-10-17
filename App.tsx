@@ -4,6 +4,7 @@ import { ERPProvider, useERP } from './context/ERPContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout } from './components/Layout';
 import { Login } from './components/Login';
+import { LandingPage } from './components/LandingPage';
 import { Dashboard } from './components/Dashboard';
 import { BudgetEditor } from './components/BudgetEditor';
 import { BudgetGrid } from './components/BudgetGrid';
@@ -49,6 +50,7 @@ const AppContent = () => {
   const { user, loading, isMasterAdmin, isPasswordRecovery, clearPasswordRecovery } = useAuth();
   const { activeProjectId } = useERP();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [showLogin, setShowLogin] = useState(false);
 
   // Leer token de invitación de la URL al montar y limpiarla inmediatamente
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
@@ -85,7 +87,16 @@ const AppContent = () => {
 
   // STATE 1: Unauthenticated
   if (!user) {
-    return <Login hasInvite={!!inviteToken} />;
+    // Un link de invitación va directo al login (con el formulario de aceptación), sin pasar por la landing
+    if (inviteToken || showLogin) {
+      return (
+        <Login
+          hasInvite={!!inviteToken}
+          onBack={inviteToken ? undefined : () => setShowLogin(false)}
+        />
+      );
+    }
+    return <LandingPage onLogin={() => setShowLogin(true)} />;
   }
 
   // STATE 1.5: Pending invitation acceptance
