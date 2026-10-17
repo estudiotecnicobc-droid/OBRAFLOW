@@ -329,8 +329,12 @@ export const LandingPage: React.FC<Props> = ({ onLogin }) => {
             Ingresar a la plataforma <ArrowRight size={16} />
           </button>
         </div>
-        <footer className="max-w-6xl mx-auto mt-20 pt-6 border-t border-white/10 flex flex-wrap justify-between gap-2 text-xs text-slate-400">
+        <footer className="max-w-6xl mx-auto mt-20 pt-6 border-t border-white/10 flex flex-wrap justify-between gap-x-6 gap-y-2 text-xs text-slate-400">
           <span>OBRAFLOW</span>
+          <div className="flex items-center gap-4">
+            <a href="/terminos" className="hover:text-slate-200">Términos y condiciones</a>
+            <a href="/privacidad" className="hover:text-slate-200">Política de privacidad</a>
+          </div>
           <span>La obra, bajo control.</span>
           <span>{new Date().getFullYear()}</span>
         </footer>
