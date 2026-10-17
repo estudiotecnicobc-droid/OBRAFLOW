@@ -1,0 +1,218 @@
+import React, { useEffect, useState } from 'react';
+import {
+  ShieldCheck, ChevronLeft, RefreshCw, AlertTriangle, Activity,
+  Package, BookOpen, User, CheckCircle2,
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { auditService, AuditEvent } from '../services/auditService';
+import { GlobalMaterialsAdmin } from './GlobalMaterialsAdmin';
+import { GlobalTasksAdmin } from './GlobalTasksAdmin';
+
+interface AdminPanelProps {
+  onBack: () => void;
+}
+
+type Tab = 'audit' | 'materials' | 'tasks';
+
+const OP_COLORS: Record<string, string> = {
+  INSERT: 'bg-green-50 text-green-700',
+  UPDATE: 'bg-amber-50 text-amber-700',
+  DELETE: 'bg-red-50 text-red-700',
+  MANUAL: 'bg-blue-50 text-blue-700',
+};
+
+export const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
+  const { user, isMasterAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState<Tab>('audit');
+  const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+
+  const loadAudit = async () => {
+    if (!isMasterAdmin) return;
+    setLoadingAudit(true);
+    const data = await auditService.listRecent(100);
+    setEvents(data);
+    setLoadingAudit(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'audit') loadAudit();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMasterAdmin, activeTab]);
+
+  if (!isMasterAdmin) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50">
+        <AlertTriangle className="w-12 h-12 mb-4 text-amber-500" />
+        <h2 className="text-xl font-bold text-slate-700 mb-2">Acceso Restringido</h2>
+        <p className="text-sm mb-1">Solo los administradores del sistema pueden acceder a esta área.</p>
+        <p className="text-xs text-slate-400 mb-6">
+          systemRole detectado: <code className="bg-slate-100 px-1 rounded">{user?.systemRole ?? 'undefined'}</code>
+        </p>
+        <button
+          onClick={onBack}
+          className="px-4 py-2 bg-slate-200 hover:bg-slate-300 rounded text-slate-700 text-sm"
+        >
+          Volver
+        </button>
+      </div>
+    );
+  }
+
+  const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
+    { id: 'audit',     label: 'Auditoría',           icon: Activity  },
+    { id: 'materials', label: 'Materiales Legacy / Ref. interna', icon: Package   },
+    { id: 'tasks',     label: 'APUs Globales',         icon: BookOpen  },
+  ];
+
+  return (
+    <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
+      {/* Header */}
+      <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center gap-3 flex-shrink-0">
+        <button
+          onClick={onBack}
+          className="p-1.5 hover:bg-slate-700 rounded transition-colors"
+          title="Volver"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <ShieldCheck size={18} className="text-blue-400" />
+        <h1 className="font-semibold text-base">Admin del Sistema</h1>
+        <span className="text-[10px] bg-blue-700 text-blue-100 px-2 py-0.5 rounded-full font-bold">
+          master_admin
+        </span>
+        {/* Diagnóstico de runtime — siempre visible en este panel */}
+        <span className="flex items-center gap-1 text-[10px] text-emerald-400 ml-2">
+          <CheckCircle2 size={11} /> systemRole: {user?.systemRole}
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-slate-500 text-xs flex items-center gap-1"><User size={11} /> {user?.email}</span>
+          {activeTab === 'audit' && (
+            <button
+              onClick={loadAudit}
+              className="p-1.5 hover:bg-slate-700 rounded transition-colors"
+              title="Recargar auditoría"
+            >
+              <RefreshCw size={13} className={loadingAudit ? 'animate-spin' : ''} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200 bg-white flex-shrink-0">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === tab.id
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <tab.icon size={14} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-6">
+
+        {/* ── Tab: Auditoría ─────────────────────────────────────────────── */}
+        {activeTab === 'audit' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
+              <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                <Activity size={15} className="text-slate-400" />
+                <h2 className="font-semibold text-slate-700 text-sm">Registro de Auditoría — Catálogo Global</h2>
+                <span className="ml-auto text-xs text-slate-400">{events.length} entradas</span>
+              </div>
+
+              {loadingAudit ? (
+                <div className="p-10 text-center text-slate-400 text-sm">Cargando…</div>
+              ) : events.length === 0 ? (
+                <div className="p-10 text-center text-slate-400 text-sm">
+                  Sin registros de auditoría aún.<br />
+                  <span className="text-xs">Las modificaciones al catálogo global aparecerán aquí.</span>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase tracking-wide">
+                      <tr>
+                        <th className="px-4 py-2.5 text-left font-medium">Fecha</th>
+                        <th className="px-4 py-2.5 text-left font-medium">Actor (ID)</th>
+                        <th className="px-4 py-2.5 text-left font-medium">Operación</th>
+                        <th className="px-4 py-2.5 text-left font-medium">Entidad</th>
+                        <th className="px-4 py-2.5 text-left font-medium">Entity ID</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {events.map(e => (
+                        <tr key={e.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-2 text-slate-500 whitespace-nowrap">
+                            {new Date(e.createdAt).toLocaleString('es-AR', {
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            })}
+                          </td>
+                          <td className="px-4 py-2 font-mono text-slate-400">
+                            {e.actorId ? e.actorId.slice(0, 8) + '…' : '—'}
+                          </td>
+                          <td className="px-4 py-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${OP_COLORS[e.operation] ?? 'bg-slate-100 text-slate-600'}`}>
+                              {e.operation}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-slate-600">{e.entity}</td>
+                          <td className="px-4 py-2 font-mono text-slate-400">
+                            {e.entityId?.slice(0, 8)}…
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-lg px-5 py-3.5 text-xs text-blue-700">
+              <strong>Nota de seguridad:</strong> Para promover un usuario a <code>master_admin</code>, ejecutar el SQL correspondiente directamente desde el Supabase Dashboard (ver <code>docs/how-to-promote-master-admin.md</code>). No existe auto-promoción desde la UI.
+            </div>
+          </div>
+        )}
+
+        {/* ── Tab: Materiales Globales (interno) ────────────────────────── */}
+        {activeTab === 'materials' && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+              <span>
+                <strong>Catálogo legacy/interno</strong> (<code>master_materials</code>, <code>organization_id IS NULL</code>).
+                <strong>No es el Catálogo Global del producto.</strong> El catálogo global real es <strong>Recursos Globales</strong> (tabla <code>resources</code>), accesible desde DataAdmin.
+                Este catálogo se mantiene como auxiliar de referencia para compatibilidad.
+                Solo <code>master_admin</code> puede crear, editar o desactivar materiales aquí.
+              </span>
+            </div>
+            <GlobalMaterialsAdmin />
+          </div>
+        )}
+
+        {/* ── Tab: APUs Globales ─────────────────────────────────────────── */}
+        {activeTab === 'tasks' && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+              <AlertTriangle size={13} className="text-amber-600 flex-shrink-0" />
+              <span>
+                APUs del catálogo global (<code>organization_id IS NULL</code>). Solo se editan los campos básicos del encabezado. La composición (materiales, MO, equipos) debe gestionarse en la sección <strong>APU</strong> de la Base de Datos de empresa.
+              </span>
+            </div>
+            <GlobalTasksAdmin />
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+};

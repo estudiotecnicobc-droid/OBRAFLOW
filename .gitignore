@@ -29,7 +29,8 @@ EXCEL/
 HANDOFF/
 OBRAFLOW/
 tu-erp-construccion/
-.claude/
+.claude/settings*.json
+.claude/worktrees/
 *.txt
 
 .vercel

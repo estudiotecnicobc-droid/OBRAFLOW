@@ -226,6 +226,42 @@ describe('Conversión de unidades comerciales', () => {
     expect(result.warnings).toBeUndefined();
   });
 
+  it('acero en kg × $/kg da costo técnico correcto (post-046)', async () => {
+    // Verifica que el motor recursivo calcula correctamente cuando
+    // master_task_materials.unit='kg' y lastKnownUnitPrice=$/kg (estado post-046).
+    // Sin resourceId — usa lastKnownUnitPrice directamente.
+    const PRICE_PER_KG = 140;    // $/kg (precio técnico)
+    const QTY_KG       = 149.52; // kg (14 barras × 10.68 kg/barra, corregido por 046)
+
+    const task: MasterTask = {
+      id:             'test-steel-kg',
+      organizationId: ORG,
+      name:           'Test Acero kg post-046',
+      unit:           'M3',
+      dailyYield:     1,
+      isActive:       true,
+      createdAt:      '',
+      updatedAt:      '',
+      materials: [{
+        id:                 'steel-kg',
+        materialName:       'Hierro nervado Ø12mm',
+        unit:               'kg',              // post-046: unidad técnica
+        quantity:           QTY_KG,            // post-046: cantidad en kg
+        lastKnownUnitPrice: PRICE_PER_KG,      // $/kg (siempre fue $/kg)
+      }],
+      labor:     [],
+      equipment: [],
+    };
+
+    const ctx = makeCtx('2026-01-31');
+    ctx.tasksMap.set(task.id, task);
+    const result = await computeTaskCost(task, ctx);
+
+    // Esperado: 149.52 kg × $140/kg = $20,932.80
+    expect(result.materialCost).toBeCloseTo(QTY_KG * PRICE_PER_KG, 2);
+    expect(result.warnings).toBeUndefined();
+  });
+
   it('UD como unidad de material es equivalente a UN', async () => {
     const costLadrillo = getResourceUnitCost(RES_LADRILLO, ORG, '2026-01-31')!;
 

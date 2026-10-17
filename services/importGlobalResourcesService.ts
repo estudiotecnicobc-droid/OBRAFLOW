@@ -181,3 +181,123 @@ export async function importGlobalResourcesToOrg(
 
   return { materialsCreated, laborCreated, equipmentCreated, pricesUpdated, skipped };
 }
+
+// ─── Importación de Recursos Globales → master_materials(orgId) ───────────────
+// Complementa importGlobalResourcesToOrg: también deja los materiales disponibles
+// para APUs legacy que leen de master_materials.
+
+export interface ImportToCompanyCatalogResult extends ImportGlobalResourcesResult {
+  masterMaterialsCreated: number;
+  masterMaterialsUpdated: number;
+  masterMaterialsProtected: number;
+}
+
+async function importMaterialResourcesToMasterCatalog(
+  organizationId: string,
+  priceStrategy: ResourcePriceStrategy,
+): Promise<{ created: number; updated: number }> {
+  const globals = await resourcesService.listGlobal();
+  const materialResources = globals.filter(r => r.type === 'MATERIAL');
+
+  // Cargar master_materials existentes para la org
+  const { data: existingMM, error: mmError } = await supabase
+    .from('master_materials')
+    .select('id, name, global_resource_id, unit_price, local_override')
+    .eq('organization_id', organizationId)
+    .eq('is_active', true);
+
+  if (mmError) {
+    if (mmError.code === '42703') {
+      throw new Error('Ejecutá la migración 054 en Supabase Dashboard antes de importar al Catálogo de Empresa.');
+    }
+    throw new Error(`[importMaterialResources] read master_materials: ${mmError.message}`);
+  }
+
+  // Índice por global_resource_id (para dedup por UUID)
+  const existingByResourceId = new Map(
+    (existingMM ?? [])
+      .filter(m => m.global_resource_id)
+      .map(m => [m.global_resource_id as string, m]),
+  );
+  // Índice por nombre normalizado (evita duplicado con materiales manuales)
+  const existingNameSet = new Set((existingMM ?? []).map(m => key(m.name)));
+
+  const now = new Date().toISOString();
+  const inserts: Record<string, any>[] = [];
+  let created = 0;
+  let updated = 0;
+  let protectedCount = 0;
+
+  for (const r of materialResources) {
+    const existingById = existingByResourceId.get(r.id);
+    if (existingById) {
+      // Materiales editados localmente nunca se pisan, sin importar la estrategia.
+      if (existingById.local_override) {
+        protectedCount++;
+        continue;
+      }
+      // Ya importado y no editado: actualizar precio según estrategia
+      const shouldUpdate =
+        priceStrategy === 'overwrite_all' ||
+        (priceStrategy === 'zero_only' && Number(existingById.unit_price) === 0);
+      if (shouldUpdate && priceStrategy !== 'skip_prices') {
+        await supabase
+          .from('master_materials')
+          .update({ unit_price: r.baseCost, last_synced_at: now })
+          .eq('id', existingById.id);
+        updated++;
+      }
+    } else if (!existingNameSet.has(key(r.name))) {
+      // No existe por UUID ni por nombre: insertar nuevo
+      inserts.push({
+        organization_id:    organizationId,
+        code:               r.code ?? null,
+        name:               r.name,
+        unit:               r.unit,
+        unit_price:         priceStrategy === 'skip_prices' ? 0 : r.baseCost,
+        currency:           'ARS',
+        category:           r.categoryName ?? null,
+        is_active:          true,
+        global_resource_id: r.id,
+        imported_at:        now,
+        last_synced_at:     now,
+        local_override:     false,
+      });
+      created++;
+    }
+    // Si ya existe por nombre (manual) pero no por UUID → se omite para no duplicar
+  }
+
+  if (inserts.length > 0) {
+    const { error } = await supabase.from('master_materials').insert(inserts);
+    if (error) {
+      if (error.code === '42703') {
+        throw new Error('Ejecutá la migración 054 en Supabase Dashboard antes de importar al Catálogo de Empresa.');
+      }
+      throw new Error(`[importMaterialResources] master_materials insert: ${error.message}`);
+    }
+  }
+
+  return { created, updated, protected: protectedCount };
+}
+
+/**
+ * Importa Recursos Globales al Catálogo de Empresa cubriendo ambos destinos:
+ * 1. materials / labor_categories / tools  (para presupuesto y cómputo)
+ * 2. master_materials(orgId)              (para APUs legacy)
+ */
+export async function importResourcesToCompanyCatalog(
+  organizationId: string,
+  priceStrategy: ResourcePriceStrategy = 'missing_only',
+): Promise<ImportToCompanyCatalogResult> {
+  const [baseResult, mmResult] = await Promise.all([
+    importGlobalResourcesToOrg(organizationId, priceStrategy),
+    importMaterialResourcesToMasterCatalog(organizationId, priceStrategy),
+  ]);
+  return {
+    ...baseResult,
+    masterMaterialsCreated: mmResult.created,
+    masterMaterialsUpdated: mmResult.updated,
+    masterMaterialsProtected: mmResult.protected,
+  };
+}

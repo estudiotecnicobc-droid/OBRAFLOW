@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { Printer, Download, ChevronUp, ChevronDown } from 'lucide-react';
+import XLSXStyle from 'xlsx-js-style';
+import { Printer, Download, FileSpreadsheet, ChevronUp, ChevronDown } from 'lucide-react';
 import { useERP } from '../../../context/ERPContext';
 import { supabase } from '../../../services/supabaseClient';
 import { budgetItemsService } from '../../../services/budgetItemsService';
@@ -50,7 +51,128 @@ function exportToCSV(lines: RpcResourceLine[], projectName: string, tab: TabKey)
   const a    = document.createElement('a');
   const date = new Date().toISOString().slice(0, 10);
   a.href     = url;
-  a.download = `consumos_${projectName.replace(/[^a-z0-9]/gi, '_')}_${tab.replace(/ /g, '_')}_${date}.csv`;
+  a.download = `explosion_insumos_${projectName.replace(/[^a-z0-9]/gi, '_')}_${tab.replace(/ /g, '_')}_${date}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Shared style tokens ──────────────────────────────────────────────────────
+const XS = {
+  DARK:    '0F172A',
+  WHITE:   'FFFFFF',
+  SLATE50: 'F8FAFC',
+  SLATE100:'F1F5F9',
+  SLATE200:'E2E8F0',
+  TEXT:    '1E293B',
+  MUTED:   '64748B',
+  BORDER:  { style: 'thin' as const, color: { rgb: 'CBD5E1' } },
+};
+const xsBorders = { top: XS.BORDER, bottom: XS.BORDER, left: XS.BORDER, right: XS.BORDER };
+
+function xsCell(ws: any, r: number, c: number, s: object, z?: string) {
+  const addr = XLSXStyle.utils.encode_cell({ r, c });
+  if (!ws[addr]) ws[addr] = { v: '', t: 's' };
+  ws[addr].s = s;
+  if (z) ws[addr].z = z;
+}
+
+function exportToXLSX(lines: RpcResourceLine[], projectName: string, tab: TabKey, costDate: string): void {
+  if (lines.length === 0) return;
+  const isMat = tab === 'Materiales';
+  const date  = new Date().toISOString().slice(0, 10);
+  const numCols = isMat ? 9 : 7;
+
+  const headers = isMat
+    ? ['Código', 'Insumo', 'Unidad', 'Cant. Técnica', 'Cant. Compra', 'U. Compra', 'Costo Unit.', 'Costo Total', 'APUs']
+    : ['Código', 'Insumo', 'Unidad', 'Cantidad', 'Costo Unit.', 'Costo Total', 'APUs'];
+
+  const dataRows = lines.map(l => {
+    const base: (string | number)[] = [l.code || '', l.name, l.unit, l.totalQuantity];
+    if (isMat) { base.push(l.purchaseQuantity ?? ''); base.push(l.commercialUnit ?? ''); }
+    base.push(l.unitCost, l.totalCost, l.sourceTaskNames.join(' | '));
+    return base;
+  });
+
+  const total = lines.reduce((s, l) => s + l.totalCost, 0);
+  const pad = (n: number) => Array(n).fill('');
+  const totalRow: (string | number)[] = isMat
+    ? [...pad(7), 'TOTAL', total, '']
+    : [...pad(5), 'TOTAL', total, ''];
+
+  const blank = Array(numCols).fill('');
+  const aoa = [
+    [`OBRAFLOW — EXPLOSIÓN DE INSUMOS — BASE PRESUPUESTO`, ...pad(numCols - 1)],
+    [`Proyecto: ${projectName}`,    ...pad(numCols - 1)],
+    [`Fuente: precios base del presupuesto al ${costDate}`, ...pad(numCols - 1)],
+    [`Exportado: ${date}`,          ...pad(numCols - 1)],
+    blank,
+    headers,
+    ...dataRows,
+    blank,
+    totalRow,
+  ];
+
+  const ws = XLSXStyle.utils.aoa_to_sheet(aoa);
+
+  ws['!cols'] = isMat
+    ? [{ wch:10 },{ wch:36 },{ wch:8 },{ wch:14 },{ wch:14 },{ wch:12 },{ wch:14 },{ wch:14 },{ wch:40 }]
+    : [{ wch:10 },{ wch:36 },{ wch:8 },{ wch:14 },{ wch:14 },{ wch:14 },{ wch:40 }];
+
+  ws['!merges'] = [
+    { s: { r:0,c:0 }, e: { r:0, c: numCols-1 } },
+    { s: { r:1,c:0 }, e: { r:1, c: numCols-1 } },
+    { s: { r:2,c:0 }, e: { r:2, c: numCols-1 } },
+    { s: { r:3,c:0 }, e: { r:3, c: numCols-1 } },
+  ];
+  (ws as any)['!freeze'] = { xSplit: 0, ySplit: 6 };
+
+  // Title row
+  xsCell(ws, 0, 0, { fill:{ patternType:'solid', fgColor:{ rgb: XS.DARK } }, font:{ bold:true, color:{ rgb: XS.WHITE }, sz:14 }, alignment:{ horizontal:'left', vertical:'center' } });
+  // Info rows 1-3
+  [1,2,3].forEach(r => xsCell(ws, r, 0, { fill:{ patternType:'solid', fgColor:{ rgb: XS.SLATE100 } }, font:{ color:{ rgb: XS.MUTED }, sz:9 } }));
+  // Header row (row 5, 0-indexed)
+  headers.forEach((_, c) => xsCell(ws, 5, c, {
+    fill: { patternType:'solid', fgColor:{ rgb: XS.DARK } },
+    font: { bold:true, color:{ rgb: XS.WHITE }, sz:10 },
+    border: xsBorders,
+    alignment: { horizontal: c >= 3 && c !== numCols-1 ? 'right' : 'left' },
+  }));
+
+  const costCol     = isMat ? 7 : 5;
+  const unitCostCol = isMat ? 6 : 4;
+  const dataStart   = 6;
+
+  dataRows.forEach((_, i) => {
+    const r = dataStart + i;
+    const isAlt = i % 2 === 1;
+    const bg = isAlt ? XS.SLATE50 : XS.WHITE;
+    const base = { fill:{ patternType:'solid', fgColor:{ rgb: bg } }, font:{ sz:10, color:{ rgb: XS.TEXT } }, border: xsBorders };
+    for (let c = 0; c < numCols; c++) {
+      const isNum = c === 3 || c === costCol || c === unitCostCol;
+      const isPurchaseQty = isMat && c === 4;
+      xsCell(ws, r, c, { ...base, alignment: { horizontal: (isNum || isPurchaseQty) ? 'right' : 'left' } });
+    }
+    xsCell(ws, r, 3,          { ...base, alignment:{ horizontal:'right' } }, '#,##0.000');
+    xsCell(ws, r, unitCostCol, { ...base, alignment:{ horizontal:'right' } }, '#,##0.00');
+    xsCell(ws, r, costCol,     { ...base, alignment:{ horizontal:'right' } }, '#,##0.00');
+  });
+
+  // Total row
+  const totalRowIdx = dataStart + dataRows.length + 1;
+  const totalStyle  = { fill:{ patternType:'solid', fgColor:{ rgb: XS.SLATE200 } }, font:{ bold:true, sz:10, color:{ rgb: XS.TEXT } }, border: xsBorders };
+  for (let c = 0; c < numCols; c++) {
+    xsCell(ws, totalRowIdx, c, { ...totalStyle, alignment:{ horizontal: c === costCol ? 'right' : 'left' } });
+  }
+  xsCell(ws, totalRowIdx, costCol, { ...totalStyle, alignment:{ horizontal:'right' } }, '#,##0.00');
+
+  const wb = XLSXStyle.utils.book_new();
+  XLSXStyle.utils.book_append_sheet(wb, ws, tab.slice(0, 31));
+  const buf  = XLSXStyle.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `explosion_insumos_${projectName.replace(/[^a-z0-9]/gi,'_')}_${tab.replace(/ /g,'_')}_${date}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -142,14 +264,7 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
       const res = await calculateConsolidatedResources({ items, organizationId, costDate });
       setResult(res);
     } catch (e: any) {
-      const raw = e.message ?? 'Error al calcular consumos';
-      if (raw.includes('conversion_factor') || (raw.includes('does not exist') && raw.includes('column'))) {
-        setError('Error de base de datos: falta ejecutar la migración 017 en Supabase Dashboard (agrega conversion_factor a master_task_materials y catalog_task_yields). Luego ejecutar 045 para actualizar la RPC.');
-      } else if (raw.includes('function') && raw.includes('does not exist')) {
-        setError('La función RPC calculate_consolidated_resources no existe en la base de datos. Ejecutar migración 045 en Supabase Dashboard.');
-      } else {
-        setError(raw);
-      }
+      setError(e.message ?? 'Error al calcular consumos');
     } finally {
       setLoading(false);
     }
@@ -237,7 +352,7 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
     const dateStr = new Date(costDate + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const header = `
       <div style="margin-bottom:1.5rem;border-bottom:2px solid #0f172a;padding-bottom:1rem;">
-        <h1 style="font-size:1.25rem;font-weight:900;color:#0f172a;margin-bottom:0.25rem;">Consumos del Proyecto</h1>
+        <h1 style="font-size:1.25rem;font-weight:900;color:#0f172a;margin-bottom:0.25rem;">Explosión de Insumos</h1>
         <p style="color:#475569;font-size:0.875rem;">Proyecto: <strong>${projectName}</strong></p>
         <p style="color:#64748b;font-size:0.8rem;">Fecha base de costos: ${dateStr}</p>
       </div>
@@ -263,7 +378,7 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
       + buildResourceTable(result.labor, 'Mano de Obra', false)
       + buildResourceTable(result.equipment, 'Equipos', false);
     printDocument({
-      title: `Consumos — ${projectName}`,
+      title: `Explosión de Insumos — ${projectName}`,
       html: content,
       pageSize: 'a4',
       pageOrientation: 'portrait',
@@ -273,6 +388,18 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Context badge */}
+      <div className="flex items-start gap-3 bg-violet-50 border border-violet-100 rounded-lg px-4 py-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[10px] font-bold bg-violet-200 text-violet-700 px-2 py-0.5 rounded-full uppercase tracking-wide">Base presupuesto</span>
+            <span className="text-[10px] font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full uppercase tracking-wide">Precios congelados</span>
+          </div>
+          <p className="text-xs text-slate-600">Desglose técnico y costos base usados para este presupuesto.</p>
+          <p className="text-[11px] text-slate-400 mt-1 italic">Los valores pueden diferir de la Lista de Materiales si los precios actuales del catálogo cambiaron respecto de la fecha base del presupuesto.</p>
+        </div>
+      </div>
+
       {/* Controls */}
       <div className="flex flex-wrap gap-3 items-end">
         <div>
@@ -316,19 +443,32 @@ export function ConsolidatedProjectReport({ organizationId }: Props) {
           onClick={() => {
             if (!result) return;
             const projectName = projects.find(p => p.id === projectId)?.name ?? projectId;
+            exportToXLSX(currentLines, projectName, activeTab, costDate);
+          }}
+          disabled={!result}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm transition-colors font-medium"
+        >
+          <FileSpreadsheet size={14} />
+          Exportar Excel
+        </button>
+        <button
+          onClick={() => {
+            if (!result) return;
+            const projectName = projects.find(p => p.id === projectId)?.name ?? projectId;
             exportToCSV(currentLines, projectName, activeTab);
           }}
           disabled={!result}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-teal-200 text-teal-700 hover:bg-teal-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-sm transition-colors"
         >
           <Download size={14} />
-          Exportar CSV
+          CSV
         </button>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
-          {error}
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm space-y-2">
+          <p className="font-bold text-red-700">Error al calcular consumos</p>
+          <p className="text-red-500 font-mono text-xs break-all">{error}</p>
         </div>
       )}
 

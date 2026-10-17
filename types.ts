@@ -3,6 +3,9 @@
 
 export type Role = 'admin' | 'project_manager' | 'worker' | 'client';
 
+/** Roles a nivel sistema (independientes del org role). Columna profiles.system_role. */
+export type SystemRole = 'master_admin' | 'tester' | 'user';
+
 // NEW: Cost Families based on User Request
 export type CostFamily = 'MATERIAL' | 'MANO DE OBRA' | 'EQUIPOS' | 'SUBCONTRATO' | 'COSTO INDIRECTO';
 
@@ -12,6 +15,7 @@ export interface User {
   email: string;
   role: Role;
   organizationId: string; // Tenant ID
+  systemRole?: SystemRole; // System-level role (independent of org membership)
 }
 
 export enum LinkType {
@@ -733,7 +737,7 @@ export interface APUSourceMetadata {
 // organization_id es text para compatibilidad con los IDs de la app actual (ej: 'org_a').
 export interface MasterMaterial {
   id: string;              // UUID generado por Supabase
-  organizationId: string;  // Mapea a organization_id en DB
+  organizationId: string | null;  // Mapea a organization_id en DB; null = catálogo global
   code?: string;           // Código interno: "MAT-0001"
   name: string;
   description?: string;
@@ -750,6 +754,18 @@ export interface MasterMaterial {
   lastPriceUpdate?: string; // ISO timestamp
   createdAt?: string;
   updatedAt?: string;
+  // Trazabilidad de importación desde master_materials global (migration 053)
+  globalSourceId?: string;
+  importedAt?: string;
+  lastSyncedAt?: string;
+  localOverride?: boolean;
+  globalSourceUpdatedAtAtImport?: string;
+  // Trazabilidad de importación desde Recursos Globales — tabla resources (migration 054)
+  globalResourceId?: string;
+  // Datos técnicos opcionales (migration 058)
+  technicalYield?: number;
+  technicalYieldUnit?: string;
+  technicalNotes?: string;
 }
 
 export interface UnitPriceAnalysis {
@@ -809,6 +825,7 @@ export interface Profile {
   email?: string;       // snapshot sincronizado desde auth.users
   defaultOrganizationId?: string; // UUID — org activa por defecto
   createdAt?: string;
+  systemRole?: SystemRole; // Sistema de roles global (migration 048)
 }
 
 /** Membresía de un usuario en una organización */

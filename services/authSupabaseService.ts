@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { Profile, Organization, OrganizationMember, OrgRole } from '../types';
+import { Profile, Organization, OrganizationMember, OrgRole, SystemRole } from '../types';
 
 // ─── Mappers ──────────────────────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ function profileFromRow(row: Record<string, any>): Profile {
     email: row.email ?? undefined,
     defaultOrganizationId: row.default_organization_id ?? undefined,
     createdAt: row.created_at,
+    systemRole: (row.system_role as SystemRole) ?? 'user',
   };
 }
 

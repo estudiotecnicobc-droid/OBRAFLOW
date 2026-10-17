@@ -43,7 +43,11 @@ const InfoTooltip = ({ text, formula }: { text: string, formula?: string }) => (
   </div>
 );
 
-export const DataAdmin: React.FC = () => {
+interface DataAdminProps {
+  initialSubTab?: 'materials' | 'tasks' | 'tools' | 'labor' | 'rubros' | 'apu' | 'crews' | 'system' | 'master' | 'master-tasks' | 'templates' | 'calculator' | 'chandias' | 'computo' | 'reports' | 'resources';
+}
+
+export const DataAdmin: React.FC<DataAdminProps> = ({ initialSubTab }) => {
   const { user, activeOrganizationId } = useAuth();
   const organizationId = activeOrganizationId ?? user?.organizationId ?? '';
   const {
@@ -63,7 +67,7 @@ export const DataAdmin: React.FC = () => {
     yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, laborCategoriesMap, taskCrewYieldsIndex, crewsMap, taskLaborYieldsIndex
   } = useERP();
   
-  const [activeSubTab, setActiveSubTab] = useState<'materials' | 'tasks' | 'tools' | 'labor' | 'rubros' | 'apu' | 'crews' | 'system' | 'master' | 'master-tasks' | 'templates' | 'calculator' | 'chandias' | 'computo' | 'reports' | 'resources'>('materials');
+  const [activeSubTab, setActiveSubTab] = useState<'materials' | 'tasks' | 'tools' | 'labor' | 'rubros' | 'apu' | 'crews' | 'system' | 'master' | 'master-tasks' | 'templates' | 'calculator' | 'chandias' | 'computo' | 'reports' | 'resources'>(initialSubTab ?? 'materials');
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -250,7 +254,7 @@ export const DataAdmin: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `construsoft_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `obraflow_backup_${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
       setMessage({ type: 'success', text: 'Copia de seguridad descargada exitosamente.' });
@@ -348,7 +352,7 @@ export const DataAdmin: React.FC = () => {
           
           // 3. Prompt de Ingeniería + Búsqueda
           const prompt = `
-            Actúa como el "Asistente de Inteligencia de Mercado" de Construsoft ERP.
+            Actúa como el "Asistente de Inteligencia de Mercado" de Obraflow.
             
             OBJETIVO:
             Tu tarea es buscar precios de mercado actualizados en Argentina para los siguientes materiales de construcción.
@@ -886,6 +890,12 @@ export const DataAdmin: React.FC = () => {
           <Package size={18} /> Recursos
         </button>
         <button
+          onClick={() => { setActiveSubTab('master'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
+          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'master' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-slate-500 hover:bg-slate-50'}`}
+        >
+          <Database size={18} /> Materiales de Empresa
+        </button>
+        <button
           onClick={() => { setActiveSubTab('labor'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'labor' || activeSubTab === 'crews' ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
@@ -901,7 +911,7 @@ export const DataAdmin: React.FC = () => {
           onClick={() => { setActiveSubTab('resources'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'resources' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
-          <Globe size={18} /> Catálogo Global
+          <Globe size={18} /> Recursos Globales
         </button>
         <button
           onClick={() => { setActiveSubTab('templates'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
@@ -1084,8 +1094,10 @@ export const DataAdmin: React.FC = () => {
           </div>
       )}
 
-      {/* Base Maestra de Materiales (Supabase) */}
-      {activeSubTab === 'master' && <MasterMaterialsPanel />}
+      {/* Materiales de Empresa */}
+      {activeSubTab === 'master' && (
+        <MasterMaterialsPanel onNavigateToResources={() => setActiveSubTab('resources')} />
+      )}
 
       {/* APU Maestro — Base Maestra de Tareas (localStorage) */}
       {activeSubTab === 'master-tasks' && <MasterTasksPanel />}
@@ -2128,10 +2140,11 @@ export const DataAdmin: React.FC = () => {
 
       {/* --- REPORT PREVIEW MODAL --- */}
       {showReport && (
-          <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex flex-col animate-in fade-in duration-200">
-             
+          <div id="da-report-modal" className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex flex-col animate-in fade-in duration-200">
+             <style>{`@media print{@page{size:A4 portrait;margin:0;}#da-report-modal{background-color:white!important;backdrop-filter:none!important;display:block!important;}#da-report-toolbar{display:none!important;}#da-report-scroll{display:block!important;overflow:visible!important;background-color:transparent!important;padding:0!important;}#report-portal{transform:none!important;box-shadow:none!important;width:210mm!important;min-height:auto!important;padding:15mm!important;margin:0 auto!important;}}`}</style>
+
              {/* Toolbar */}
-             <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
+             <div id="da-report-toolbar" className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0">
                 <div className="flex items-center gap-4">
                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><BarChart3 size={20} className="text-slate-600" /> Auditoría de Base de Datos</h3>
                    <div className="h-6 w-px bg-slate-200 mx-2"></div>
@@ -2182,7 +2195,7 @@ export const DataAdmin: React.FC = () => {
              </div>
 
              {/* Preview Area */}
-             <div className="flex-1 overflow-auto bg-slate-500/10 p-8 flex justify-center items-start">
+             <div id="da-report-scroll" className="flex-1 overflow-auto bg-slate-500/10 p-8 flex justify-center items-start">
                 <div 
                    id="report-portal"
                    className="bg-white shadow-2xl transition-transform origin-top duration-200"
@@ -2359,7 +2372,7 @@ export const DataAdmin: React.FC = () => {
                         )}
 
                         <div className="mt-8 pt-4 border-t border-slate-200 text-center text-[10px] text-slate-400">
-                            Auditoría generada el {new Date().toLocaleString()} por Construsoft ERP
+                            Auditoría generada el {new Date().toLocaleString()} por Obraflow
                         </div>
                     </div>
                 </div>

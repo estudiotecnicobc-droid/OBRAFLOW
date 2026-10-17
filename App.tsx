@@ -19,6 +19,8 @@ import { MeasurementSheetComponent } from './components/MeasurementSheet';
 import { QualityControl } from './components/QualityControl';
 import { ProjectHub } from './components/ProjectHub';
 import { APUBuilder } from './components/APUBuilder';
+import { AdminPanel } from './components/AdminPanel';
+import { UpdatePassword } from './components/UpdatePassword';
 import { InvitationAccept } from './components/InvitationAccept';
 import { BillingSuccess } from './src/features/billing/BillingSuccess';
 import { Role } from './types';
@@ -44,7 +46,7 @@ const ProtectedRoute: React.FC<{
 };
 
 const AppContent = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, isMasterAdmin, isPasswordRecovery, clearPasswordRecovery } = useAuth();
   const { activeProjectId } = useERP();
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -64,7 +66,12 @@ const AppContent = () => {
     return v === 'success';
   });
 
-  // STATE 0: Resolving Supabase session
+  // STATE 0: Password recovery (show immediately — URL hash detected or onAuthStateChange fired)
+  if (isPasswordRecovery) {
+    return <UpdatePassword onDone={clearPasswordRecovery} />;
+  }
+
+  // STATE 0.5: Resolving Supabase session
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -102,17 +109,22 @@ const AppContent = () => {
       return <ProjectHub />;
   }
 
+  // STATE 2.5: System Admin area (master_admin only, project-agnostic)
+  if (activeTab === 'system_admin') {
+    return <AdminPanel onBack={() => setActiveTab('dashboard')} />;
+  }
+
   // STATE 3: Active Project (Main Layout)
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': 
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker', 'client']}><Dashboard /></ProtectedRoute>;
+      case 'dashboard':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker', 'client']}><Dashboard onNavigate={setActiveTab} /></ProtectedRoute>;
       case 'management': 
         return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'client']}><ManagementPanel /></ProtectedRoute>;
       case 'subcontractors': 
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><Subcontractors /></ProtectedRoute>;
-      case 'budget': 
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><BudgetEditor /></ProtectedRoute>;
+      case 'budget':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><BudgetEditor onNavigate={setActiveTab} /></ProtectedRoute>;
       case 'apu':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><APUBuilder /></ProtectedRoute>;
       case 'grid': 
@@ -123,9 +135,19 @@ const AppContent = () => {
         return <ProtectedRoute allowedRoles={['admin', 'worker']}><MaterialReception /></ProtectedRoute>;
       case 'tools': 
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><ToolsManager /></ProtectedRoute>;
-      case 'admin': 
+      case 'admin':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin /></ProtectedRoute>;
-      case 'settings': 
+      case 'chandias':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="chandias" /></ProtectedRoute>;
+      case 'reports':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="reports" /></ProtectedRoute>;
+      case 'admin_resources':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="resources" /></ProtectedRoute>;
+      case 'admin_catalog':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="master" /></ProtectedRoute>;
+      case 'admin_apu':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="master-tasks" /></ProtectedRoute>;
+      case 'settings':
         return <ProtectedRoute allowedRoles={['admin']}><ProjectSettings /></ProtectedRoute>;
       case 'documents':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker', 'client']}><DocumentManager /></ProtectedRoute>;
@@ -133,6 +155,10 @@ const AppContent = () => {
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><MeasurementSheetComponent /></ProtectedRoute>;
       case 'quality':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker']}><QualityControl /></ProtectedRoute>;
+      case 'system_admin':
+        return isMasterAdmin
+          ? <AdminPanel onBack={() => setActiveTab('dashboard')} />
+          : <ProtectedRoute allowedRoles={[]}>{null}</ProtectedRoute>;
       default: return <Dashboard />;
     }
   };

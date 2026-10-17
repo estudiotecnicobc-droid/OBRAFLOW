@@ -10,7 +10,7 @@ import {
   Info, RefreshCcw, DollarSign, Clock, X, Package, Hammer, Edit3, AlertCircle, PenTool, Sparkles,
   BookOpen, LayoutGrid,
 } from 'lucide-react';
-import { BusinessConfig, Task, ProjectTemplate, MasterTaskMaterial, MasterTaskLabor, MasterTaskEquipment } from '../types';
+import { BusinessConfig, Task, MasterTask, ProjectTemplate, MasterTaskMaterial, MasterTaskLabor, MasterTaskEquipment } from '../types';
 import { useBudgetTemplates } from '../hooks/useBudgetTemplates';
 import { BudgetCostComparisonPanel } from '../src/features/budgets/components/BudgetCostComparisonPanel';
 import { BudgetStalenessAlert } from './BudgetStalenessAlert';
@@ -25,7 +25,11 @@ import { useBudgetKStore, selectBusinessConfig, computeBudgetKSummary } from '..
 import { computeBudgetItemSaleBreakdown, BudgetItemSaleBreakdown, ItemDirectCostInput } from '../services/budgetItemBreakdown';
 import { projectsService } from '../services/projectsService';
 
-export const BudgetEditor: React.FC = () => {
+interface BudgetEditorProps {
+  onNavigate?: (tab: string) => void;
+}
+
+export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   const {
     project, tasks, rubros, rubroPresets,
     materials: projectMaterials,
@@ -92,6 +96,9 @@ export const BudgetEditor: React.FC = () => {
   const [wizardTemplateOpen, setWizardTemplateOpen] = useState(false);
   const [wizardSelectedTemplateId, setWizardSelectedTemplateId] = useState('');
   const [wizardTemplateMsg, setWizardTemplateMsg] = useState('');
+  const [taskSearch, setTaskSearch] = useState('');
+  const [duplicateWarning, setDuplicateWarning] = useState(false);
+  const [importingMaster, setImportingMaster] = useState(false);
 
   // writePayload es async: espera que la Task exista en Supabase antes de insertar
   // el BudgetItem, evitando la violación de FK que causaba pérdida de datos en recarga.
@@ -551,12 +558,13 @@ export const BudgetEditor: React.FC = () => {
 
   // Quick Add Handler
   const handleQuickAddTask = (category: string) => {
-      const firstTask = tasks.find(t => t.category === category);
+      setTaskSearch('');
+      setDuplicateWarning(false);
       setConfigPanel({
           isOpen: true,
           mode: 'add',
           category: category,
-          selectedTaskId: firstTask ? firstTask.id : '',
+          selectedTaskId: '',
           quantity: 1
       });
   };
@@ -564,6 +572,8 @@ export const BudgetEditor: React.FC = () => {
   // Item Edit Handler (Quantity/Task Swap)
   const handleEditItem = (item: any) => {
       const task = tasks.find(t => t.id === item.taskId);
+      setTaskSearch('');
+      setDuplicateWarning(false);
       setConfigPanel({
           isOpen: true,
           mode: 'edit',
@@ -578,6 +588,21 @@ export const BudgetEditor: React.FC = () => {
       // Guard síncrono: previene doble-INSERT aunque React 18 batching retrase el re-render
       if (isSavingRef.current) return;
       if (!configPanel.selectedTaskId) return;
+
+      // Dedup: no insertar si la tarea ya está en el presupuesto
+      if (configPanel.mode === 'add') {
+          if (project.items.some(bi => bi.taskId === configPanel.selectedTaskId)) {
+              setDuplicateWarning(true);
+              return;
+          }
+      } else if (configPanel.mode === 'edit' && configPanel.itemId) {
+          if (project.items.some(bi => bi.taskId === configPanel.selectedTaskId && bi.id !== configPanel.itemId)) {
+              setDuplicateWarning(true);
+              return;
+          }
+      }
+      setDuplicateWarning(false);
+
       isSavingRef.current = true;
 
       try {
@@ -664,6 +689,39 @@ export const BudgetEditor: React.FC = () => {
           pendingTaskRef.current = addTask(newTask);
           setConfigPanel(prev => ({ ...prev, selectedTaskId: newId }));
       }
+  };
+
+  const handleSelectMasterTask = (mt: MasterTask) => {
+      if (pendingTaskRef.current || importingMaster) return;
+      setDuplicateWarning(false);
+
+      // If already imported into project tasks, just select it
+      const existing = tasks.find(t => t.masterTaskId === mt.id);
+      if (existing) {
+          setConfigPanel(prev => ({ ...prev, selectedTaskId: existing.id }));
+          return;
+      }
+
+      // Import from master: creates task + yields, stores Promise so handleSavePanel awaits FK
+      setImportingMaster(true);
+      const payload = buildImportPayload(
+          mt, project.organizationId, project.id, 1,
+          laborCategoriesMap, toolsMap, projectMaterials, masterMaterialsMap,
+      );
+      setConfigPanel(prev => ({ ...prev, selectedTaskId: payload.task.id }));
+
+      pendingTaskRef.current = (async () => {
+          payload.materialsToCreate.forEach(m => addMaterial(m));
+          payload.materialsToUpdate.forEach(({ id, cost }) => updateMaterial(id, { cost }));
+          payload.laborCategoriesToUpdate.forEach(({ id, basicHourlyRate }) => updateLaborCategory(id, { basicHourlyRate }));
+          await addTask(payload.task);
+          payload.taskYields.forEach(ty => addTaskYield(ty));
+          payload.laborYields.forEach(ly => addTaskLaborYield(ly));
+          payload.toolYields.forEach(ty => addTaskToolYield(ty));
+      })().finally(() => {
+          setImportingMaster(false);
+          pendingTaskRef.current = null;
+      });
   };
 
   const handleAddPreset = () => {
@@ -1266,29 +1324,197 @@ export const BudgetEditor: React.FC = () => {
                       <div className="flex-1 overflow-y-auto p-6 space-y-6">
                           
                           {/* Task Selector */}
-                          <div className="space-y-2">
-                              <label className="text-xs font-bold text-slate-500 uppercase">Tarea de Base de Datos</label>
-                              <select
-                                  className="w-full p-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white shadow-sm outline-none"
-                                  value={configPanel.selectedTaskId}
-                                  onChange={(e) => setConfigPanel({ ...configPanel, selectedTaskId: e.target.value })}
-                              >
-                                  <option value="">-- Seleccionar Tarea --</option>
-                                  {tasks
-                                    .filter(t => t.category === configPanel.category)
-                                    .map(t => (
-                                      <option key={t.id} value={t.id}>{t.name} ({t.unit})</option>
-                                  ))}
-                              </select>
-                              {/* Aviso explícito cuando no hay tareas APU para el rubro */}
-                              {tasks.filter(t => t.category === configPanel.category).length === 0 && (
-                                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-snug">
-                                  No hay tareas APU para <strong>{configPanel.category}</strong>.
-                                  Importá desde la <strong>Base Maestra</strong> (panel lateral) o
-                                  seleccioná una tarea típica de la lista de abajo.
-                                </p>
-                              )}
-                          </div>
+                          {(() => {
+                              const search = taskSearch.toLowerCase();
+
+                              // Normalize: strip accents, lowercase, trim
+                              const normCat = (s: string) =>
+                                  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+                              const normPanel = normCat(configPanel.category);
+
+                              const activeMasterTasks = masterTasks.filter(mt => mt.isActive);
+                              const noMasterTasksAtAll = activeMasterTasks.length === 0;
+
+                              // Broad category match: either normalized string contains the other
+                              const isSameCat = (cat?: string) => {
+                                  if (!cat || !normPanel) return false;
+                                  const n = normCat(cat);
+                                  return n === normPanel || n.includes(normPanel) || normPanel.includes(n);
+                              };
+
+                              const sameCatMaster = activeMasterTasks.filter(mt =>
+                                  isSameCat(mt.category) &&
+                                  (!search || mt.name.toLowerCase().includes(search))
+                              );
+                              const otherCatMaster = activeMasterTasks.filter(mt =>
+                                  !isSameCat(mt.category) &&
+                                  (!search || mt.name.toLowerCase().includes(search))
+                              );
+
+                              const allMasterIds = new Set(activeMasterTasks.map(mt => mt.id));
+                              const catProjectTasks = tasks.filter(t =>
+                                  t.category === configPanel.category &&
+                                  (!t.masterTaskId || !allMasterIds.has(t.masterTaskId)) &&
+                                  (!search || t.name.toLowerCase().includes(search))
+                              );
+
+                              const hasAnyResults = sameCatMaster.length > 0 || otherCatMaster.length > 0 || catProjectTasks.length > 0;
+
+                              const renderMasterRow = (mt: MasterTask) => {
+                                  const projTask = tasks.find(t => t.masterTaskId === mt.id);
+                                  const isSelected = projTask ? configPanel.selectedTaskId === projTask.id : configPanel.selectedTaskId === mt.id;
+                                  const hasAPU = mt.materials.length > 0 || mt.labor.length > 0 || mt.equipment.length > 0;
+                                  const inBudget = projTask ? project.items.some(bi => bi.taskId === projTask.id) : false;
+                                  const showCat = !isSameCat(mt.category) && mt.category;
+                                  return (
+                                      <button
+                                          key={mt.id}
+                                          onClick={() => handleSelectMasterTask(mt)}
+                                          disabled={importingMaster}
+                                          className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-100 last:border-0 transition-colors disabled:opacity-60 ${isSelected ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-blue-50'}`}
+                                      >
+                                          <div className="flex-1 min-w-0">
+                                              <span className="text-sm text-slate-700 font-medium truncate block">{mt.name}</span>
+                                              <span className="text-[10px] text-slate-400">{mt.unit}{showCat ? ` · ${mt.category}` : ''}</span>
+                                          </div>
+                                          <div className="flex items-center gap-1 shrink-0">
+                                              {inBudget && <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">Ya incluida</span>}
+                                              {hasAPU
+                                                  ? <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">APU Base</span>
+                                                  : <span className="text-[9px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded">A costear</span>
+                                              }
+                                              {projTask && <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Importada</span>}
+                                          </div>
+                                      </button>
+                                  );
+                              };
+
+                              return (
+                                  <div className="space-y-2">
+                                      <label className="text-xs font-bold text-slate-500 uppercase">Tarea a presupuestar</label>
+
+                                      {/* Search */}
+                                      <div className="relative">
+                                          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                          <input
+                                              className="w-full pl-8 pr-7 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                              placeholder="Buscar en todas las APUs..."
+                                              value={taskSearch}
+                                              onChange={e => { setTaskSearch(e.target.value); setDuplicateWarning(false); }}
+                                          />
+                                          {taskSearch && (
+                                              <button onClick={() => setTaskSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                                  <X size={12} />
+                                              </button>
+                                          )}
+                                      </div>
+
+                                      {/* Empty state: no master tasks at all */}
+                                      {noMasterTasksAtAll && catProjectTasks.length === 0 && (
+                                          <div className="border border-slate-200 rounded-lg px-4 py-5 text-center space-y-3">
+                                              <p className="text-sm font-bold text-slate-700">No hay APUs disponibles para agregar.</p>
+                                              <p className="text-xs text-slate-500">Primero importá o creá APUs en el Catálogo de Empresa. Luego podrás agregarlas al presupuesto.</p>
+                                              {onNavigate && (
+                                                  <div className="flex flex-col gap-1.5">
+                                                      <button
+                                                          onClick={() => { onNavigate('admin_apu'); setConfigPanel(prev => ({ ...prev, isOpen: false })); }}
+                                                          className="px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors"
+                                                      >
+                                                          Ir a APUs de Empresa
+                                                      </button>
+                                                      <button
+                                                          onClick={() => { onNavigate('admin_resources'); setConfigPanel(prev => ({ ...prev, isOpen: false })); }}
+                                                          className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                                                      >
+                                                          Importar APUs Globales
+                                                      </button>
+                                                  </div>
+                                              )}
+                                          </div>
+                                      )}
+
+                                      {/* Grouped list */}
+                                      {(!noMasterTasksAtAll || catProjectTasks.length > 0) && (
+                                          <div className="max-h-52 overflow-y-auto border border-slate-200 rounded-lg">
+                                              {/* Same-category APUs */}
+                                              {sameCatMaster.length > 0 && (
+                                                  <>
+                                                      <div className="px-3 py-1.5 bg-blue-50 sticky top-0 z-10">
+                                                          <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wide flex items-center gap-1">
+                                                              <BookOpen size={9} /> APUs de Empresa — {configPanel.category}
+                                                          </span>
+                                                      </div>
+                                                      {sameCatMaster.map(renderMasterRow)}
+                                                  </>
+                                              )}
+
+                                              {/* Other-category APUs */}
+                                              {otherCatMaster.length > 0 && (
+                                                  <>
+                                                      <div className="px-3 py-1.5 bg-slate-50 sticky top-0 z-10">
+                                                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1">
+                                                              <BookOpen size={9} /> Otras APUs de Empresa
+                                                          </span>
+                                                      </div>
+                                                      {otherCatMaster.map(renderMasterRow)}
+                                                  </>
+                                              )}
+
+                                              {/* Project tasks (custom / legacy) */}
+                                              {catProjectTasks.length > 0 && (
+                                                  <>
+                                                      <div className="px-3 py-1.5 bg-slate-50 sticky top-0 z-10">
+                                                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Del Proyecto</span>
+                                                      </div>
+                                                      {catProjectTasks.map(t => {
+                                                          const isSelected = configPanel.selectedTaskId === t.id;
+                                                          const hasYields = (yieldsIndex[t.id] ?? []).length > 0 || (taskLaborYieldsIndex[t.id] ?? []).length > 0;
+                                                          const inBudget = project.items.some(bi => bi.taskId === t.id);
+                                                          return (
+                                                              <button
+                                                                  key={t.id}
+                                                                  onClick={() => { setConfigPanel(prev => ({ ...prev, selectedTaskId: t.id })); setDuplicateWarning(false); }}
+                                                                  className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-100 last:border-0 transition-colors ${isSelected ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-slate-50'}`}
+                                                              >
+                                                                  <div className="flex-1 min-w-0">
+                                                                      <span className="text-sm text-slate-700 truncate block">{t.name}</span>
+                                                                      <span className="text-[10px] text-slate-400">{t.unit}</span>
+                                                                  </div>
+                                                                  <div className="flex items-center gap-1 shrink-0">
+                                                                      {inBudget && <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">Ya incluida</span>}
+                                                                      {!hasYields && <span className="text-[9px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded">A costear</span>}
+                                                                  </div>
+                                                              </button>
+                                                          );
+                                                      })}
+                                                  </>
+                                              )}
+
+                                              {!hasAnyResults && (
+                                                  <div className="px-3 py-5 text-xs text-slate-400 text-center italic">
+                                                      {taskSearch
+                                                          ? `No encontramos tareas con "${taskSearch}".`
+                                                          : 'No hay tareas disponibles para agregar.'
+                                                      }
+                                                  </div>
+                                              )}
+                                          </div>
+                                      )}
+
+                                      {/* Feedback messages */}
+                                      {duplicateWarning && (
+                                          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
+                                              <AlertCircle size={13} /> Esta tarea ya está en el presupuesto. Editá la cantidad desde el ítem existente.
+                                          </p>
+                                      )}
+                                      {importingMaster && (
+                                          <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                                              Importando del catálogo maestro...
+                                          </p>
+                                      )}
+                                  </div>
+                              );
+                          })()}
 
                           {/* Task Resource Composition — visible al seleccionar una tarea */}
                           {configPanel.selectedTaskId && (() => {
@@ -1297,6 +1523,10 @@ export const BudgetEditor: React.FC = () => {
                               const labors    = taskLaborYieldsIndex[configPanel.selectedTaskId] ?? [];
                               const equips    = toolYieldsIndex[configPanel.selectedTaskId]      ?? [];
                               const hasData   = mats.length > 0 || labors.length > 0 || equips.length > 0 || !!selTask?.fixedCost;
+                              const hasPriceWarning = hasData && (
+                                  mats.some(y => { const m = materialsMap[y.materialId]; return !m || m.cost === 0; }) ||
+                                  labors.some(ly => { const c = laborCategoriesMap[ly.laborCategoryId]; return !c || c.basicHourlyRate === 0; })
+                              );
                               if (!hasData) return (
                                   <div className="pt-4 border-t border-slate-100">
                                       <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
@@ -1377,6 +1607,12 @@ export const BudgetEditor: React.FC = () => {
                                                   <span className="ml-2 font-mono text-slate-400 shrink-0">${selTask.fixedCost.toFixed(2)}</span>
                                               </div>
                                           </div>
+                                      )}
+
+                                      {hasPriceWarning && (
+                                          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
+                                              <AlertCircle size={13}/> Esta tarea tiene recursos sin precio definido. El costo puede ser $0.
+                                          </p>
                                       )}
                                   </div>
                               );
@@ -1471,7 +1707,7 @@ export const BudgetEditor: React.FC = () => {
                           </button>
                           <button
                               onClick={handleSavePanel}
-                              disabled={!configPanel.selectedTaskId || configPanel.quantity <= 0 || saveStatus === 'saving' || saveStatus === 'ok'}
+                              disabled={!configPanel.selectedTaskId || configPanel.quantity <= 0 || saveStatus === 'saving' || saveStatus === 'ok' || importingMaster}
                               className={`flex-1 py-3 rounded-xl font-bold transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${
                                   saveStatus === 'ok'     ? 'bg-green-500 text-white' :
                                   saveStatus === 'error'  ? 'bg-red-500 text-white' :
@@ -1740,7 +1976,7 @@ export const BudgetEditor: React.FC = () => {
                                               {project.address && <p><strong>Ubicación:</strong> {project.address}</p>}
                                           </div>
                                           <div className="text-right">
-                                              <p className="text-xs text-slate-400">Generado por Construsoft</p>
+                                              <p className="text-xs text-slate-400">Generado por Obraflow</p>
                                           </div>
                                       </div>
 

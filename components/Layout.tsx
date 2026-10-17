@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { LayoutDashboard, Calculator, CalendarDays, Settings, HardHat, Wrench, SlidersHorizontal, Table, Truck, TrendingUp, Users, LogOut, Ruler, FileText, ClipboardCheck, Save, CheckCircle2, X, ArrowLeftRight, Building, Menu, ChevronLeft } from 'lucide-react';
+import { LayoutDashboard, Calculator, CalendarDays, Settings, HardHat, Wrench, SlidersHorizontal, Table, Truck, TrendingUp, Users, LogOut, Ruler, FileText, ClipboardCheck, Save, CheckCircle2, X, ArrowLeftRight, Building, Menu, ChevronLeft, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Role } from '../types';
 import { useERP } from '../context/ERPContext';
@@ -13,7 +13,7 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, isMasterAdmin } = useAuth();
   const { project, exitProject } = useERP();
   const { saveHandler } = useSave();
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'ok' | 'error'>('idle');
@@ -48,11 +48,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
     { id: 'planning', label: 'Planificación', icon: CalendarDays, roles: ['admin', 'project_manager', 'worker'] },
     { id: 'reception', label: 'Recepción (Remitos)', icon: Truck, roles: ['admin', 'worker'] },
     { id: 'tools', label: 'Equipos', icon: Wrench, roles: ['admin', 'project_manager'] },
-    { id: 'admin', label: 'Base de Datos', icon: Settings, roles: ['admin', 'project_manager'] },
+    { id: 'admin', label: 'Administración de Proyecto', icon: Settings, roles: ['admin', 'project_manager'] },
     { id: 'settings', label: 'Configuración', icon: SlidersHorizontal, roles: ['admin'] },
   ];
 
-  const visibleItems = navItems.filter(item => item.roles.includes(user?.role as Role));
+  const visibleItems = [
+    ...navItems.filter(item => item.roles.includes(user?.role as Role)),
+    ...(isMasterAdmin ? [{ id: 'system_admin', label: 'Admin del Sistema', icon: ShieldCheck, roles: [] as Role[] }] : []),
+  ];
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
