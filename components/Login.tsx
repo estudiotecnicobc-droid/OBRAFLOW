@@ -6,9 +6,10 @@ type Mode = 'signin' | 'signup' | 'forgot';
 
 interface Props {
   hasInvite?: boolean;
+  onBack?: () => void;
 }
 
-export const Login: React.FC<Props> = ({ hasInvite = false }) => {
+export const Login: React.FC<Props> = ({ hasInvite = false, onBack }) => {
   const { signIn, signUp, sendPasswordResetEmail } = useAuth();
 
   const [mode, setMode] = useState<Mode>('signin');
@@ -76,7 +77,17 @@ export const Login: React.FC<Props> = ({ hasInvite = false }) => {
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl overflow-hidden">
+      <div className="max-w-md w-full">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition-colors mb-3"
+          >
+            <ChevronLeft size={13} /> Volver al sitio
+          </button>
+        )}
+      <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
 
         {/* Header */}
         <div className="p-8 text-center bg-slate-50 border-b border-slate-100">
@@ -298,6 +309,7 @@ export const Login: React.FC<Props> = ({ hasInvite = false }) => {
             Acceso seguro con Supabase Auth · Multitenant
           </p>
         </div>
+      </div>
       </div>
     </div>
   );
