@@ -3,10 +3,10 @@ import { useERP } from '../context/ERPContext';
 import {
   calculateUnitPrice,
   addDays,
-  addWorkingDays,
   diffDays,
   calculateDuration,
 } from '../services/calculationService';
+import { computeSchedule, resolveDependencies } from '../services/scheduleEngine';
 
 // ---------------------------------------------------------------------------
 // ItemCost — costo por ítem de presupuesto, calculado una sola vez.
@@ -71,6 +71,10 @@ export interface ScheduledItem {
   // Timestamps para CPM
   earlyStart: number;
   earlyFinish: number;
+  /** false si la tarea no tiene rendimiento diario cargado — la duración mostrada no es real */
+  hasYield: boolean;
+  /** true si la tarea forma parte de un ciclo de dependencias — se programó ignorando sus vínculos */
+  hasCycleError: boolean;
   // Resto de campos del BudgetItem (quantity, progress, etc.)
   [key: string]: any;
 }
@@ -273,87 +277,79 @@ export function useProjectSchedule() {
   ]);
 
   // -------------------------------------------------------------------------
-  // scheduledItems: forward pass del motor de scheduling.
+  // dependencies: modelo centralizado (project.dependencies), con fallback a
+  // datos legacy no migrados (item.dependencies). Única fuente de verdad
+  // para scheduledItems y cpmItems — ver services/scheduleEngine.ts.
+  // -------------------------------------------------------------------------
+  const dependencies = useMemo(
+    () => resolveDependencies(project.dependencies, project.items.map(item => ({ id: item.id, legacyDependencies: item.dependencies }))),
+    [project.dependencies, project.items],
+  );
+
+  // -------------------------------------------------------------------------
+  // scheduledItems: forward pass del motor de scheduling (services/scheduleEngine).
   //
-  // Resuelve dependencias (FS), encaja fechas en días hábiles y calcula
-  // start/end/duration por ítem. El costo se toma de itemCosts (ya calculado)
-  // en lugar de volver a llamar calculateUnitPrice.
+  // Resuelve dependencias FS en orden topológico (con detección de ciclos),
+  // encaja fechas en días hábiles y calcula start/end/duration por ítem.
+  // El costo se toma de itemCosts (ya calculado) en lugar de volver a llamar
+  // calculateUnitPrice.
   // -------------------------------------------------------------------------
   const scheduledItems = useMemo((): ScheduledItem[] => {
     const items = project.items.map((item, index) => ({ ...item, index: index + 1 }));
-    const results: ScheduledItem[] = [];
-    const processedIds = new Set<string>();
-    const getProcessedItem = (id: string) => results.find(r => r.id === id);
 
-    let iterations = 0;
-    while (processedIds.size < items.length && iterations < 100) {
-      let somethingProcessed = false;
-      items.forEach(item => {
-        if (processedIds.has(item.id)) return;
-
+    const schedule = computeSchedule(
+      items.flatMap(item => {
         const task = tasks.find(t => t.id === item.taskId);
-        if (!task) return;
+        if (!task) return [];
+        return [{
+          id: item.id,
+          quantity: item.quantity || 0,
+          manualDuration: item.manualDuration,
+          startDate: item.startDate,
+          dailyYield: task.dailyYield,
+          crewSize: item.crewsAssigned || 1,
+        }];
+      }),
+      dependencies,
+      project.startDate,
+      workingDays,
+      nonWorkingDates,
+    );
 
-        const quantity     = item.quantity     || 0;
-        const crewSize     = item.crewsAssigned || 1;
-        const dailyCapacity = task.dailyYield  * crewSize;
+    const results: ScheduledItem[] = [];
+    items.forEach(item => {
+      const task = tasks.find(t => t.id === item.taskId);
+      if (!task) return;
+      const sched = schedule.get(item.id);
+      if (!sched) return;
 
-        // Costo desde itemCosts — sin recálculo de calculateUnitPrice
-        const ic        = itemCosts.find(c => c.id === item.id);
-        const totalCost = ic?.totalCost ?? 0;
+      const crewSize      = item.crewsAssigned || 1;
+      const dailyCapacity = task.dailyYield * crewSize;
+      const ic            = itemCosts.find(c => c.id === item.id);
 
-        // Duración
-        const duration = item.manualDuration || calculateDuration(quantity, task.dailyYield, crewSize);
-
-        // Fecha de inicio: respeta dependencias FS
-        let startDate = item.startDate || project.startDate;
-
-        if (item.dependencies && item.dependencies.length > 0) {
-          let maxStartDate = new Date(project.startDate).getTime();
-          let allDepsReady = true;
-
-          item.dependencies.forEach((dep: any) => {
-            const pred = getProcessedItem(dep.predecessorId);
-            if (!pred) { allDepsReady = false; return; }
-
-            const predEnd        = new Date(pred.end).getTime();
-            const calculatedStart = predEnd + 86400000; // FS: día siguiente
-            maxStartDate = Math.max(maxStartDate, calculatedStart);
-          });
-
-          if (!allDepsReady) return;
-          startDate = new Date(maxStartDate).toISOString().split('T')[0];
-        }
-
-        // Encajar en día hábil
-        startDate = addWorkingDays(addDays(startDate, -1), 1, workingDays, nonWorkingDates);
-        const endDate = addWorkingDays(startDate, duration, workingDays, nonWorkingDates);
-
-        results.push({
-          ...item,
-          taskName:     task.name,
-          category:     task.category || 'Sin Categoría',
-          start:        startDate,
-          end:          endDate,
-          duration,
-          yieldHH:      task.yieldHH || 0,
-          dailyCapacity,
-          crewSize,
-          totalCost,
-          earlyStart:   new Date(startDate).getTime(),
-          earlyFinish:  new Date(endDate).getTime(),
-        });
-        processedIds.add(item.id);
-        somethingProcessed = true;
+      results.push({
+        ...item,
+        taskName:     task.name,
+        category:     task.category || 'Sin Categoría',
+        start:        sched.start,
+        end:          sched.end,
+        duration:     sched.duration,
+        hasYield:     sched.hasYield,
+        hasCycleError: sched.hasCycleError,
+        yieldHH:      task.yieldHH || 0,
+        dailyCapacity,
+        crewSize,
+        totalCost:    ic?.totalCost ?? 0,
+        earlyStart:   new Date(sched.start + 'T00:00:00').getTime(),
+        earlyFinish:  new Date(sched.end + 'T00:00:00').getTime(),
       });
-      if (!somethingProcessed) break;
-      iterations++;
-    }
+    });
 
-    return results.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    return results.sort((a, b) => a.earlyStart - b.earlyStart);
   }, [
     project.items,
     project.startDate,
+    dependencies,
     tasks,
     itemCosts,
     workingDays,
@@ -373,14 +369,14 @@ export function useProjectSchedule() {
       scheduledItems.map(i => [i.id, { ...i, lateStart: 0, lateFinish: 0, totalFloat: 0, isCritical: false }])
     );
 
-    // Construir mapa de sucesores
+    // Construir mapa de sucesores a partir del modelo centralizado de dependencias
     const successors: Record<string, string[]> = {};
     scheduledItems.forEach(item => {
       if (!successors[item.id]) successors[item.id] = [];
-      item.dependencies?.forEach((dep: any) => {
-        if (!successors[dep.predecessorId]) successors[dep.predecessorId] = [];
-        successors[dep.predecessorId].push(item.id);
-      });
+    });
+    dependencies.forEach(dep => {
+      if (!successors[dep.fromTaskId]) successors[dep.fromTaskId] = [];
+      successors[dep.fromTaskId].push(dep.toTaskId);
     });
 
     // Backward pass (orden inverso por earlyFinish)
@@ -409,7 +405,7 @@ export function useProjectSchedule() {
     });
 
     return Array.from(itemMap.values()).sort((a, b) => a.index - b.index);
-  }, [scheduledItems]);
+  }, [scheduledItems, dependencies]);
 
   // -------------------------------------------------------------------------
   // criticalPathStats: fecha fin del proyecto y duración total en días.

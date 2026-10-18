@@ -1,0 +1,51 @@
+Objetivo:
+Arrancar la Etapa A del backlog de Gantt (docs/research/TRASPASO_SESION_2026-10-18.md §4):
+corregir el motor de dependencias para que los vínculos creados en la UI muevan de verdad
+las fechas de las tareas sucesoras.
+
+Contexto:
+- Planning.tsx escribe las dependencias en el modelo centralizado project.dependencies
+  (ProjectDependency[], vía addDependency/updateDependency/removeDependency de ERPContext,
+  que ya detecta ciclos al agregar).
+- useProjectSchedule.ts (el que calcula start/end real) leía item.dependencies[].predecessorId,
+  un campo legacy por-ítem que nada en la UI actual escribe. Resultado: las flechas se dibujan
+  en el Gantt pero ninguna tarea se mueve.
+- TaskRelations.tsx (otro componente, no tocado en esta etapa) ya expone tipo de vínculo
+  (FS/SS/FF/SF) y lag en la UI, pero el motor nunca los honró — ni antes ni después de este fix.
+
+Cambios deseados:
+1) Unificar la fuente de dependencias: useProjectSchedule debe leer project.dependencies
+   (con el mismo fallback a item.dependencies legacy que ya usa la UI, para no perder datos
+   de proyectos no migrados).
+2) Reemplazar el loop de reintentos (tope de 100 iteraciones) por un orden topológico
+   explícito, con detección de ciclos que no haga desaparecer la tarea del resultado sino
+   que la marque como tal.
+3) Corregir el desfase de zona horaria: cualquier "YYYY-MM-DD" que se muestre con
+   toLocaleDateString() tiene que anclarse a medianoche LOCAL, no UTC.
+4) Cuando una tarea no tiene rendimiento cargado, no inventar 1 día de duración sin avisar:
+   mostrar "sin rendimiento" en la UI.
+5) Tests unitarios del cálculo: cadena, abanico (fan-in), ciclo, feriados, sin rendimiento.
+
+No tocar:
+- ERPContext.tsx (ya tiene addDependency/detectCycle correctos, no hace falta cambiarlo)
+- TaskRelations.tsx (expone SS/FF/SF/lag; el motor sigue sin honrarlos — queda señalado
+  como decisión pendiente, no resuelta en esta etapa)
+- Tipos de vínculo, CPM backward real, arrastrar barras — "Gantt avanzado", diferido
+
+Restricciones:
+- cambio mínimo y seguro, sin tocar el modelo de datos ni Supabase
+- no refactor masivo de Planning.tsx — solo los puntos donde se muestra start/end/duration
+- no romper proyectos con dependencias legacy no migradas
+
+Si toca Supabase:
+- no aplica (ProjectDependency ya persiste como jsonb en projects, sin cambio de esquema)
+
+Entregables:
+1) diagnóstico breve (confirmado en código antes de escribir nada)
+2) services/scheduleEngine.ts — motor puro, testeable sin React
+3) hooks/useProjectSchedule.ts actualizado para usarlo
+4) components/Planning.tsx: fechas corregidas + aviso "sin rendimiento" + marca de ciclo
+5) services/calculationService.ts: helper toLocalDate
+6) tests unitarios (services/__tests__/scheduleEngine.test.ts)
+7) spec en docs/specs/, checklist QA en docs/qa/
+8) riesgos: ver spec §5
