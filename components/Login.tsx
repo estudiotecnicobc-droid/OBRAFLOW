@@ -20,6 +20,7 @@ export const Login: React.FC<Props> = ({ hasInvite = false, onBack }) => {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const reset = () => {
     setErrorMsg(null);
@@ -48,6 +49,10 @@ export const Login: React.FC<Props> = ({ hasInvite = false, onBack }) => {
       setErrorMsg('El nombre de la empresa es obligatorio para registrarte.');
       return;
     }
+    if (mode === 'signup' && !termsAccepted) {
+      setErrorMsg('Tenés que aceptar los Términos y Condiciones y la Política de Privacidad para registrarte.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -56,7 +61,7 @@ export const Login: React.FC<Props> = ({ hasInvite = false, onBack }) => {
         if (error) setErrorMsg(error);
       } else {
         const resolvedOrgName = hasInvite ? 'Mi organización' : orgName.trim();
-        const { error } = await signUp(email.trim(), password, fullName.trim(), resolvedOrgName);
+        const { error } = await signUp(email.trim(), password, fullName.trim(), resolvedOrgName, termsAccepted);
         if (error) {
           setErrorMsg(error);
         } else {
@@ -287,10 +292,32 @@ export const Login: React.FC<Props> = ({ hasInvite = false, onBack }) => {
                 </div>
               )}
 
+              {/* Consentimiento de Términos y Privacidad (solo signup) */}
+              {mode === 'signup' && (
+                <label className="flex items-start gap-2 text-xs text-slate-500 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={e => setTermsAccepted(e.target.checked)}
+                    className="mt-0.5 w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>
+                    He leído y acepto los{' '}
+                    <a href="/terminos" target="_blank" rel="noreferrer" className="text-blue-600 underline hover:text-blue-700">
+                      Términos y Condiciones
+                    </a>{' '}
+                    y la{' '}
+                    <a href="/privacidad" target="_blank" rel="noreferrer" className="text-blue-600 underline hover:text-blue-700">
+                      Política de Privacidad
+                    </a>
+                  </span>
+                </label>
+              )}
+
               {/* Submit */}
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || (mode === 'signup' && !termsAccepted)}
                 className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {submitting

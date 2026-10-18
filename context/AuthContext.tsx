@@ -24,6 +24,7 @@ interface AuthContextType {
     password: string,
     fullName: string,
     orgName: string,
+    termsAccepted: boolean,
   ) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   setActiveOrganization: (organizationId: string) => void;
@@ -178,13 +179,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     password: string,
     fullName: string,
     orgName: string,
+    termsAccepted: boolean,
   ): Promise<{ error: string | null }> => {
+    if (!termsAccepted) {
+      return { error: 'Tenés que aceptar los Términos y Condiciones y la Política de Privacidad.' };
+    }
+
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { error: error.message };
     if (!data.user) return { error: 'No se pudo crear el usuario.' };
 
     try {
       await authService.bootstrapNewUser(data.user.id, email, fullName, orgName);
+      // Registro de aceptación de términos — operación crítica: esperamos la respuesta
+      // y no fallamos silenciosamente si no se pudo guardar (ver docs/legal/checklist-implementacion.md).
+      const { error: termsError } = await supabase
+        .from('profiles')
+        .update({
+          terms_accepted_at: new Date().toISOString(),
+          terms_version: '1.0',
+          privacy_version: '1.0',
+        })
+        .eq('id', data.user.id);
+      if (termsError) {
+        return { error: 'No se pudo registrar la aceptación de términos. Por favor, contactá a soporte.' };
+      }
       // onAuthStateChange no re-dispara porque la sesión no cambió —
       // recargamos manualmente para que memberships y activeOrganizationId queden bien.
       const currentSession = (await supabase.auth.getSession()).data.session;
