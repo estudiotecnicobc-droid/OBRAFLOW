@@ -8,6 +8,7 @@ import {
   ZoomIn, ZoomOut, MoveRight, Sidebar, Download, Printer, FileText, ChevronLeft, ChevronRight, DollarSign, TrendingUp
 } from 'lucide-react';
 import { LinkType, ProjectDependency } from '../types';
+import { toLocalDate } from '../services/calculationService';
 import { APUBuilder } from './APUBuilder';
 import { ResizableSplitPane } from './ResizableSplitPane';
 
@@ -163,7 +164,7 @@ export const Planning: React.FC = () => {
       const months: any[] = [];
       const weeks: any[] = [];
       const totalDays = criticalPathStats.totalDays + 45; // Buffer
-      const startDate = new Date(project.startDate);
+      const startDate = toLocalDate(project.startDate);
       
       // Helper to get days diff
       const getDiff = (d1: Date, d2: Date) => Math.floor((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
@@ -407,8 +408,8 @@ export const Planning: React.FC = () => {
                                           <td className="p-2" colSpan={5}>{item.taskName}</td>
                                           <td className="p-2 text-center">{item.duration}</td>
                                           <td className="p-2"></td>
-                                          <td className="p-2 text-center">{new Date(item.start).toLocaleDateString()}</td>
-                                          <td className="p-2 text-center">{new Date(item.end).toLocaleDateString()}</td>
+                                          <td className="p-2 text-center">{toLocalDate(item.start).toLocaleDateString()}</td>
+                                          <td className="p-2 text-center">{toLocalDate(item.end).toLocaleDateString()}</td>
                                           <td className="p-2 text-right font-mono text-emerald-700">
                                               ${(item.totalCost || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                                           </td>
@@ -421,6 +422,11 @@ export const Planning: React.FC = () => {
                                   <td className="p-2 font-medium text-slate-700 flex items-center justify-between">
                                       <div className="flex items-center gap-2">
                                           {item.isCritical && <AlertCircle size={12} className="text-red-500" />}
+                                          {item.hasCycleError && (
+                                              <span title="Ciclo de dependencias: se ignoraron sus vínculos para poder mostrarla">
+                                                  <AlertCircle size={12} className="text-amber-500" />
+                                              </span>
+                                          )}
                                           <div>
                                               {item.taskName}
                                               <div className="text-[9px] text-slate-400 font-normal">{item.category}</div>
@@ -466,8 +472,14 @@ export const Planning: React.FC = () => {
                                   </td>
 
                                   {/* CALC: Duration */}
-                                  <td className="p-2 text-center font-black text-blue-600 bg-slate-50 text-sm border-l border-r border-slate-100">
-                                      {item.duration}
+                                  <td className="p-2 text-center font-black bg-slate-50 text-sm border-l border-r border-slate-100">
+                                      {item.hasYield ? (
+                                          <span className="text-blue-600">{item.duration}</span>
+                                      ) : (
+                                          <span className="text-amber-600 font-bold" title="Sin rendimiento cargado en la tarea maestra: no se puede estimar la duración real.">
+                                              Sin rend.
+                                          </span>
+                                      )}
                                   </td>
 
                                   {/* INPUT: Progress */}
@@ -517,10 +529,10 @@ export const Planning: React.FC = () => {
 
                                   {/* CALC: Dates */}
                                   <td className="p-2 text-center text-slate-600">
-                                      {new Date(item.start).toLocaleDateString()}
+                                      {toLocalDate(item.start).toLocaleDateString()}
                                   </td>
                                   <td className="p-2 text-center font-bold text-slate-700">
-                                      {new Date(item.end).toLocaleDateString()}
+                                      {toLocalDate(item.end).toLocaleDateString()}
                                   </td>
                                   
                                   {/* CALC: Total Cost */}
@@ -566,9 +578,13 @@ export const Planning: React.FC = () => {
                                           <span className="truncate pl-1">{item.taskName}</span>
                                       )}
                                   </div>
-                                  <div className="w-16 text-center text-slate-500 font-mono text-[11px] border-r border-slate-100 mr-2">{item.duration}d</div>
-                                  <div className="w-20 text-center text-slate-500 text-[10px] font-mono border-r border-slate-100 mr-2">{new Date(item.start).toLocaleDateString()}</div>
-                                  <div className="w-20 text-center text-slate-500 text-[10px] font-mono">{new Date(item.end).toLocaleDateString()}</div>
+                                  <div className="w-16 text-center text-slate-500 font-mono text-[11px] border-r border-slate-100 mr-2">
+                                      {item.type === 'summary' || item.hasYield ? `${item.duration}d` : (
+                                          <span className="text-amber-600" title="Sin rendimiento cargado">s/r</span>
+                                      )}
+                                  </div>
+                                  <div className="w-20 text-center text-slate-500 text-[10px] font-mono border-r border-slate-100 mr-2">{toLocalDate(item.start).toLocaleDateString()}</div>
+                                  <div className="w-20 text-center text-slate-500 text-[10px] font-mono">{toLocalDate(item.end).toLocaleDateString()}</div>
                               </div>
                           ))}
                           
@@ -735,7 +751,10 @@ export const Planning: React.FC = () => {
 
                                   return (
                                       <g key={item.id} className="group cursor-pointer" onClick={() => setEditingItemId(item.id)}>
-                                          <title>{item.taskName} - {item.duration} días</title>
+                                          <title>
+                                              {item.taskName} - {item.hasYield ? `${item.duration} días` : 'sin rendimiento cargado'}
+                                              {item.hasCycleError ? ' — ⚠ ciclo de dependencias: se ignoraron sus vínculos' : ''}
+                                          </title>
                                           {/* Dependency Lines */}
                                           {allDependencies.filter(d => d.toTaskId === item.id).map((dep, depIdx) => {
                                               const pred = ganttItems.find(p => p.id === dep.fromTaskId);

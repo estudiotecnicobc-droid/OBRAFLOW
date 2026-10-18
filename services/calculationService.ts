@@ -101,6 +101,15 @@ export const addDays = (date: string | Date, days: number): string => {
 };
 
 /**
+ * Convierte un string "YYYY-MM-DD" a Date anclada a medianoche LOCAL.
+ * Usar siempre en vez de `new Date(dateString)` para mostrar o comparar
+ * fechas de planificación: `new Date("2026-10-20")` ancla a medianoche UTC,
+ * que en zonas negativas (Argentina, UTC-3) se muestra como el día anterior
+ * al formatear con `toLocaleDateString()`.
+ */
+export const toLocalDate = (date: string): Date => new Date(date + 'T00:00:00');
+
+/**
  * Convierte una Date a string YYYY-MM-DD usando la fecha LOCAL (no UTC).
  * Evita el clásico bug de `toISOString()` que convierte a UTC antes de formatear.
  */
