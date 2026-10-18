@@ -289,7 +289,7 @@ export function useProjectSchedule() {
   // -------------------------------------------------------------------------
   // scheduledItems: forward pass del motor de scheduling (services/scheduleEngine).
   //
-  // Resuelve dependencias FS en orden topológico (con detección de ciclos),
+  // Resuelve dependencias (FS/SS/FF/SF, con lag) en orden topológico (con detección de ciclos),
   // encaja fechas en días hábiles y calcula start/end/duration por ítem.
   // El costo se toma de itemCosts (ya calculado) en lugar de volver a llamar
   // calculateUnitPrice.

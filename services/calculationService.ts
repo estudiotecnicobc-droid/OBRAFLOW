@@ -160,6 +160,45 @@ export const addWorkingDays = (
     return localDateString(current);
 };
 
+/**
+ * Inversa de `addWorkingDays`: dada una fecha de FIN y una duración en días
+ * hábiles, devuelve la fecha de INICIO. Usada para vínculos Fin-Fin y
+ * Comienzo-Fin, donde se conoce la fecha deseada de fin de la tarea sucesora
+ * y hace falta derivar su inicio.
+ * @param endDate String YYYY-MM-DD
+ * @param duration Días hábiles de la tarea
+ */
+export const subtractWorkingDays = (
+    endDate: string,
+    duration: number,
+    workingDays: number[] = [1,2,3,4,5],
+    nonWorkingDates: Holiday[] = []
+): string => {
+    let current = new Date(endDate + 'T00:00:00');
+    let daysToSubtract = Math.max(0, duration - 1);
+
+    const holidayStrings = new Set(nonWorkingDates.map(h => h.date));
+
+    const isWorkingDay = (d: Date) => {
+        const dayOfWeek = d.getDay();
+        const dateStr = localDateString(d);
+        return workingDays.includes(dayOfWeek) && !holidayStrings.has(dateStr);
+    };
+
+    // Si la fecha de fin cae en un día no hábil, retroceder al hábil anterior
+    while (!isWorkingDay(current)) {
+        current.setDate(current.getDate() - 1);
+    }
+
+    while (daysToSubtract > 0) {
+        current.setDate(current.getDate() - 1);
+        if (isWorkingDay(current)) {
+            daysToSubtract--;
+        }
+    }
+    return localDateString(current);
+};
+
 export const diffDays = (date1: string, date2: string): number => {
   const d1 = new Date(date1 + 'T00:00:00');
   const d2 = new Date(date2 + 'T00:00:00');

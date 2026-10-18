@@ -1,0 +1,42 @@
+Objetivo:
+Arrancar la Etapa A.2 del backlog de Gantt: hacer que el motor de dependencias
+(services/scheduleEngine.ts) honre los 4 tipos de vínculo (FS/SS/FF/SF) y el lag en días
+que TaskRelations.tsx ya deja elegir en la UI, sin efecto hasta ahora.
+
+Contexto:
+- La Etapa A (PR #15) unificó el modelo de dependencias y dejó el motor leyendo
+  project.dependencies, pero computeSchedule trataba todo vínculo como Fin-Comienzo sin
+  desfase, ignorando los campos type/lag de ProjectDependency.
+- TaskRelations.tsx ya escribe type y lag correctamente a project.dependencies desde antes
+  de la Etapa A — no hace falta tocar esa UI.
+- Restricción de "Gantt avanzado" relajada el 2026-10-18 solo para esto (ver
+  docs/HANDOFF_MAESTRO_OBRAFLOW_2026-08-20.md §2): arrastrar barras, importar Excel y CPM
+  backward completo siguen fuera.
+
+Cambios deseados:
+1) subtractWorkingDays en calculationService.ts: inversa de addWorkingDays (fecha de fin +
+   duración -> fecha de inicio), para los vínculos que restringen el fin (FF/SF).
+2) scheduleEngine.ts: resolver cada vínculo según su tipo y lag (FS/SS restringen el
+   inicio; FF/SF restringen el fin y se traducen con subtractWorkingDays).
+3) Documentar y testear la política de que ningún vínculo retrocede el inicio antes del
+   baseline del ítem (item.startDate o el inicio del proyecto) — evita que una tarea
+   termine programada en el pasado.
+4) Tests unitarios: lag en FS, SS con/sin lag, FF con/sin lag, SF (con margen real y el
+   caso límite sin efecto por la política de arriba).
+
+No tocar:
+- TaskRelations.tsx (ya expone type/lag correctamente)
+- cpmItems / camino crítico en useProjectSchedule.ts (sigue siendo aproximado, CPM backward
+  real queda diferido)
+- Planning.tsx (handleSetPredecessor sigue usando FS/lag=0 a propósito)
+
+Restricciones:
+- cambio mínimo sobre services/scheduleEngine.ts y calculationService.ts
+- no reintroducir el bug de "snap a día hábil" corregido en la Etapa A
+
+Entregables:
+1) subtractWorkingDays en calculationService.ts
+2) resolveConstraintStart + computeSchedule actualizado en scheduleEngine.ts
+3) 6 tests nuevos en scheduleEngine.test.ts (17 en total, todos verdes)
+4) spec en docs/specs/gantt-motor-dependencias-etapa-a2.md
+5) checklist QA en docs/qa/gantt-motor-dependencias-etapa-a2.md

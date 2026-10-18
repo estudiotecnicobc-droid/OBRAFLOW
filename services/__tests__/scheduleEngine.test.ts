@@ -2,12 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { computeSchedule, resolveDependencies, topologicalOrder } from '../scheduleEngine';
 import { LinkType, ProjectDependency } from '../../types';
 
-const dep = (fromTaskId: string, toTaskId: string): ProjectDependency => ({
+const dep = (
+  fromTaskId: string,
+  toTaskId: string,
+  type: LinkType = LinkType.FS,
+  lag: number = 0,
+): ProjectDependency => ({
   id: `${fromTaskId}-${toTaskId}`,
   fromTaskId,
   toTaskId,
-  type: LinkType.FS,
-  lag: 0,
+  type,
+  lag,
 });
 
 const PROJECT_START = '2026-01-05'; // lunes
@@ -114,6 +119,81 @@ describe('computeSchedule — feriados', () => {
     expect(a.start).toBe('2026-01-05');
     // lun 05, (mar 06 feriado, se salta), mie 07, jue 08 -> fin jue 08
     expect(a.end).toBe('2026-01-08');
+  });
+});
+
+describe('computeSchedule — lag en Fin-Comienzo', () => {
+  it('corre el inicio del sucesor el lag indicado (positivo)', () => {
+    const items = [
+      { id: 'A', quantity: 10, dailyYield: 5, crewSize: 1 }, // termina 2026-01-06 (martes)
+      { id: 'B', quantity: 10, dailyYield: 5, crewSize: 1 },
+    ];
+    const schedule = computeSchedule(items, [dep('A', 'B', LinkType.FS, 2)], PROJECT_START, [1, 2, 3, 4, 5], []);
+    expect(schedule.get('B')!.start).toBe('2026-01-09'); // fin de A + 1 + 2 días de lag
+  });
+});
+
+describe('computeSchedule — Comienzo-Comienzo (SS)', () => {
+  it('el sucesor arranca junto con el predecesor, más el lag', () => {
+    const items = [
+      { id: 'A', quantity: 10, dailyYield: 5, crewSize: 1 },
+      { id: 'B', quantity: 15, dailyYield: 5, crewSize: 1 },
+    ];
+    const noLag = computeSchedule(items, [dep('A', 'B', LinkType.SS, 0)], PROJECT_START, [1, 2, 3, 4, 5], []);
+    expect(noLag.get('B')!.start).toBe(noLag.get('A')!.start);
+
+    const withLag = computeSchedule(items, [dep('A', 'B', LinkType.SS, 2)], PROJECT_START, [1, 2, 3, 4, 5], []);
+    expect(withLag.get('B')!.start).toBe('2026-01-07'); // inicio de A + 2 días
+  });
+});
+
+describe('computeSchedule — Fin-Fin (FF)', () => {
+  it('el sucesor termina junto con el predecesor (lag=0)', () => {
+    const items = [
+      { id: 'A', quantity: 10, dailyYield: 5, crewSize: 1 }, // termina 2026-01-06
+      { id: 'B', quantity: 10, dailyYield: 5, crewSize: 1 }, // 2 días hábiles
+    ];
+    const schedule = computeSchedule(items, [dep('A', 'B', LinkType.FF, 0)], PROJECT_START, [1, 2, 3, 4, 5], []);
+    expect(schedule.get('B')!.end).toBe(schedule.get('A')!.end);
+  });
+
+  it('el lag corre la fecha de fin deseada del sucesor', () => {
+    const items = [
+      { id: 'A', quantity: 10, dailyYield: 5, crewSize: 1 }, // termina 2026-01-06
+      { id: 'B', quantity: 10, dailyYield: 5, crewSize: 1 },
+    ];
+    const schedule = computeSchedule(items, [dep('A', 'B', LinkType.FF, 1)], PROJECT_START, [1, 2, 3, 4, 5], []);
+    expect(schedule.get('B')!.end).toBe('2026-01-07'); // fin de A + 1 día
+  });
+});
+
+describe('computeSchedule — Comienzo-Fin (SF)', () => {
+  it('el sucesor termina cuando arranca el predecesor, saltando el fin de semana hacia atrás', () => {
+    const items = [
+      // A arranca el lunes siguiente (2026-01-12): deja hueco para que la
+      // restricción SF empuje a B más tarde que la fecha de inicio del
+      // proyecto — si no, no se podría distinguir de "sin efecto" (ver nota
+      // de la política "nunca antes del baseline" en scheduleEngine.ts).
+      { id: 'A', quantity: 10, dailyYield: 5, crewSize: 1, startDate: '2026-01-12' },
+      { id: 'B', quantity: 10, dailyYield: 5, crewSize: 1 }, // 2 días hábiles
+    ];
+    const schedule = computeSchedule(items, [dep('A', 'B', LinkType.SF, 0)], PROJECT_START, [1, 2, 3, 4, 5], []);
+    const b = schedule.get('B')!;
+    expect(b.end).toBe('2026-01-12'); // termina cuando A arranca
+    expect(b.start).toBe('2026-01-09'); // viernes anterior: 2 días hábiles salteando el fin de semana
+  });
+
+  it('nunca empuja el inicio antes del baseline del propio ítem (política del motor)', () => {
+    const items = [
+      { id: 'A', quantity: 10, dailyYield: 5, crewSize: 1 }, // arranca 2026-01-05
+      { id: 'B', quantity: 10, dailyYield: 5, crewSize: 1 }, // 2 días hábiles
+    ];
+    // SF sin lag pediría que B termine el 2026-01-05 (cuando A arranca), lo
+    // que requeriría empezar antes del inicio del proyecto. El motor no
+    // retrocede: B se programa igual que si no tuviera esa dependencia.
+    const schedule = computeSchedule(items, [dep('A', 'B', LinkType.SF, 0)], PROJECT_START, [1, 2, 3, 4, 5], []);
+    const b = schedule.get('B')!;
+    expect(b.start).toBe(PROJECT_START);
   });
 });
 

@@ -7,8 +7,8 @@
 // item.dependencies (Dependency[] con predecessorId) para no perder datos
 // de proyectos viejos que nunca migraron al modelo centralizado.
 // ---------------------------------------------------------------------------
-import { Dependency, Holiday, ProjectDependency } from '../types';
-import { addDays, addWorkingDays, calculateDuration } from './calculationService';
+import { Dependency, Holiday, LinkType, ProjectDependency } from '../types';
+import { addDays, addWorkingDays, calculateDuration, subtractWorkingDays } from './calculationService';
 
 export interface ScheduleInputItem {
   id: string;
@@ -96,9 +96,45 @@ export function topologicalOrder(
 }
 
 /**
- * Forward pass: calcula start/end/duration por ítem, respetando dependencias
- * Fin-Comienzo (únicos tipos soportados hoy; SS/FF/SF y lag quedan diferidos:
- * se tratan como FS sin desfase).
+ * Resuelve la fecha de inicio que exige UNA dependencia sobre su sucesora,
+ * según el tipo de vínculo y su lag (días; negativo = solape).
+ *
+ * - FS (Fin-Comienzo): el sucesor empieza el día siguiente al fin del
+ *   predecesor, más el lag.
+ * - SS (Comienzo-Comienzo): el sucesor empieza junto con el predecesor, más
+ *   el lag.
+ * - FF (Fin-Fin) / SF (Comienzo-Fin): restringen el FIN del sucesor, no su
+ *   inicio. Como la duración ya se conoce (no depende de las dependencias),
+ *   se traduce a un inicio con `subtractWorkingDays`. Si la fecha de fin
+ *   deseada cae en un día no hábil, se retrocede al hábil anterior — mismo
+ *   criterio con el que FS/SS avanzan al hábil siguiente.
+ */
+function resolveConstraintStart(
+  dep: ProjectDependency,
+  pred: ScheduleResult,
+  duration: number,
+  workingDays: number[],
+  nonWorkingDates: Holiday[],
+): string {
+  const lag = dep.lag || 0;
+  switch (dep.type) {
+    case LinkType.SS:
+      return addDays(pred.start, lag);
+    case LinkType.FF:
+      return subtractWorkingDays(addDays(pred.end, lag), duration, workingDays, nonWorkingDates);
+    case LinkType.SF:
+      return subtractWorkingDays(addDays(pred.start, lag), duration, workingDays, nonWorkingDates);
+    case LinkType.FS:
+    default:
+      return addDays(pred.end, 1 + lag);
+  }
+}
+
+/**
+ * Forward pass: calcula start/end/duration por ítem, respetando los 4 tipos
+ * de vínculo (FS/SS/FF/SF) y su lag. El camino crítico (`cpmItems` en
+ * useProjectSchedule) sigue siendo una aproximación sobre este forward pass,
+ * no un CPM backward real — queda diferido.
  *
  * Los ítems sin tarea asociada no deberían llegar aquí: el filtrado por
  * `task` existente se hace antes de construir `ScheduleInputItem[]`.
@@ -135,10 +171,17 @@ export function computeSchedule(
     // sigue apareciendo en el resultado, marcado con hasCycleError.
     const deps = cyclicSet.has(id) ? [] : (depsByTarget.get(id) || []);
 
+    // Política del motor: cada vínculo (de cualquier tipo) solo puede empujar
+    // el inicio MÁS TARDE, nunca antes del baseline (item.startDate o el
+    // inicio del proyecto). Para FS/SS es el comportamiento natural. Para
+    // FF/SF, que restringen el FIN y se traducen a un inicio hacia atrás,
+    // significa que una restricción que pediría arrancar antes del baseline
+    // simplemente no tiene efecto — no se corre la tarea a un pasado
+    // anterior al inicio de su propio proyecto.
     deps.forEach(dep => {
       const pred = results.get(dep.fromTaskId);
       if (!pred) return; // predecesor fuera del set de ítems o aún sin programar
-      const candidateStart = addDays(pred.end, 1); // FS, lag=0 (SS/FF/SF/lag: diferido)
+      const candidateStart = resolveConstraintStart(dep, pred, duration, workingDays, nonWorkingDates);
       // Comparación lexicográfica segura: ambas son fechas "YYYY-MM-DD" con padding.
       if (candidateStart > startDate) startDate = candidateStart;
     });
