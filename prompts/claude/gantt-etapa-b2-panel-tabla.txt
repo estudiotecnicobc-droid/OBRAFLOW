@@ -1,0 +1,52 @@
+Objetivo:
+Segundo PR de la Etapa B: que el Gantt deje de ser una pestaña aparte y pase a ser un panel
+que se abre al lado de la tabla de Planificación, con scroll vertical compartido (cada fila
+de la tabla cae al lado de su barra) — patrón tomado de FAENA y Brikel en el relevamiento.
+
+Contexto:
+- Antes había 3 pestañas: Tabla (la tabla rica, editable), Gantt (una lista simplificada +
+  el SVG, con su propio scroll compartido) y Seguimiento y Control (EVM, con su propia
+  sub-pestaña Gantt que reutilizaba el mismo bloque).
+- El primer PR de la Etapa B (colores por estado, línea de inicio, "Ir a HOY", tooltip
+  completo) ya está mergeado.
+- docs/research/INFORME_FINAL_MEJORAS_OBRAFLOW_2026-10-18.md §2 ítem B-1 es el más grande
+  de la Etapa B, por eso se partió en su propio PR.
+
+Cambios deseados:
+1) Sacar "Gantt" como pestaña de nivel superior. En su lugar, un botón "Mostrar/Ocultar
+   Gantt" dentro de la pestaña Tabla que abre un ResizableSplitPane: tabla a la izquierda,
+   SVG del Gantt a la derecha.
+2) Que el scroll vertical quede sincronizado de verdad entre la tabla y el Gantt — no solo
+   que ambos se desplacen, sino que cada fila caiga exactamente al lado de su barra.
+3) Extraer el renderizado del SVG a una función reutilizable (renderGanttChart), porque la
+   pestaña Seguimiento y Control también tiene su propia vista Gantt (con una lista
+   simplificada, no la tabla rica) y debe seguir funcionando igual que antes.
+4) Documentar y decidir cómo se resuelve el problema de alinear una fila de <table> con una
+   coordenada Y de SVG sin medir el DOM en tiempo real.
+
+No tocar:
+- scheduleEngine.ts / useProjectSchedule.ts (el motor no cambia)
+- Las columnas, inputs y lógica de edición de la tabla de Planificación
+- La pestaña Seguimiento y Control → Tabla (EVM), ni su lógica de snapshots
+
+Restricciones:
+- cambio grande pero contenido a components/Planning.tsx
+- no duplicar el bloque de renderizado del SVG (compartirlo entre los dos lugares que lo usan)
+- el resto de la Etapa B (etiqueta de avance en la barra, color por partida, cursor de
+  fecha, hábiles/naturales, modo lectura, columna Estado) queda para el próximo PR, a
+  propósito
+
+Entregables:
+1) Toggle "Mostrar/Ocultar Gantt" en la pestaña Tabla, con ResizableSplitPane
+2) ROW_HEIGHT/HEADER_HEIGHT compartidos entre la tabla (<tr style={{height}}>) y el SVG
+   (y = index * ROW_HEIGHT + HEADER_HEIGHT), con el encabezado de la tabla no-sticky cuando
+   el panel está abierto para que el scroll "plano" alinee sin reconciliar un header fijo
+   con uno que no lo es
+3) renderGanttChart() y renderBudgetTable() extraídos y reutilizados en los dos lugares que
+   los necesitan
+3) Contenido de una sola línea en la tabla cuando el panel está abierto (categoría inline,
+   badge de medición como tooltip), sin tocar el modo tabla-sola
+4) Probado visualmente en local (npm run dev) con el proyecto de prueba de mampostería,
+   incluida la pestaña Seguimiento y Control → Gantt
+5) npm run test / tsc --noEmit / npm run build sin errores nuevos
+6) spec en docs/specs/, checklist QA en docs/qa/

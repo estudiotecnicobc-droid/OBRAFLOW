@@ -5,7 +5,7 @@ import { useProjectSchedule } from '../hooks/useProjectSchedule';
 import {
   Calendar, Clock, AlertCircle, ArrowDown, Calculator,
   ChevronsRight, Users, Check, Layout, List, PenTool,
-  ZoomIn, ZoomOut, MoveRight, Sidebar, Download, Printer, FileText, ChevronLeft, ChevronRight, DollarSign, TrendingUp, Crosshair
+  ZoomIn, ZoomOut, MoveRight, Download, Printer, FileText, ChevronLeft, ChevronRight, DollarSign, TrendingUp, Crosshair
 } from 'lucide-react';
 import { LinkType, ProjectDependency } from '../types';
 import { toLocalDate } from '../services/calculationService';
@@ -22,17 +22,30 @@ export const Planning: React.FC = () => {
   const { evm, itemCosts, scheduledItems, cpmItems, criticalPathStats } = useProjectSchedule();
 
   // --- UI STATE ---
-  const [viewMode, setViewMode] = useState<'table' | 'gantt' | 'control'>('table');
+  // El Gantt dejó de ser una pestaña aparte (Etapa B): ahora es un panel que se abre al
+  // lado de la tabla de Planificación, con scroll vertical compartido.
+  const [viewMode, setViewMode] = useState<'table' | 'control'>('table');
+  const [showGanttPanel, setShowGanttPanel] = useState(true);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
-  
+
   // Gantt Specific State
   const [timeScale, setTimeScale] = useState<'day' | 'week' | 'month' | 'quarter' | 'project'>('day');
-  const [showSidebar, setShowSidebar] = useState(true);
   const [ganttScale, setGanttScale] = useState(40); // Pixels per day
   const [controlSubView, setControlSubView] = useState<'table' | 'gantt'>('table');
+  // scrollContainerRef: panel del Gantt (compartido entre el panel de Tabla y el de Control,
+  // nunca se montan los dos a la vez). tableScrollRef: tabla de Planificación cuando el panel
+  // de Gantt está abierto. sidebarRef: lista simplificada del Gantt en Seguimiento y Control.
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
+
+  // Fila de la tabla = barra del Gantt: misma altura en los dos, para que el scroll
+  // vertical compartido alinee de verdad una con la otra.
+  const ROW_HEIGHT = 44;
+  const HEADER_HEIGHT = 40;
+  const BAR_HEIGHT = 20;
+  const BAR_Y_OFFSET = (ROW_HEIGHT - BAR_HEIGHT) / 2;
 
   // Collapsed Summaries State
   const [collapsedSummaries, setCollapsedSummaries] = useState<Set<string>>(new Set());
@@ -49,11 +62,17 @@ export const Planning: React.FC = () => {
     });
   };
 
-  // Scroll sync: el sidebar list y el SVG chart comparten el scroll vertical
+  // Scroll sync: el sidebar list (Control) o la tabla (Planificación) comparten el scroll
+  // vertical con el SVG del Gantt. Nunca están montados los dos paneles a la vez.
   const handleChartScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    if (sidebarRef.current) sidebarRef.current.scrollTop = (e.target as HTMLDivElement).scrollTop;
+    const top = (e.target as HTMLDivElement).scrollTop;
+    if (sidebarRef.current) sidebarRef.current.scrollTop = top;
+    if (tableScrollRef.current) tableScrollRef.current.scrollTop = top;
   }, []);
   const handleSidebarScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = (e.target as HTMLDivElement).scrollTop;
+  }, []);
+  const handleTableScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = (e.target as HTMLDivElement).scrollTop;
   }, []);
 
@@ -314,6 +333,431 @@ export const Planning: React.FC = () => {
       }
   };
 
+  // --- TABLA DE PRESUPUESTO/PLANIFICACIÓN ---
+  // Cuando el panel de Gantt está abierto, las filas usan una altura fija (ROW_HEIGHT) y
+  // contenido de una sola línea, para que calcen exactamente con las barras del SVG — ver
+  // docs/specs/gantt-etapa-b2-panel-tabla.md. El encabezado deja de ser "sticky" en ese modo
+  // porque el Gantt tampoco lo es: con los dos usando scroll "plano" alcanza con sincronizar
+  // el scrollTop para que queden alineados.
+  const renderBudgetTable = () => (
+      <table className="w-full text-left border-collapse">
+          <thead className={`bg-slate-100 text-slate-500 uppercase text-[10px] font-bold ${showGanttPanel ? '' : 'sticky top-0 z-10'}`}>
+              <tr style={showGanttPanel ? { height: HEADER_HEIGHT } : undefined}>
+                  <th className="p-3 border-r border-slate-200 w-12 text-center">ID</th>
+                  <th className="p-3 border-r border-slate-200 min-w-[200px]">Actividad</th>
+                  <th className="p-3 border-r border-slate-200 w-24 text-center bg-blue-50/50">Cómputo</th>
+                  <th className="p-3 border-r border-slate-200 w-24 text-center bg-orange-50/50">Frentes (Cuadrillas)</th>
+                  <th className="p-3 border-r border-slate-200 w-24 text-center">Rend. Base (u/día)</th>
+                  <th className="p-3 border-r border-slate-200 w-24 text-center">Prod. Total</th>
+                  <th className="p-3 border-r border-slate-200 w-24 text-center font-black text-slate-700">Duración (Días)</th>
+                  <th className="p-3 border-r border-slate-200 w-24 text-center bg-emerald-50/50">Avance %</th>
+                  <th className="p-3 border-r border-slate-200 w-40 text-center">Precedencia</th>
+                  <th className="p-3 border-r border-slate-200 w-28 text-center">Fecha Inicio</th>
+                  <th className="p-3 border-r border-slate-200 w-28 text-center">Fecha Fin</th>
+                  <th className="p-3 w-32 text-right bg-emerald-50/50 font-bold text-emerald-700">Costo Total</th>
+              </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-xs">
+              {ganttItems.map((item, idx) => {
+                  const rowStyle = showGanttPanel ? { height: ROW_HEIGHT } : undefined;
+                  if (item.type === 'summary') {
+                      return (
+                          <tr key={item.id} style={rowStyle} className="bg-slate-100 font-bold text-slate-700">
+                              <td className="p-2 text-center text-slate-400"></td>
+                              <td className="p-2 truncate" colSpan={5}>{item.taskName}</td>
+                              <td className="p-2 text-center">{item.duration}</td>
+                              <td className="p-2"></td>
+                              <td className="p-2 text-center">{toLocalDate(item.start).toLocaleDateString()}</td>
+                              <td className="p-2 text-center">{toLocalDate(item.end).toLocaleDateString()}</td>
+                              <td className="p-2 text-right font-mono text-emerald-700">
+                                  ${(item.totalCost || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                              </td>
+                          </tr>
+                      );
+                  }
+
+                  const sheet = measurementSheets.find(s => s.budgetItemId === item.id);
+                  const medPercent = sheet && item.quantity > 0
+                      ? Math.min(100, Math.round((sheet.totalQuantity / item.quantity) * 100))
+                      : null;
+
+                  return (
+                  <tr key={item.id} style={rowStyle} className={`hover:bg-slate-50 transition-colors group ${item.isCritical ? 'bg-red-50/30' : ''}`}>
+                      <td className="p-2 text-center text-slate-400 font-mono">{item.index}</td>
+                      <td className="p-2 font-medium text-slate-700">
+                          <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                  {item.isCritical && <AlertCircle size={12} className="text-red-500 flex-shrink-0" />}
+                                  {item.hasCycleError && (
+                                      <span title="Ciclo de dependencias: se ignoraron sus vínculos para poder mostrarla">
+                                          <AlertCircle size={12} className="text-amber-500 flex-shrink-0" />
+                                      </span>
+                                  )}
+                                  {showGanttPanel ? (
+                                      <div className="truncate" title={item.category ? `${item.taskName} · ${item.category}` : item.taskName}>
+                                          {item.taskName}
+                                          {item.category && <span className="text-slate-400 font-normal"> · {item.category}</span>}
+                                      </div>
+                                  ) : (
+                                      <div className="min-w-0">
+                                          {item.taskName}
+                                          <div className="text-[9px] text-slate-400 font-normal">{item.category}</div>
+                                      </div>
+                                  )}
+                              </div>
+                              <button onClick={() => setEditingItemId(item.id)} className="text-purple-300 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" title="Ajustar Rendimiento Maestro">
+                                  <PenTool size={14} />
+                              </button>
+                          </div>
+                      </td>
+
+                      {/* INPUT: Quantity */}
+                      <td className="p-2 text-center bg-blue-50/30">
+                          <input
+                            type="number"
+                            className="w-16 p-1 text-center border border-slate-300 rounded font-bold text-slate-700 focus:border-blue-500 outline-none"
+                            value={item.quantity}
+                            onChange={(e) => handleUpdate(item.id, 'quantity', parseFloat(e.target.value))}
+                          />
+                      </td>
+
+                      {/* INPUT: Crew Size */}
+                      <td className="p-2 text-center bg-orange-50/30">
+                          <div className="flex justify-center items-center gap-1">
+                              <Users size={12} className="text-orange-400" />
+                              <input
+                                type="number"
+                                min="1"
+                                className="w-12 p-1 text-center border border-slate-300 rounded font-bold text-slate-700 focus:border-orange-500 outline-none"
+                                value={item.crewSize}
+                                onChange={(e) => handleUpdate(item.id, 'crewsAssigned', parseInt(e.target.value))}
+                              />
+                          </div>
+                      </td>
+
+                      {/* READ ONLY: Yield (Base) */}
+                      <td className="p-2 text-center text-slate-500">
+                          {(item.dailyCapacity / item.crewSize).toFixed(2)}
+                      </td>
+
+                      {/* CALC: Daily Capacity */}
+                      <td className="p-2 text-center text-slate-500 font-mono">
+                          {item.dailyCapacity.toFixed(2)}
+                      </td>
+
+                      {/* CALC: Duration */}
+                      <td className="p-2 text-center font-black bg-slate-50 text-sm border-l border-r border-slate-100">
+                          {item.hasYield ? (
+                              <span className="text-blue-600">{item.duration}</span>
+                          ) : (
+                              <span className="text-amber-600 font-bold" title="Sin rendimiento cargado en la tarea maestra: no se puede estimar la duración real.">
+                                  Sin rend.
+                              </span>
+                          )}
+                      </td>
+
+                      {/* INPUT: Progress */}
+                      <td className="p-2 text-center bg-emerald-50/30">
+                          <div
+                            className={`flex items-center justify-center gap-1 ${showGanttPanel ? '' : 'flex-col'}`}
+                            title={medPercent != null ? `Según Planilla de Mediciones: ${medPercent}%` : undefined}
+                          >
+                              <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    className="w-12 p-1 text-center border border-slate-300 rounded font-bold text-slate-700 focus:border-emerald-500 outline-none"
+                                    value={item.progress || 0}
+                                    onChange={(e) => handleUpdate(item.id, 'progress', Math.min(100, Math.max(0, parseFloat(e.target.value))))}
+                                  />
+                                  <span className="text-[10px] text-slate-400">%</span>
+                              </div>
+                              {!showGanttPanel && medPercent != null && (
+                                  <div className="text-[9px] text-slate-400">(Med: {medPercent}%)</div>
+                              )}
+                          </div>
+                      </td>
+
+                      {/* INPUT: Predecessor */}
+                      <td className="p-2 text-center">
+                          <select
+                            className="w-full p-1 border border-slate-200 rounded text-[10px] text-slate-600 truncate"
+                            value={allDependencies.find(d => d.toTaskId === item.id)?.fromTaskId || ''}
+                            onChange={(e) => handleSetPredecessor(item.id, e.target.value)}
+                          >
+                              <option value="">-- Inicio --</option>
+                              {cpmItems
+                                .filter(i => i.id !== item.id) // Avoid self-loop
+                                .map(i => (
+                                  <option key={i.id} value={i.id}>{i.taskName.substring(0, 30)}...</option>
+                              ))}
+                          </select>
+                      </td>
+
+                      {/* CALC: Dates */}
+                      <td className="p-2 text-center text-slate-600">
+                          {toLocalDate(item.start).toLocaleDateString()}
+                      </td>
+                      <td className="p-2 text-center font-bold text-slate-700">
+                          {toLocalDate(item.end).toLocaleDateString()}
+                      </td>
+
+                      {/* CALC: Total Cost */}
+                      <td className="p-2 text-right font-mono text-emerald-600 bg-emerald-50/30 font-medium">
+                          ${(item.totalCost || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                      </td>
+                  </tr>
+                  );
+              })}
+          </tbody>
+      </table>
+  );
+
+  // --- GRÁFICO DE GANTT (SVG) ---
+  // Compartido entre el panel de Planificación (al lado de renderBudgetTable) y la pestaña
+  // Gantt de Seguimiento y Control (al lado de la lista simplificada). ROW_HEIGHT/HEADER_HEIGHT
+  // son los mismos que usa renderBudgetTable, así el scroll compartido alinea fila con barra.
+  const renderGanttChart = () => (
+      <svg
+          style={{ display: 'block' }}
+          width={Math.max(1000, criticalPathStats.totalDays * ganttScale + 400)}
+          height={ganttItems.length * ROW_HEIGHT + HEADER_HEIGHT}
+          className="font-sans"
+      >
+          <defs>
+              <pattern id="grid" width={ganttScale} height="100%" patternUnits="userSpaceOnUse">
+                  <line x1={ganttScale} y1="0" x2={ganttScale} y2="100%" stroke="#e2e8f0" strokeWidth="1" />
+              </pattern>
+              <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="0" refY="2" orient="auto">
+                  <polygon points="0 0, 6 2, 0 4" fill="#94a3b8" />
+              </marker>
+          </defs>
+
+          {/* Background Grid */}
+          <rect width="100%" height="100%" fill="url(#grid)" y={HEADER_HEIGHT} />
+
+          {/* Non-Working Days Background */}
+          {Array.from({ length: criticalPathStats.totalDays + 10 }).map((_, i) => {
+              // Use local time construction to ensure getDay() is correct
+              const currentDate = new Date(project.startDate + 'T00:00:00');
+              currentDate.setDate(currentDate.getDate() + i);
+
+              const dayOfWeek = currentDate.getDay(); // 0=Sun, 6=Sat
+              const isWorking = workingDays.includes(dayOfWeek);
+
+              if (!isWorking) {
+                  return (
+                      <rect
+                          key={`nw-${i}`}
+                          x={i * ganttScale}
+                          y={HEADER_HEIGHT}
+                          width={ganttScale}
+                          height="100%"
+                          fill="#f1f5f9"
+                          fillOpacity="0.6"
+                      />
+                  );
+              }
+              return null;
+          })}
+
+          {/* Project Start Line */}
+          <g>
+              <line x1={0} y1={HEADER_HEIGHT} x2={0} y2="100%" stroke="#3b82f6" strokeWidth="2" strokeDasharray="4 2" />
+              <text x={5} y="55" fontSize="9" fill="#3b82f6" fontWeight="bold">
+                  INICIO · {toLocalDate(project.startDate).toLocaleDateString()}
+              </text>
+          </g>
+
+          {/* Today Line */}
+          {todayLineX != null && (
+              <g>
+                  <line x1={todayLineX} y1={HEADER_HEIGHT} x2={todayLineX} y2="100%" stroke="#ef4444" strokeWidth="2" strokeDasharray="4 2" />
+                  <text x={todayLineX + 5} y="55" fontSize="9" fill="#ef4444" fontWeight="bold">HOY</text>
+              </g>
+          )}
+
+          {/* Timeline Header */}
+          <g>
+              {/* Top Row: Months */}
+              {ganttHeaders.months.map((header: any, i: number) => (
+                  <React.Fragment key={`m-${i}`}>
+                      <rect x={header.x} y="0" width={header.width} height="20" fill="#e2e8f0" stroke="#cbd5e1" />
+                      <text
+                          x={header.x + 5}
+                          y="14"
+                          fontSize="10"
+                          fill="#334155"
+                          fontWeight="bold"
+                          className="uppercase"
+                      >
+                          {header.label}
+                      </text>
+                  </React.Fragment>
+              ))}
+
+              {/* Bottom Row: Weeks */}
+              {ganttHeaders.weeks.map((header: any, i: number) => (
+                  <React.Fragment key={`w-${i}`}>
+                      <rect x={header.x} y="20" width={header.width} height="20" fill="#f8fafc" stroke="#e2e8f0" />
+                      <text
+                          x={header.x + 5}
+                          y="34"
+                          fontSize="9"
+                          fill="#64748b"
+                      >
+                          {header.label}
+                      </text>
+                  </React.Fragment>
+              ))}
+
+              {/* Minor Headers (Days) - Only show if scale is large enough */}
+              {ganttScale > 20 && Array.from({ length: criticalPathStats.totalDays + 5 }).map((_, i) => (
+                  <text
+                    key={i}
+                    x={i * ganttScale + (ganttScale/2)}
+                    y="52"
+                    fontSize="8"
+                    fill="#94a3b8"
+                    textAnchor="middle"
+                  >
+                      {i+1}
+                  </text>
+              ))}
+          </g>
+
+          {/* Task Bars & Logic */}
+          {ganttItems.map((item, index) => {
+              const projectStart = new Date(project.startDate).getTime();
+              const itemStart = new Date(item.start).getTime();
+
+              // Calculate pixel offset days
+              const startOffsetDay = Math.floor((itemStart - projectStart) / (1000 * 60 * 60 * 24));
+              const x = startOffsetDay * ganttScale;
+              const width = Math.max(2, item.duration * ganttScale);
+              const y = index * ROW_HEIGHT + HEADER_HEIGHT;
+
+              // Summary Task Render
+              if (item.type === 'summary') {
+                  const isCollapsed = collapsedSummaries.has(item.id);
+                  const summaryBarY = y + (ROW_HEIGHT - 8) / 2;
+                  return (
+                      <g key={item.id} className="cursor-pointer hover:opacity-80" onClick={() => toggleSummary(item.id)}>
+                          <title>Click para {isCollapsed ? 'expandir' : 'colapsar'} grupo</title>
+                          {/* Main Bar */}
+                          <rect x={x} y={summaryBarY} width={width} height="8" fill="#475569" rx="1" />
+                          {/* End Caps (Brackets) */}
+                          <path d={`M ${x} ${summaryBarY} v 10 M ${x+width} ${summaryBarY} v 10`} stroke="#475569" strokeWidth="2" />
+                          {/* Label */}
+                          <text x={x + 5} y={summaryBarY - 3} fontSize="10" fill="#475569" fontWeight="bold" className="uppercase tracking-wider">
+                              {isCollapsed ? '[+] ' : '[-] '} {item.taskName}
+                          </text>
+                      </g>
+                  );
+              }
+
+              // Color de barra por estado automático; la ruta crítica pasa a ser un borde, no el color.
+              const status = getItemStatus(item);
+              const barColor = STATUS_COLORS[status];
+              const barOpacity = 0.85;
+
+              // Progress Calculation
+              const progress = item.progress || 0;
+              const progressWidth = width * (progress / 100);
+
+              // Text Overflow Logic
+              const charWidth = 6; // Approx
+              const textWidth = item.taskName.length * charWidth;
+              const fitsInside = width > textWidth + 10;
+
+              const task = tasksMap[item.taskId];
+              const barY = y + BAR_Y_OFFSET;
+              const labelY = barY + BAR_HEIGHT / 2 + 4;
+
+              return (
+                  <g key={item.id} className="group cursor-pointer" onClick={() => setEditingItemId(item.id)}>
+                      <title>
+                          {task?.code ? `${task.code} - ` : ''}{item.taskName}
+                          {' · '}{toLocalDate(item.start).toLocaleDateString()} → {toLocalDate(item.end).toLocaleDateString()}
+                          {' · '}{item.hasYield ? `${item.duration} días` : 'sin rendimiento cargado'}
+                          {' · '}{progress}% avance
+                          {item.hasCycleError ? ' — ⚠ ciclo de dependencias: se ignoraron sus vínculos' : ''}
+                      </title>
+                      {/* Dependency Lines */}
+                      {allDependencies.filter(d => d.toTaskId === item.id).map((dep, depIdx) => {
+                          const pred = ganttItems.find(p => p.id === dep.fromTaskId);
+                          if (!pred) return null;
+
+                          // Find predator index/position
+                          const predIdx = ganttItems.indexOf(pred);
+                          const predStartDay = Math.floor((new Date(pred.start).getTime() - projectStart) / (1000 * 60 * 60 * 24));
+                          const predXEnd = (predStartDay + pred.duration) * ganttScale;
+                          const predY = predIdx * ROW_HEIGHT + HEADER_HEIGHT + ROW_HEIGHT / 2;
+
+                          const currY = y + ROW_HEIGHT / 2;
+
+                          // Draw Bezier Connector
+                          const path = `M ${predXEnd} ${predY}
+                                        C ${predXEnd + 15} ${predY}, ${x - 15} ${currY}, ${x} ${currY}`;
+
+                          return (
+                              <path
+                                key={`${item.id}-dep-${depIdx}`}
+                                d={path}
+                                fill="none"
+                                stroke="#94a3b8"
+                                strokeWidth="1.5"
+                                markerEnd="url(#arrowhead)"
+                                className="opacity-50"
+                              />
+                          );
+                      })}
+
+                      {/* Task Bar */}
+                      <rect
+                          x={x}
+                          y={barY}
+                          width={width}
+                          height={BAR_HEIGHT}
+                          rx="4"
+                          fill={barColor}
+                          fillOpacity={barOpacity}
+                          stroke={item.isCritical ? '#991b1b' : 'none'}
+                          strokeWidth={item.isCritical ? 2 : 0}
+                          className="transition-all hover:fill-opacity-100 shadow-sm"
+                      />
+
+                      {/* Progress Bar Overlay */}
+                      {progress > 0 && (
+                          <rect
+                              x={x}
+                              y={barY}
+                              width={progressWidth}
+                              height={BAR_HEIGHT}
+                              fill="#1e293b"
+                              fillOpacity="0.4"
+                              rx="4"
+                              clipPath={`inset(0 ${width - progressWidth}px 0 0)`}
+                          />
+                      )}
+
+                      {/* Label */}
+                      {fitsInside ? (
+                          <text x={x + 10} y={labelY} fontSize="10" fill="white" fontWeight="bold" pointerEvents="none" className="select-none">
+                              {item.taskName} {progress > 0 && `(${progress}%)`}
+                          </text>
+                      ) : (
+                          <text x={x + width + 5} y={labelY} fontSize="10" fill="#475569" fontWeight="medium">
+                              {item.taskName} {progress > 0 && `(${progress}%)`}
+                          </text>
+                      )}
+                  </g>
+              );
+          })}
+      </svg>
+  );
+
   return (
     <div className="flex flex-col h-full space-y-6 animate-in fade-in duration-500">
       
@@ -348,26 +792,29 @@ export const Planning: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
           
-          <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50 print:hidden">
+          <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50 print:hidden flex-wrap gap-3">
               <div className="flex gap-2">
-                  <button 
+                  <button
                     onClick={() => setViewMode('table')}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${viewMode === 'table' ? 'bg-white text-blue-600 shadow' : 'text-slate-500 hover:bg-slate-200'}`}
                   >
                       <List size={16} /> Tabla
                   </button>
-                  <button 
-                    onClick={() => setViewMode('gantt')}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${viewMode === 'gantt' ? 'bg-white text-blue-600 shadow' : 'text-slate-500 hover:bg-slate-200'}`}
-                  >
-                      <Layout size={16} /> Gantt
-                  </button>
-                  <button 
+                  <button
                     onClick={() => setViewMode('control')}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${viewMode === 'control' ? 'bg-white text-blue-600 shadow' : 'text-slate-500 hover:bg-slate-200'}`}
                   >
                       <TrendingUp size={16} /> Seguimiento y Control
                   </button>
+                  {viewMode === 'table' && (
+                      <button
+                          onClick={() => setShowGanttPanel(v => !v)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border ${showGanttPanel ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                          title="El Gantt se abre al lado de la tabla, con el mismo scroll"
+                      >
+                          <Layout size={16} /> {showGanttPanel ? 'Ocultar Gantt' : 'Mostrar Gantt'}
+                      </button>
+                  )}
               </div>
 
               {viewMode === 'control' && (
@@ -377,7 +824,7 @@ export const Planning: React.FC = () => {
                   </div>
               )}
 
-              {(viewMode === 'gantt' || (viewMode === 'control' && controlSubView === 'gantt')) && (
+              {((viewMode === 'table' && showGanttPanel) || (viewMode === 'control' && controlSubView === 'gantt')) && (
                   <div className="flex items-center gap-4">
                       {/* Time Scale Selector */}
                       <div className="flex bg-white rounded-lg border border-slate-200 p-1">
@@ -417,195 +864,45 @@ export const Planning: React.FC = () => {
                               <Printer size={16} />
                           </button>
                       </div>
-
-                      <button 
-                          onClick={() => setShowSidebar(!showSidebar)}
-                          className={`p-2 rounded-lg transition-colors ${showSidebar ? 'bg-blue-50 text-blue-600' : 'bg-white text-slate-400 border border-slate-200'}`}
-                          title="Panel Lateral"
-                      >
-                          <Sidebar size={16} />
-                      </button>
                   </div>
               )}
           </div>
 
-          {viewMode === 'table' && (
+          {viewMode === 'table' && !showGanttPanel && (
               <div className="flex-1 overflow-auto">
-                  <table className="w-full text-left border-collapse">
-                      <thead className="bg-slate-100 text-slate-500 uppercase text-[10px] font-bold sticky top-0 z-10">
-                          <tr>
-                              <th className="p-3 border-r border-slate-200 w-12 text-center">ID</th>
-                              <th className="p-3 border-r border-slate-200 min-w-[200px]">Actividad</th>
-                              <th className="p-3 border-r border-slate-200 w-24 text-center bg-blue-50/50">Cómputo</th>
-                              <th className="p-3 border-r border-slate-200 w-24 text-center bg-orange-50/50">Frentes (Cuadrillas)</th>
-                              <th className="p-3 border-r border-slate-200 w-24 text-center">Rend. Base (u/día)</th>
-                              <th className="p-3 border-r border-slate-200 w-24 text-center">Prod. Total</th>
-                              <th className="p-3 border-r border-slate-200 w-24 text-center font-black text-slate-700">Duración (Días)</th>
-                              <th className="p-3 border-r border-slate-200 w-24 text-center bg-emerald-50/50">Avance %</th>
-                              <th className="p-3 border-r border-slate-200 w-40 text-center">Precedencia</th>
-                              <th className="p-3 border-r border-slate-200 w-28 text-center">Fecha Inicio</th>
-                              <th className="p-3 border-r border-slate-200 w-28 text-center">Fecha Fin</th>
-                              <th className="p-3 w-32 text-right bg-emerald-50/50 font-bold text-emerald-700">Costo Total</th>
-                          </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-xs">
-                          {ganttItems.map((item, idx) => {
-                              if (item.type === 'summary') {
-                                  return (
-                                      <tr key={item.id} className="bg-slate-100 font-bold text-slate-700">
-                                          <td className="p-2 text-center text-slate-400"></td>
-                                          <td className="p-2" colSpan={5}>{item.taskName}</td>
-                                          <td className="p-2 text-center">{item.duration}</td>
-                                          <td className="p-2"></td>
-                                          <td className="p-2 text-center">{toLocalDate(item.start).toLocaleDateString()}</td>
-                                          <td className="p-2 text-center">{toLocalDate(item.end).toLocaleDateString()}</td>
-                                          <td className="p-2 text-right font-mono text-emerald-700">
-                                              ${(item.totalCost || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                                          </td>
-                                      </tr>
-                                  );
-                              }
-                              return (
-                              <tr key={item.id} className={`hover:bg-slate-50 transition-colors group ${item.isCritical ? 'bg-red-50/30' : ''}`}>
-                                  <td className="p-2 text-center text-slate-400 font-mono">{item.index}</td>
-                                  <td className="p-2 font-medium text-slate-700 flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                          {item.isCritical && <AlertCircle size={12} className="text-red-500" />}
-                                          {item.hasCycleError && (
-                                              <span title="Ciclo de dependencias: se ignoraron sus vínculos para poder mostrarla">
-                                                  <AlertCircle size={12} className="text-amber-500" />
-                                              </span>
-                                          )}
-                                          <div>
-                                              {item.taskName}
-                                              <div className="text-[9px] text-slate-400 font-normal">{item.category}</div>
-                                          </div>
-                                      </div>
-                                      <button onClick={() => setEditingItemId(item.id)} className="text-purple-300 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Ajustar Rendimiento Maestro">
-                                          <PenTool size={14} />
-                                      </button>
-                                  </td>
-                                  
-                                  {/* INPUT: Quantity */}
-                                  <td className="p-2 text-center bg-blue-50/30">
-                                      <input 
-                                        type="number" 
-                                        className="w-16 p-1 text-center border border-slate-300 rounded font-bold text-slate-700 focus:border-blue-500 outline-none"
-                                        value={item.quantity}
-                                        onChange={(e) => handleUpdate(item.id, 'quantity', parseFloat(e.target.value))}
-                                      />
-                                  </td>
-
-                                  {/* INPUT: Crew Size */}
-                                  <td className="p-2 text-center bg-orange-50/30">
-                                      <div className="flex justify-center items-center gap-1">
-                                          <Users size={12} className="text-orange-400" />
-                                          <input 
-                                            type="number" 
-                                            min="1"
-                                            className="w-12 p-1 text-center border border-slate-300 rounded font-bold text-slate-700 focus:border-orange-500 outline-none"
-                                            value={item.crewSize}
-                                            onChange={(e) => handleUpdate(item.id, 'crewsAssigned', parseInt(e.target.value))}
-                                          />
-                                      </div>
-                                  </td>
-
-                                  {/* READ ONLY: Yield (Base) */}
-                                  <td className="p-2 text-center text-slate-500">
-                                      {(item.dailyCapacity / item.crewSize).toFixed(2)}
-                                  </td>
-
-                                  {/* CALC: Daily Capacity */}
-                                  <td className="p-2 text-center text-slate-500 font-mono">
-                                      {item.dailyCapacity.toFixed(2)}
-                                  </td>
-
-                                  {/* CALC: Duration */}
-                                  <td className="p-2 text-center font-black bg-slate-50 text-sm border-l border-r border-slate-100">
-                                      {item.hasYield ? (
-                                          <span className="text-blue-600">{item.duration}</span>
-                                      ) : (
-                                          <span className="text-amber-600 font-bold" title="Sin rendimiento cargado en la tarea maestra: no se puede estimar la duración real.">
-                                              Sin rend.
-                                          </span>
-                                      )}
-                                  </td>
-
-                                  {/* INPUT: Progress */}
-                                  <td className="p-2 text-center bg-emerald-50/30">
-                                      <div className="flex flex-col items-center justify-center gap-1">
-                                          <div className="flex items-center gap-1">
-                                              <input 
-                                                type="number" 
-                                                min="0"
-                                                max="100"
-                                                className="w-12 p-1 text-center border border-slate-300 rounded font-bold text-slate-700 focus:border-emerald-500 outline-none"
-                                                value={item.progress || 0}
-                                                onChange={(e) => handleUpdate(item.id, 'progress', Math.min(100, Math.max(0, parseFloat(e.target.value))))}
-                                              />
-                                              <span className="text-[10px] text-slate-400">%</span>
-                                          </div>
-                                          {(() => {
-                                              const sheet = measurementSheets.find(s => s.budgetItemId === item.id);
-                                              if (sheet && item.quantity > 0) {
-                                                  const calc = Math.min(100, Math.round((sheet.totalQuantity / item.quantity) * 100));
-                                                  return (
-                                                      <div className="text-[9px] text-slate-400" title="Según Planilla de Mediciones">
-                                                          (Med: {calc}%)
-                                                      </div>
-                                                  );
-                                              }
-                                              return null;
-                                          })()}
-                                      </div>
-                                  </td>
-
-                                  {/* INPUT: Predecessor */}
-                                  <td className="p-2 text-center">
-                                      <select 
-                                        className="w-full p-1 border border-slate-200 rounded text-[10px] text-slate-600 truncate"
-                                        value={allDependencies.find(d => d.toTaskId === item.id)?.fromTaskId || ''}
-                                        onChange={(e) => handleSetPredecessor(item.id, e.target.value)}
-                                      >
-                                          <option value="">-- Inicio --</option>
-                                          {cpmItems
-                                            .filter(i => i.id !== item.id) // Avoid self-loop
-                                            .map(i => (
-                                              <option key={i.id} value={i.id}>{i.taskName.substring(0, 30)}...</option>
-                                          ))}
-                                      </select>
-                                  </td>
-
-                                  {/* CALC: Dates */}
-                                  <td className="p-2 text-center text-slate-600">
-                                      {toLocalDate(item.start).toLocaleDateString()}
-                                  </td>
-                                  <td className="p-2 text-center font-bold text-slate-700">
-                                      {toLocalDate(item.end).toLocaleDateString()}
-                                  </td>
-                                  
-                                  {/* CALC: Total Cost */}
-                                  <td className="p-2 text-right font-mono text-emerald-600 bg-emerald-50/30 font-medium">
-                                      ${(item.totalCost || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                                  </td>
-                              </tr>
-                              );
-                          })}
-                      </tbody>
-                  </table>
+                  {renderBudgetTable()}
               </div>
           )}
 
-          {(viewMode === 'gantt' || (viewMode === 'control' && controlSubView === 'gantt')) && (
-              // --- GANTT CHART RENDERER ---
+          {viewMode === 'table' && showGanttPanel && (
               <div className="flex-1 flex overflow-hidden">
-                  {showSidebar ? (
+                  <ResizableSplitPane
+                      storageKey="planning-table-gantt"
+                      initialLeftWidth={760}
+                      left={
+                          <div className="h-full overflow-auto" ref={tableScrollRef} onScroll={handleTableScroll}>
+                              {renderBudgetTable()}
+                          </div>
+                      }
+                      right={
+                          <div className="h-full overflow-auto bg-slate-50" ref={scrollContainerRef} onScroll={handleChartScroll}>
+                              {renderGanttChart()}
+                          </div>
+                      }
+                  />
+              </div>
+          )}
+
+
+          {viewMode === 'control' && controlSubView === 'gantt' && (
+              // --- GANTT: lista simplificada + SVG, con el mismo ROW_HEIGHT que renderBudgetTable ---
+              <div className="flex-1 flex overflow-hidden">
                       <ResizableSplitPane
                           storageKey="planning-gantt-sidebar"
                           initialLeftWidth={450}
                           left={
                               <div className="h-full bg-white overflow-y-auto flex flex-col print:hidden" ref={sidebarRef} onScroll={handleSidebarScroll}>
-                          <div className="h-10 bg-slate-100 border-b border-slate-200 flex items-center px-4 text-[11px] font-bold text-slate-600 uppercase sticky top-0 z-10 tracking-wide">
+                          <div style={{ height: HEADER_HEIGHT }} className="bg-slate-100 border-b border-slate-200 flex items-center px-4 text-[11px] font-bold text-slate-600 uppercase sticky top-0 z-10 tracking-wide">
                               <div className="w-10 text-center border-r border-slate-200/50 mr-2">ID</div>
                               <div className="flex-1 px-2 border-r border-slate-200/50 mr-2">Tarea</div>
                               <div className="w-16 text-center border-r border-slate-200/50 mr-2">Dur.</div>
@@ -613,9 +910,10 @@ export const Planning: React.FC = () => {
                               <div className="w-20 text-center">Fin</div>
                           </div>
                           {ganttItems.map((item, idx) => (
-                              <div 
-                                  key={item.id} 
-                                  className={`h-10 flex items-center px-4 border-b border-slate-100 hover:bg-slate-50 text-xs group cursor-pointer transition-colors ${item.type === 'summary' ? 'bg-slate-50 font-bold text-slate-800' : 'text-slate-600'} ${item.isCritical && item.type !== 'summary' ? 'bg-red-50/20' : ''}`}
+                              <div
+                                  key={item.id}
+                                  style={{ height: ROW_HEIGHT }}
+                                  className={`flex items-center px-4 border-b border-slate-100 hover:bg-slate-50 text-xs group cursor-pointer transition-colors ${item.type === 'summary' ? 'bg-slate-50 font-bold text-slate-800' : 'text-slate-600'} ${item.isCritical && item.type !== 'summary' ? 'bg-red-50/20' : ''}`}
                                   onClick={() => item.type !== 'summary' && setEditingItemId(item.id)}
                               >
                                   <div className="w-10 text-center text-slate-400 font-mono text-[10px] border-r border-slate-100 mr-2">{item.index || ''}</div>
@@ -636,258 +934,18 @@ export const Planning: React.FC = () => {
                                   <div className="w-20 text-center text-slate-500 text-[10px] font-mono">{toLocalDate(item.end).toLocaleDateString()}</div>
                               </div>
                           ))}
-                          
+
                               </div>
                           }
                           right={
                               <div className="h-full overflow-auto bg-slate-50" ref={scrollContainerRef} onScroll={handleChartScroll}>
-                          {/* SVG Canvas */}
-                          <svg
-                              style={{ display: 'block' }}
-                              width={Math.max(1000, criticalPathStats.totalDays * ganttScale + 400)}
-                              height={ganttItems.length * 40 + 60}
-                              className="font-sans"
-                          >
-                              <defs>
-                                  <pattern id="grid" width={ganttScale} height="100%" patternUnits="userSpaceOnUse">
-                                      <line x1={ganttScale} y1="0" x2={ganttScale} y2="100%" stroke="#e2e8f0" strokeWidth="1" />
-                                  </pattern>
-                                  <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="0" refY="2" orient="auto">
-                                      <polygon points="0 0, 6 2, 0 4" fill="#94a3b8" />
-                                  </marker>
-                              </defs>
-
-                              {/* Background Grid */}
-                              <rect width="100%" height="100%" fill="url(#grid)" y="40" />
-
-                              {/* Non-Working Days Background */}
-                              {Array.from({ length: criticalPathStats.totalDays + 10 }).map((_, i) => {
-                                  // Use local time construction to ensure getDay() is correct
-                                  const currentDate = new Date(project.startDate + 'T00:00:00');
-                                  currentDate.setDate(currentDate.getDate() + i);
-                                  
-                                  const dayOfWeek = currentDate.getDay(); // 0=Sun, 6=Sat
-                                  const isWorking = workingDays.includes(dayOfWeek);
-                                  
-                                  if (!isWorking) {
-                                      return (
-                                          <rect 
-                                              key={`nw-${i}`}
-                                              x={i * ganttScale} 
-                                              y="40" 
-                                              width={ganttScale} 
-                                              height="100%" 
-                                              fill="#f1f5f9" 
-                                              fillOpacity="0.6"
-                                          />
-                                      );
-                                  }
-                                  return null;
-                              })}
-
-                              {/* Project Start Line */}
-                              <g>
-                                  <line x1={0} y1="40" x2={0} y2="100%" stroke="#3b82f6" strokeWidth="2" strokeDasharray="4 2" />
-                                  <text x={5} y="55" fontSize="9" fill="#3b82f6" fontWeight="bold">
-                                      INICIO · {toLocalDate(project.startDate).toLocaleDateString()}
-                                  </text>
-                              </g>
-
-                              {/* Today Line */}
-                              {todayLineX != null && (
-                                  <g>
-                                      <line x1={todayLineX} y1="40" x2={todayLineX} y2="100%" stroke="#ef4444" strokeWidth="2" strokeDasharray="4 2" />
-                                      <text x={todayLineX + 5} y="55" fontSize="9" fill="#ef4444" fontWeight="bold">HOY</text>
-                                  </g>
-                              )}
-
-                              {/* Timeline Header */}
-                              <g>
-                                  {/* Top Row: Months */}
-                                  {ganttHeaders.months.map((header: any, i: number) => (
-                                      <React.Fragment key={`m-${i}`}>
-                                          <rect x={header.x} y="0" width={header.width} height="20" fill="#e2e8f0" stroke="#cbd5e1" />
-                                          <text 
-                                              x={header.x + 5} 
-                                              y="14" 
-                                              fontSize="10" 
-                                              fill="#334155" 
-                                              fontWeight="bold"
-                                              className="uppercase"
-                                          >
-                                              {header.label}
-                                          </text>
-                                      </React.Fragment>
-                                  ))}
-
-                                  {/* Bottom Row: Weeks */}
-                                  {ganttHeaders.weeks.map((header: any, i: number) => (
-                                      <React.Fragment key={`w-${i}`}>
-                                          <rect x={header.x} y="20" width={header.width} height="20" fill="#f8fafc" stroke="#e2e8f0" />
-                                          <text 
-                                              x={header.x + 5} 
-                                              y="34" 
-                                              fontSize="9" 
-                                              fill="#64748b" 
-                                          >
-                                              {header.label}
-                                          </text>
-                                      </React.Fragment>
-                                  ))}
-
-                                  {/* Minor Headers (Days) - Only show if scale is large enough */}
-                                  {ganttScale > 20 && Array.from({ length: criticalPathStats.totalDays + 5 }).map((_, i) => (
-                                      <text 
-                                        key={i} 
-                                        x={i * ganttScale + (ganttScale/2)} 
-                                        y="52" 
-                                        fontSize="8" 
-                                        fill="#94a3b8" 
-                                        textAnchor="middle"
-                                      >
-                                          {i+1}
-                                      </text>
-                                  ))}
-                              </g>
-
-                              {/* Task Bars & Logic */}
-                              {ganttItems.map((item, index) => {
-                                  const projectStart = new Date(project.startDate).getTime();
-                                  const itemStart = new Date(item.start).getTime();
-                                  
-                                  // Calculate pixel offset days
-                                  const startOffsetDay = Math.floor((itemStart - projectStart) / (1000 * 60 * 60 * 24));
-                                  const x = startOffsetDay * ganttScale;
-                                  const width = Math.max(2, item.duration * ganttScale);
-                                  const y = index * 40 + 60; // Shifted down by 20px due to double header
-                                  
-                                  // Summary Task Render
-                                  if (item.type === 'summary') {
-                                      const isCollapsed = collapsedSummaries.has(item.id);
-                                      return (
-                                          <g key={item.id} className="cursor-pointer hover:opacity-80" onClick={() => toggleSummary(item.id)}>
-                                              <title>Click para {isCollapsed ? 'expandir' : 'colapsar'} grupo</title>
-                                              {/* Main Bar */}
-                                              <rect x={x} y={y + 12} width={width} height="8" fill="#475569" rx="1" />
-                                              {/* End Caps (Brackets) */}
-                                              <path d={`M ${x} ${y+12} v 10 M ${x+width} ${y+12} v 10`} stroke="#475569" strokeWidth="2" />
-                                              {/* Label */}
-                                              <text x={x + 5} y={y + 9} fontSize="10" fill="#475569" fontWeight="bold" className="uppercase tracking-wider">
-                                                  {isCollapsed ? '[+] ' : '[-] '} {item.taskName}
-                                              </text>
-                                          </g>
-                                      );
-                                  }
-
-                                  // Color de barra por estado automático; la ruta crítica pasa a ser un borde, no el color.
-                                  const status = getItemStatus(item);
-                                  const barColor = STATUS_COLORS[status];
-                                  const barOpacity = 0.85;
-
-                                  // Progress Calculation
-                                  const progress = item.progress || 0;
-                                  const progressWidth = width * (progress / 100);
-
-                                  // Text Overflow Logic
-                                  const charWidth = 6; // Approx
-                                  const textWidth = item.taskName.length * charWidth;
-                                  const fitsInside = width > textWidth + 10;
-
-                                  const task = tasksMap[item.taskId];
-
-                                  return (
-                                      <g key={item.id} className="group cursor-pointer" onClick={() => setEditingItemId(item.id)}>
-                                          <title>
-                                              {task?.code ? `${task.code} - ` : ''}{item.taskName}
-                                              {' · '}{toLocalDate(item.start).toLocaleDateString()} → {toLocalDate(item.end).toLocaleDateString()}
-                                              {' · '}{item.hasYield ? `${item.duration} días` : 'sin rendimiento cargado'}
-                                              {' · '}{progress}% avance
-                                              {item.hasCycleError ? ' — ⚠ ciclo de dependencias: se ignoraron sus vínculos' : ''}
-                                          </title>
-                                          {/* Dependency Lines */}
-                                          {allDependencies.filter(d => d.toTaskId === item.id).map((dep, depIdx) => {
-                                              const pred = ganttItems.find(p => p.id === dep.fromTaskId);
-                                              if (!pred) return null;
-                                              
-                                              // Find predator index/position
-                                              const predIdx = ganttItems.indexOf(pred);
-                                              const predStartDay = Math.floor((new Date(pred.start).getTime() - projectStart) / (1000 * 60 * 60 * 24));
-                                              const predXEnd = (predStartDay + pred.duration) * ganttScale;
-                                              const predY = predIdx * 40 + 60 + 15; // Center of bar (shifted)
-                                              
-                                              const currY = y + 15;
-                                              
-                                              // Draw Bezier Connector
-                                              const path = `M ${predXEnd} ${predY} 
-                                                            C ${predXEnd + 15} ${predY}, ${x - 15} ${currY}, ${x} ${currY}`;
-                                              
-                                              return (
-                                                  <path 
-                                                    key={`${item.id}-dep-${depIdx}`} 
-                                                    d={path} 
-                                                    fill="none" 
-                                                    stroke="#94a3b8" 
-                                                    strokeWidth="1.5" 
-                                                    markerEnd="url(#arrowhead)"
-                                                    className="opacity-50"
-                                                  />
-                                              );
-                                          })}
-
-                                          {/* Task Bar */}
-                                          <rect
-                                              x={x}
-                                              y={y + 5}
-                                              width={width}
-                                              height="20"
-                                              rx="4"
-                                              fill={barColor}
-                                              fillOpacity={barOpacity}
-                                              stroke={item.isCritical ? '#991b1b' : 'none'}
-                                              strokeWidth={item.isCritical ? 2 : 0}
-                                              className="transition-all hover:fill-opacity-100 shadow-sm"
-                                          />
-                                          
-                                          {/* Progress Bar Overlay */}
-                                          {progress > 0 && (
-                                              <rect 
-                                                  x={x} 
-                                                  y={y + 5} 
-                                                  width={progressWidth} 
-                                                  height="20" 
-                                                  fill="#1e293b" 
-                                                  fillOpacity="0.4" 
-                                                  rx="4" 
-                                                  clipPath={`inset(0 ${width - progressWidth}px 0 0)`}
-                                              />
-                                          )}
-
-                                          {/* Label */}
-                                          {fitsInside ? (
-                                              <text x={x + 10} y={y + 19} fontSize="10" fill="white" fontWeight="bold" pointerEvents="none" className="select-none">
-                                                  {item.taskName} {progress > 0 && `(${progress}%)`}
-                                              </text>
-                                          ) : (
-                                              <text x={x + width + 5} y={y + 19} fontSize="10" fill="#475569" fontWeight="medium">
-                                                  {item.taskName} {progress > 0 && `(${progress}%)`}
-                                              </text>
-                                          )}
-                                      </g>
-                                  );
-                              })}
-                          </svg>
-                  </div>
+                                  {renderGanttChart()}
+                              </div>
                           }
                       />
-                  ) : (
-                      <div className="flex-1 overflow-auto bg-slate-50" ref={scrollContainerRef}>
-                          <div className="p-10 flex justify-center items-center h-full text-slate-400">
-                              <p>Sidebar oculto. Activá el sidebar para ver la lista de tareas.</p>
-                          </div>
-                      </div>
-                  )}
               </div>
           )}
+
 
           {viewMode === 'control' && controlSubView === 'table' && (
               <div className="flex-1 flex flex-col overflow-hidden">
