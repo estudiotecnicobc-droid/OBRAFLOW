@@ -8,7 +8,7 @@ import {
   ZoomIn, ZoomOut, MoveRight, Download, Printer, FileText, ChevronLeft, ChevronRight, DollarSign, TrendingUp, Crosshair
 } from 'lucide-react';
 import { LinkType, ProjectDependency } from '../types';
-import { toLocalDate } from '../services/calculationService';
+import { toLocalDate, diffDays } from '../services/calculationService';
 import { APUBuilder } from './APUBuilder';
 import { ResizableSplitPane } from './ResizableSplitPane';
 
@@ -28,6 +28,14 @@ export const Planning: React.FC = () => {
   const [showGanttPanel, setShowGanttPanel] = useState(true);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
+  // Modo lectura por defecto: nadie cambia cantidad/avance/precedencia sin querer. "Editar"
+  // habilita los inputs de la tabla (no afecta el panel de ajuste de rendimiento del APU).
+  const [editMode, setEditMode] = useState(false);
+  // Color de barra del Gantt a elección: por estado automático (default), por partida, o
+  // el binario crítica/normal de antes de la Etapa B.
+  const [barColorMode, setBarColorMode] = useState<'status' | 'category' | 'critical'>('status');
+  // Cursor de fecha: "YYYY-MM-DD" elegido por el usuario, o null si está apagado.
+  const [cursorDate, setCursorDate] = useState<string | null>(null);
 
   // Gantt Specific State
   const [timeScale, setTimeScale] = useState<'day' | 'week' | 'month' | 'quarter' | 'project'>('day');
@@ -93,6 +101,12 @@ export const Planning: React.FC = () => {
       completada: '#22c55e',  // emerald-500
       atrasada: '#ef4444',    // red-500
   };
+  const STATUS_LABELS: Record<string, string> = {
+      no_iniciada: 'No iniciada',
+      en_curso: 'En curso',
+      completada: 'Completada',
+      atrasada: 'Atrasada',
+  };
 
   const getItemStatus = useCallback((item: { start: string; end: string; progress?: number }): keyof typeof STATUS_COLORS => {
       if ((item.progress || 0) >= 100) return 'completada';
@@ -103,14 +117,60 @@ export const Planning: React.FC = () => {
       return 'en_curso';
   }, [todayMidnight]);
 
+  // Color por partida (Etapa B, color a elección): hash determinístico sobre el nombre de
+  // la categoría, así la misma partida siempre sale del mismo color en toda la obra.
+  const CATEGORY_PALETTE = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ec4899', '#06b6d4', '#f97316', '#84cc16'];
+  const getCategoryColor = useCallback((category: string): string => {
+      let hash = 0;
+      for (let i = 0; i < category.length; i++) hash = (hash * 31 + category.charCodeAt(i)) >>> 0;
+      return CATEGORY_PALETTE[hash % CATEGORY_PALETTE.length];
+  }, []);
+
+  // Cursor de fecha (Etapa B): "¿cuánto debería estar hecho a esta fecha?", sin CPM —
+  // interpolación lineal del costo planificado de cada tarea entre su inicio y su fin, igual
+  // criterio que ya usa evm.PV en useProjectSchedule pero para una fecha elegida, no "hoy".
+  const cursorStats = useMemo(() => {
+      if (!cursorDate) return null;
+      const target = toLocalDate(cursorDate).getTime();
+      let planned = 0;
+      let total = 0;
+      cpmItems.forEach(item => {
+          const cost = item.totalCost || 0;
+          total += cost;
+          const start = toLocalDate(item.start).getTime();
+          const end = toLocalDate(item.end).getTime();
+          let frac = 0;
+          if (target >= end) frac = 1;
+          else if (target > start) frac = (target - start) / (end - start);
+          planned += cost * frac;
+      });
+      return { percent: total > 0 ? Math.round((planned / total) * 100) : 0 };
+  }, [cursorDate, cpmItems]);
+
+  const cursorLineX = useMemo(() => {
+      if (!cursorDate) return null;
+      const projectStart = toLocalDate(project.startDate).getTime();
+      const target = toLocalDate(cursorDate).getTime();
+      const diffDaysFromStart = Math.floor((target - projectStart) / 86400000);
+      return diffDaysFromStart * ganttScale + ganttScale / 2;
+  }, [cursorDate, project.startDate, ganttScale]);
+
   // Posición X de la línea de HOY (null si el proyecto todavía no arrancó) — se reutiliza
   // para dibujar la línea y para el botón "Ir a HOY".
   const todayLineX = useMemo(() => {
       const projectStart = toLocalDate(project.startDate).getTime();
       if (todayMidnight < projectStart) return null;
-      const diffDays = Math.floor((todayMidnight - projectStart) / 86400000);
-      return diffDays * ganttScale + ganttScale / 2;
+      const diffDaysFromStart = Math.floor((todayMidnight - projectStart) / 86400000);
+      return diffDaysFromStart * ganttScale + ganttScale / 2;
   }, [project.startDate, todayMidnight, ganttScale]);
+
+  // Duración hábiles (criticalPathStats.totalDays, ya existía) y corrida (de calendario).
+  const naturalDays = useMemo(() => {
+      if (criticalPathStats.totalDays === 0) return 0;
+      const f = criticalPathStats.finishDate;
+      const finishStr = `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}-${String(f.getDate()).padStart(2, '0')}`;
+      return diffDays(project.startDate, finishStr);
+  }, [criticalPathStats, project.startDate]);
 
   const goToToday = () => {
       if (scrollContainerRef.current && todayLineX != null) {
@@ -351,6 +411,7 @@ export const Planning: React.FC = () => {
                   <th className="p-3 border-r border-slate-200 w-24 text-center">Prod. Total</th>
                   <th className="p-3 border-r border-slate-200 w-24 text-center font-black text-slate-700">Duración (Días)</th>
                   <th className="p-3 border-r border-slate-200 w-24 text-center bg-emerald-50/50">Avance %</th>
+                  <th className="p-3 border-r border-slate-200 w-24 text-center">Estado</th>
                   <th className="p-3 border-r border-slate-200 w-40 text-center">Precedencia</th>
                   <th className="p-3 border-r border-slate-200 w-28 text-center">Fecha Inicio</th>
                   <th className="p-3 border-r border-slate-200 w-28 text-center">Fecha Fin</th>
@@ -366,6 +427,7 @@ export const Planning: React.FC = () => {
                               <td className="p-2 text-center text-slate-400"></td>
                               <td className="p-2 truncate" colSpan={5}>{item.taskName}</td>
                               <td className="p-2 text-center">{item.duration}</td>
+                              <td className="p-2"></td>
                               <td className="p-2"></td>
                               <td className="p-2 text-center">{toLocalDate(item.start).toLocaleDateString()}</td>
                               <td className="p-2 text-center">{toLocalDate(item.end).toLocaleDateString()}</td>
@@ -413,25 +475,33 @@ export const Planning: React.FC = () => {
 
                       {/* INPUT: Quantity */}
                       <td className="p-2 text-center bg-blue-50/30">
-                          <input
-                            type="number"
-                            className="w-16 p-1 text-center border border-slate-300 rounded font-bold text-slate-700 focus:border-blue-500 outline-none"
-                            value={item.quantity}
-                            onChange={(e) => handleUpdate(item.id, 'quantity', parseFloat(e.target.value))}
-                          />
+                          {editMode ? (
+                              <input
+                                type="number"
+                                className="w-16 p-1 text-center border border-slate-300 rounded font-bold text-slate-700 focus:border-blue-500 outline-none"
+                                value={item.quantity}
+                                onChange={(e) => handleUpdate(item.id, 'quantity', parseFloat(e.target.value))}
+                              />
+                          ) : (
+                              <span className="font-bold text-slate-700">{item.quantity}</span>
+                          )}
                       </td>
 
                       {/* INPUT: Crew Size */}
                       <td className="p-2 text-center bg-orange-50/30">
                           <div className="flex justify-center items-center gap-1">
                               <Users size={12} className="text-orange-400" />
-                              <input
-                                type="number"
-                                min="1"
-                                className="w-12 p-1 text-center border border-slate-300 rounded font-bold text-slate-700 focus:border-orange-500 outline-none"
-                                value={item.crewSize}
-                                onChange={(e) => handleUpdate(item.id, 'crewsAssigned', parseInt(e.target.value))}
-                              />
+                              {editMode ? (
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    className="w-12 p-1 text-center border border-slate-300 rounded font-bold text-slate-700 focus:border-orange-500 outline-none"
+                                    value={item.crewSize}
+                                    onChange={(e) => handleUpdate(item.id, 'crewsAssigned', parseInt(e.target.value))}
+                                  />
+                              ) : (
+                                  <span className="font-bold text-slate-700">{item.crewSize}</span>
+                              )}
                           </div>
                       </td>
 
@@ -462,37 +532,66 @@ export const Planning: React.FC = () => {
                             className={`flex items-center justify-center gap-1 ${showGanttPanel ? '' : 'flex-col'}`}
                             title={medPercent != null ? `Según Planilla de Mediciones: ${medPercent}%` : undefined}
                           >
-                              <div className="flex items-center gap-1">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    className="w-12 p-1 text-center border border-slate-300 rounded font-bold text-slate-700 focus:border-emerald-500 outline-none"
-                                    value={item.progress || 0}
-                                    onChange={(e) => handleUpdate(item.id, 'progress', Math.min(100, Math.max(0, parseFloat(e.target.value))))}
-                                  />
-                                  <span className="text-[10px] text-slate-400">%</span>
-                              </div>
+                              {editMode ? (
+                                  <div className="flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        className="w-12 p-1 text-center border border-slate-300 rounded font-bold text-slate-700 focus:border-emerald-500 outline-none"
+                                        value={item.progress || 0}
+                                        onChange={(e) => handleUpdate(item.id, 'progress', Math.min(100, Math.max(0, parseFloat(e.target.value))))}
+                                      />
+                                      <span className="text-[10px] text-slate-400">%</span>
+                                  </div>
+                              ) : (
+                                  <span className="font-bold text-slate-700">{item.progress || 0}%</span>
+                              )}
                               {!showGanttPanel && medPercent != null && (
                                   <div className="text-[9px] text-slate-400">(Med: {medPercent}%)</div>
                               )}
                           </div>
                       </td>
 
+                      {/* CALC: Estado automático */}
+                      <td className="p-2 text-center">
+                          {(() => {
+                              const status = getItemStatus(item);
+                              return (
+                                  <span
+                                    className="inline-block px-2 py-0.5 rounded-full text-[9px] font-bold text-white"
+                                    style={{ backgroundColor: STATUS_COLORS[status] }}
+                                  >
+                                      {STATUS_LABELS[status]}
+                                  </span>
+                              );
+                          })()}
+                      </td>
+
                       {/* INPUT: Predecessor */}
                       <td className="p-2 text-center">
-                          <select
-                            className="w-full p-1 border border-slate-200 rounded text-[10px] text-slate-600 truncate"
-                            value={allDependencies.find(d => d.toTaskId === item.id)?.fromTaskId || ''}
-                            onChange={(e) => handleSetPredecessor(item.id, e.target.value)}
-                          >
-                              <option value="">-- Inicio --</option>
-                              {cpmItems
-                                .filter(i => i.id !== item.id) // Avoid self-loop
-                                .map(i => (
-                                  <option key={i.id} value={i.id}>{i.taskName.substring(0, 30)}...</option>
-                              ))}
-                          </select>
+                          {editMode ? (
+                              <select
+                                className="w-full p-1 border border-slate-200 rounded text-[10px] text-slate-600 truncate"
+                                value={allDependencies.find(d => d.toTaskId === item.id)?.fromTaskId || ''}
+                                onChange={(e) => handleSetPredecessor(item.id, e.target.value)}
+                              >
+                                  <option value="">-- Inicio --</option>
+                                  {cpmItems
+                                    .filter(i => i.id !== item.id) // Avoid self-loop
+                                    .map(i => (
+                                      <option key={i.id} value={i.id}>{i.taskName.substring(0, 30)}...</option>
+                                  ))}
+                              </select>
+                          ) : (() => {
+                              const predId = allDependencies.find(d => d.toTaskId === item.id)?.fromTaskId;
+                              const pred = predId ? cpmItems.find(i => i.id === predId) : null;
+                              return (
+                                  <span className="text-[10px] text-slate-500 truncate block" title={pred?.taskName}>
+                                      {pred ? pred.taskName : '-- Inicio --'}
+                                  </span>
+                              );
+                          })()}
                       </td>
 
                       {/* CALC: Dates */}
@@ -578,6 +677,16 @@ export const Planning: React.FC = () => {
               </g>
           )}
 
+          {/* Cursor de fecha */}
+          {cursorLineX != null && cursorStats != null && (
+              <g>
+                  <line x1={cursorLineX} y1={HEADER_HEIGHT} x2={cursorLineX} y2="100%" stroke="#7c3aed" strokeWidth="2" strokeDasharray="2 2" />
+                  <text x={cursorLineX + 5} y="67" fontSize="9" fill="#7c3aed" fontWeight="bold">
+                      {toLocalDate(cursorDate!).toLocaleDateString()} · plan esperado {cursorStats.percent}%
+                  </text>
+              </g>
+          )}
+
           {/* Timeline Header */}
           <g>
               {/* Top Row: Months */}
@@ -657,9 +766,13 @@ export const Planning: React.FC = () => {
                   );
               }
 
-              // Color de barra por estado automático; la ruta crítica pasa a ser un borde, no el color.
+              // Color de barra a elección (Etapa B): por estado automático, por partida, o el
+              // binario crítica/normal de antes de la Etapa B. La ruta crítica, cuando no es
+              // el color elegido, se marca como borde — nunca compite con el color de barra.
               const status = getItemStatus(item);
-              const barColor = STATUS_COLORS[status];
+              const barColor = barColorMode === 'status' ? STATUS_COLORS[status]
+                  : barColorMode === 'category' ? getCategoryColor(item.category || 'Sin Categoría')
+                  : (item.isCritical ? '#ef4444' : '#3b82f6');
               const barOpacity = 0.85;
 
               // Progress Calculation
@@ -777,7 +890,10 @@ export const Planning: React.FC = () => {
              </div>
              <div className="text-right border-r border-slate-200 pr-4">
                  <div className="text-[10px] font-bold text-slate-400 uppercase">Duración Total</div>
-                 <div className="text-lg font-bold text-blue-600">{criticalPathStats.totalDays} días</div>
+                 <div className="text-lg font-bold text-blue-600">
+                     {criticalPathStats.totalDays} días hábiles
+                     <span className="text-xs font-medium text-slate-400"> · {naturalDays} corridos</span>
+                 </div>
              </div>
              <button 
                 onClick={handleSnapshot}
@@ -813,6 +929,15 @@ export const Planning: React.FC = () => {
                           title="El Gantt se abre al lado de la tabla, con el mismo scroll"
                       >
                           <Layout size={16} /> {showGanttPanel ? 'Ocultar Gantt' : 'Mostrar Gantt'}
+                      </button>
+                  )}
+                  {viewMode === 'table' && (
+                      <button
+                          onClick={() => setEditMode(v => !v)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border ${editMode ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                          title={editMode ? 'Volver a modo lectura' : 'Habilitar edición de cantidad, frentes, avance y precedencia'}
+                      >
+                          <PenTool size={16} /> {editMode ? 'Modo lectura' : 'Editar'}
                       </button>
                   )}
               </div>
@@ -854,6 +979,37 @@ export const Planning: React.FC = () => {
                       >
                           <Crosshair size={14} /> Ir a HOY
                       </button>
+
+                      {/* Color by */}
+                      <div className="flex items-center gap-1 bg-white rounded-lg border border-slate-200 p-1">
+                          {(['status', 'category', 'critical'] as const).map(mode => (
+                              <button
+                                  key={mode}
+                                  onClick={() => setBarColorMode(mode)}
+                                  className={`px-2 py-1 text-[10px] uppercase font-bold rounded ${barColorMode === mode ? 'bg-blue-100 text-blue-700' : 'text-slate-500 hover:bg-slate-50'}`}
+                                  title={mode === 'status' ? 'Color por estado (atrasada/en curso/completada)' : mode === 'category' ? 'Color por partida' : 'Rojo = ruta crítica, azul = resto'}
+                              >
+                                  {mode === 'status' ? 'Estado' : mode === 'category' ? 'Partida' : 'Crítica'}
+                              </button>
+                          ))}
+                      </div>
+
+                      {/* Cursor de fecha */}
+                      <div className="flex items-center gap-1.5 bg-white rounded-lg border border-slate-200 px-2 py-1">
+                          <input
+                              type="date"
+                              value={cursorDate || ''}
+                              onChange={(e) => setCursorDate(e.target.value || null)}
+                              className="text-[10px] text-slate-600 outline-none w-28"
+                              title="Cursor de fecha: ¿cuánto debería estar hecho a esta fecha?"
+                          />
+                          {cursorDate && cursorStats && (
+                              <>
+                                  <span className="text-[10px] font-bold text-violet-600">{cursorStats.percent}% plan</span>
+                                  <button onClick={() => setCursorDate(null)} className="text-slate-300 hover:text-slate-500 text-xs leading-none" title="Apagar cursor">✕</button>
+                              </>
+                          )}
+                      </div>
 
                       {/* Export Actions */}
                       <div className="flex items-center gap-2">
