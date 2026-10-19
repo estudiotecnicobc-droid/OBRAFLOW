@@ -1,0 +1,44 @@
+Objetivo:
+Tercer y último PR de la Etapa B: el resto de los detalles que quedaban pendientes después
+del primer PR (colores/líneas/tooltip) y el segundo (Gantt como panel de la tabla).
+
+Contexto:
+- docs/research/INFORME_FINAL_MEJORAS_OBRAFLOW_2026-10-18.md §2 lista B-1 a B-10 como el
+  backlog completo de la Etapa B. B-1 (panel), B-2/B-4/B-5 (colores, líneas, tooltip) ya
+  están mergeados. Quedaban: B-6 (color por partida/ruta crítica a elección), B-7 (cursor de
+  fecha), B-8 (hábiles/naturales en la cabecera), B-9 (modo lectura + Editar), B-10 (columna
+  Estado automática).
+
+Cambios deseados:
+1) Columna "Estado" en la tabla de Planificación (reusa STATUS_COLORS/STATUS_LABELS, ya
+   existían desde el primer PR, solo para el Gantt — ahora también en la tabla).
+2) Selector de color del Gantt: Estado (default) / Partida (hash determinístico por
+   categoría) / Crítica (el binario rojo/azul de antes de la Etapa B). La ruta crítica se
+   sigue marcando como borde en cualquier modo.
+3) Mostrar días hábiles y corridos juntos en el cartel "Duración Total".
+4) Cursor de fecha: input de fecha que dibuja una línea vertical y calcula "% que debería
+   estar hecho a esa fecha" interpolando linealmente el costo de cada tarea entre su inicio
+   y fin (mismo criterio que evm.PV, pero parametrizado por fecha en vez de "hoy").
+5) Modo lectura por defecto: Cómputo, Frentes, Avance % y Precedencia se ven como texto
+   hasta que se activa "Editar". El lápiz de ajuste de rendimiento (abre APUBuilder) no
+   depende de esto.
+
+No tocar:
+- scheduleEngine.ts / useProjectSchedule.ts (ningún cambio al motor)
+- El cursor de fecha es de solo consulta, no crea una línea base ni modifica nada
+
+Restricciones:
+- cambio contenido a components/Planning.tsx
+- el cursor de fecha se implementa con un <input type="date">, no arrastre sobre el chart
+  (ver spec para la justificación)
+
+Entregables:
+1) Columna Estado en renderBudgetTable
+2) Selector de color + cursor de fecha en la barra de herramientas del Gantt, aplicados en
+   renderGanttChart
+3) Duración hábiles/corridos en el header
+4) editMode + toggle "Editar"/"Modo lectura" aplicado a Cómputo, Frentes, Avance% y
+   Precedencia
+5) Probado visualmente en local (npm run dev) con el proyecto de prueba de mampostería
+6) npm run test / tsc --noEmit / npm run build sin errores nuevos
+7) spec en docs/specs/, checklist QA en docs/qa/ — con esto queda completa la Etapa B
