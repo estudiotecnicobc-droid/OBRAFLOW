@@ -2,10 +2,10 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useERP } from '../context/ERPContext';
 import { useProjectSchedule } from '../hooks/useProjectSchedule';
-import { 
-  Calendar, Clock, AlertCircle, ArrowDown, Calculator, 
+import {
+  Calendar, Clock, AlertCircle, ArrowDown, Calculator,
   ChevronsRight, Users, Check, Layout, List, PenTool,
-  ZoomIn, ZoomOut, MoveRight, Sidebar, Download, Printer, FileText, ChevronLeft, ChevronRight, DollarSign, TrendingUp
+  ZoomIn, ZoomOut, MoveRight, Sidebar, Download, Printer, FileText, ChevronLeft, ChevronRight, DollarSign, TrendingUp, Crosshair
 } from 'lucide-react';
 import { LinkType, ProjectDependency } from '../types';
 import { toLocalDate } from '../services/calculationService';
@@ -14,7 +14,7 @@ import { ResizableSplitPane } from './ResizableSplitPane';
 
 export const Planning: React.FC = () => {
   const {
-    project, tasks, updateBudgetItem,
+    project, tasks, tasksMap, updateBudgetItem,
     createSnapshot, snapshots, measurementSheets,
     addDependency, removeDependency
   } = useERP();
@@ -59,6 +59,45 @@ export const Planning: React.FC = () => {
 
   // Para colorear días no hábiles en el Gantt
   const workingDays = project.workingDays || [1, 2, 3, 4, 5];
+
+  // --- ESTADO AUTOMÁTICO POR TAREA (Etapa B) ---
+  // Calculado solo a partir de fechas/avance, sin tocar nada que el usuario cargó.
+  const todayMidnight = useMemo(() => {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+  }, []);
+
+  const STATUS_COLORS: Record<string, string> = {
+      no_iniciada: '#94a3b8', // slate-400
+      en_curso: '#3b82f6',    // blue-500
+      completada: '#22c55e',  // emerald-500
+      atrasada: '#ef4444',    // red-500
+  };
+
+  const getItemStatus = useCallback((item: { start: string; end: string; progress?: number }): keyof typeof STATUS_COLORS => {
+      if ((item.progress || 0) >= 100) return 'completada';
+      const start = toLocalDate(item.start).getTime();
+      const end = toLocalDate(item.end).getTime();
+      if (todayMidnight < start) return 'no_iniciada';
+      if (todayMidnight > end) return 'atrasada';
+      return 'en_curso';
+  }, [todayMidnight]);
+
+  // Posición X de la línea de HOY (null si el proyecto todavía no arrancó) — se reutiliza
+  // para dibujar la línea y para el botón "Ir a HOY".
+  const todayLineX = useMemo(() => {
+      const projectStart = toLocalDate(project.startDate).getTime();
+      if (todayMidnight < projectStart) return null;
+      const diffDays = Math.floor((todayMidnight - projectStart) / 86400000);
+      return diffDays * ganttScale + ganttScale / 2;
+  }, [project.startDate, todayMidnight, ganttScale]);
+
+  const goToToday = () => {
+      if (scrollContainerRef.current && todayLineX != null) {
+          scrollContainerRef.current.scrollLeft = Math.max(0, todayLineX - scrollContainerRef.current.clientWidth / 2);
+      }
+  };
 
   // --- SNAPSHOT HANDLER ---
   // evm.BAC es la suma de totalCost de todos los ítems — equivalente al reduce anterior.
@@ -359,6 +398,16 @@ export const Planning: React.FC = () => {
                           <button onClick={() => setGanttScale(s => Math.min(200, s * 1.2))} className="p-1 hover:bg-slate-100 rounded text-slate-500"><ZoomIn size={16}/></button>
                       </div>
 
+                      {/* Go to Today */}
+                      <button
+                          onClick={goToToday}
+                          disabled={todayLineX == null}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-red-600 hover:border-red-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={todayLineX == null ? 'La obra todavía no arrancó' : 'Ir a la fecha de hoy'}
+                      >
+                          <Crosshair size={14} /> Ir a HOY
+                      </button>
+
                       {/* Export Actions */}
                       <div className="flex items-center gap-2">
                           <button onClick={handleExportProject} className="p-2 bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 rounded-lg transition-colors" title="Exportar a MS Project (XML)">
@@ -636,27 +685,21 @@ export const Planning: React.FC = () => {
                                   return null;
                               })}
 
+                              {/* Project Start Line */}
+                              <g>
+                                  <line x1={0} y1="40" x2={0} y2="100%" stroke="#3b82f6" strokeWidth="2" strokeDasharray="4 2" />
+                                  <text x={5} y="55" fontSize="9" fill="#3b82f6" fontWeight="bold">
+                                      INICIO · {toLocalDate(project.startDate).toLocaleDateString()}
+                                  </text>
+                              </g>
+
                               {/* Today Line */}
-                              {(() => {
-                                  const projectStart = new Date(project.startDate).getTime();
-                                  const today = new Date();
-                                  today.setHours(0,0,0,0);
-                                  const todayTime = today.getTime();
-                                  
-                                  if (todayTime >= projectStart) {
-                                      const diffTime = todayTime - projectStart;
-                                      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                                      const x = diffDays * ganttScale + (ganttScale / 2);
-                                      
-                                      return (
-                                          <g>
-                                              <line x1={x} y1="40" x2={x} y2="100%" stroke="#ef4444" strokeWidth="2" strokeDasharray="4 2" />
-                                              <text x={x + 5} y="55" fontSize="9" fill="#ef4444" fontWeight="bold">HOY</text>
-                                          </g>
-                                      );
-                                  }
-                                  return null;
-                              })()}
+                              {todayLineX != null && (
+                                  <g>
+                                      <line x1={todayLineX} y1="40" x2={todayLineX} y2="100%" stroke="#ef4444" strokeWidth="2" strokeDasharray="4 2" />
+                                      <text x={todayLineX + 5} y="55" fontSize="9" fill="#ef4444" fontWeight="bold">HOY</text>
+                                  </g>
+                              )}
 
                               {/* Timeline Header */}
                               <g>
@@ -736,23 +779,29 @@ export const Planning: React.FC = () => {
                                       );
                                   }
 
-                                  // Bar Color: Red if Critical, Blue if Normal
-                                  const barColor = item.isCritical ? '#ef4444' : '#3b82f6';
-                                  const barOpacity = item.isCritical ? 0.9 : 0.7;
-                                  
+                                  // Color de barra por estado automático; la ruta crítica pasa a ser un borde, no el color.
+                                  const status = getItemStatus(item);
+                                  const barColor = STATUS_COLORS[status];
+                                  const barOpacity = 0.85;
+
                                   // Progress Calculation
                                   const progress = item.progress || 0;
                                   const progressWidth = width * (progress / 100);
-                                  
+
                                   // Text Overflow Logic
                                   const charWidth = 6; // Approx
                                   const textWidth = item.taskName.length * charWidth;
                                   const fitsInside = width > textWidth + 10;
 
+                                  const task = tasksMap[item.taskId];
+
                                   return (
                                       <g key={item.id} className="group cursor-pointer" onClick={() => setEditingItemId(item.id)}>
                                           <title>
-                                              {item.taskName} - {item.hasYield ? `${item.duration} días` : 'sin rendimiento cargado'}
+                                              {task?.code ? `${task.code} - ` : ''}{item.taskName}
+                                              {' · '}{toLocalDate(item.start).toLocaleDateString()} → {toLocalDate(item.end).toLocaleDateString()}
+                                              {' · '}{item.hasYield ? `${item.duration} días` : 'sin rendimiento cargado'}
+                                              {' · '}{progress}% avance
                                               {item.hasCycleError ? ' — ⚠ ciclo de dependencias: se ignoraron sus vínculos' : ''}
                                           </title>
                                           {/* Dependency Lines */}
@@ -786,15 +835,17 @@ export const Planning: React.FC = () => {
                                           })}
 
                                           {/* Task Bar */}
-                                          <rect 
-                                              x={x} 
-                                              y={y + 5} 
-                                              width={width} 
-                                              height="20" 
-                                              rx="4" 
+                                          <rect
+                                              x={x}
+                                              y={y + 5}
+                                              width={width}
+                                              height="20"
+                                              rx="4"
                                               fill={barColor}
                                               fillOpacity={barOpacity}
-                                              className="transition-all hover:fill-opacity-100 hover:stroke hover:stroke-slate-600 shadow-sm"
+                                              stroke={item.isCritical ? '#991b1b' : 'none'}
+                                              strokeWidth={item.isCritical ? 2 : 0}
+                                              className="transition-all hover:fill-opacity-100 shadow-sm"
                                           />
                                           
                                           {/* Progress Bar Overlay */}

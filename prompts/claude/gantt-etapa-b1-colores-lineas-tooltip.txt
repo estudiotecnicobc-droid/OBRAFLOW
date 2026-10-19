@@ -1,0 +1,42 @@
+Objetivo:
+Arrancar la Etapa B del Gantt con el primer recorte acordado: colores de barra por estado
+automático, línea de inicio de obra, botón "Ir a HOY" y tooltip completo.
+
+Contexto:
+- La Etapa A/A.2 (PRs #15 y #16) ya dejaron el motor de fechas funcionando bien; lo que
+  falta es exclusivamente visual, documentado en
+  docs/research/INFORME_FINAL_MEJORAS_OBRAFLOW_2026-10-18.md §2 (tabla B-1 a B-10).
+- El color de barra hoy era binario (rojo si crítica, azul si no). FAENA y Brikel usan
+  colores calculados por estado (atrasada/en curso/completada/no iniciada), con la ruta
+  crítica como un borde o marca aparte, no como el color.
+- Ya existía una línea de "HOY" en el SVG del Gantt, pero no una línea de inicio de obra ni
+  un botón para volver a HOY si uno se desplaza lejos.
+- El tooltip (SVG <title>) solo mostraba nombre y duración.
+
+Cambios deseados:
+1) Calcular el estado de cada tarea (no_iniciada/en_curso/atrasada/completada) a partir de
+   sus fechas y % de avance, sin CPM ni cambios al motor.
+2) Pintar la barra según ese estado; mover la marca de ruta crítica a un borde (stroke) en
+   vez de ocupar el color entero.
+3) Agregar la línea de inicio de obra (azul punteada) junto a la de HOY.
+4) Agregar botón "Ir a HOY" que centra el scroll horizontal en la línea de HOY.
+5) Completar el tooltip: código de tarea, nombre, inicio, fin, duración o "sin rendimiento
+   cargado", % de avance, aviso de ciclo si corresponde.
+
+No tocar:
+- scheduleEngine.ts / useProjectSchedule.ts (el motor ya está bien, esto es solo visual)
+- TaskRelations.tsx
+- El resto de la Etapa B (Gantt como panel, color por partida, cursor de fecha, columna
+  Estado en la tabla, modo lectura) — queda para los próximos PRs, a propósito.
+
+Restricciones:
+- cambio mínimo sobre components/Planning.tsx
+- sin funciones nuevas de planificación
+
+Entregables:
+1) Helper de estado automático + mapa de colores en Planning.tsx
+2) Línea de inicio + botón "Ir a HOY" + tooltip completo
+3) Probado visualmente en local (npm run dev) con un proyecto de prueba
+4) npm run test / tsc --noEmit / npm run build sin errores nuevos
+5) spec en docs/specs/, checklist QA en docs/qa/ (incluye el límite conocido del ancho del
+   SVG respecto a "Ir a HOY" en proyectos de prueba viejos)
