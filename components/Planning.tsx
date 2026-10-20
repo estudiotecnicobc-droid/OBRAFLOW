@@ -857,9 +857,19 @@ export const Planning: React.FC = () => {
                           />
                       )}
 
-                      {/* Label: "Nd · X%" */}
+                      {/* Label: "Nd · X%" — texto oscuro si no queda totalmente sobre el
+                          tramo sólido (progreso bajo/0%), porque ahí el fondo es el segmento
+                          claro de 55% opacidad y el blanco pierde contraste */}
                       {fitsInside ? (
-                          <text x={x + 10} y={labelY} fontSize="10" fill="white" fontWeight="bold" pointerEvents="none" className="select-none">
+                          <text
+                              x={x + 10}
+                              y={labelY}
+                              fontSize="10"
+                              fill={progressWidth >= textWidth + 10 ? 'white' : '#475569'}
+                              fontWeight="bold"
+                              pointerEvents="none"
+                              className="select-none"
+                          >
                               {barLabel}
                           </text>
                       ) : (
