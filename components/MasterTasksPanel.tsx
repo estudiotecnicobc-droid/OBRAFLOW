@@ -1050,12 +1050,16 @@ export const MasterTasksPanel: React.FC = () => {
               <span className="text-xs text-amber-700">
                 {globalTasks.length} APU{globalTasks.length !== 1 ? 's' : ''} disponibles en el catálogo global
               </span>
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors"
-              >
-                <Download size={12} /> Importar a mi empresa
-              </button>
+              {user?.role === 'admin' ? (
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors"
+                >
+                  <Download size={12} /> Importar a mi empresa
+                </button>
+              ) : (
+                <span className="text-[11px] text-amber-600/70">Solo un administrador puede importar al catálogo de la empresa</span>
+              )}
             </div>
           )}
           {catalog === 'global' && (
