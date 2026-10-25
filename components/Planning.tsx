@@ -472,7 +472,7 @@ export const Planning: React.FC = () => {
   const renderBudgetTable = () => (
       <table className="w-full text-left border-collapse">
           <thead className={`bg-slate-100 text-slate-500 uppercase text-[10px] font-bold ${showGanttPanel ? '' : 'sticky top-0 z-10'}`}>
-              <tr style={showGanttPanel ? { height: HEADER_HEIGHT } : undefined}>
+              <tr style={showGanttPanel ? { height: HEADER_HEIGHT, whiteSpace: 'nowrap' } : undefined}>
                   <th className="p-3 border-r border-slate-200 w-12 text-center">ID</th>
                   <th className="p-3 border-r border-slate-200 min-w-[200px]">Actividad</th>
                   <th className="p-3 border-r border-slate-200 w-24 text-center bg-blue-50/50">Cómputo</th>
