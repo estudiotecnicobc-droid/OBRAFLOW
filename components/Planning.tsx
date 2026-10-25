@@ -5,10 +5,13 @@ import { useProjectSchedule } from '../hooks/useProjectSchedule';
 import {
   Calendar, Clock, AlertCircle, ArrowDown, Calculator,
   ChevronsRight, Users, Check, Layout, List, PenTool,
-  ZoomIn, ZoomOut, MoveRight, Download, Printer, FileText, ChevronLeft, ChevronRight, DollarSign, TrendingUp, Crosshair
+  ZoomIn, ZoomOut, MoveRight, Download, Printer, FileText, ChevronLeft, ChevronRight, DollarSign, TrendingUp, Crosshair,
+  ChevronsDownUp, ChevronsUpDown, Eye, EyeOff, Flag, GitBranch, Activity, CalendarDays
 } from 'lucide-react';
 import { LinkType, ProjectDependency } from '../types';
 import { toLocalDate, diffDays } from '../services/calculationService';
+import { computeSchedule, resolveDependencies } from '../services/scheduleEngine';
+import { comparePlanVsReal } from '../services/planVsReal';
 import { APUBuilder } from './APUBuilder';
 import { ResizableSplitPane } from './ResizableSplitPane';
 
@@ -36,6 +39,10 @@ export const Planning: React.FC = () => {
   const [barColorMode, setBarColorMode] = useState<'status' | 'category' | 'critical'>('status');
   // Cursor de fecha: "YYYY-MM-DD" elegido por el usuario, o null si está apagado.
   const [cursorDate, setCursorDate] = useState<string | null>(null);
+  // Etapa C1: capas del Gantt que se prenden y apagan (solo vista, no escriben datos).
+  const [showProgressLayer, setShowProgressLayer] = useState(true);
+  const [showDependencies, setShowDependencies] = useState(true);
+  const [showBaseline, setShowBaseline] = useState(true);
 
   // Gantt Specific State
   const [timeScale, setTimeScale] = useState<'day' | 'week' | 'month' | 'quarter' | 'project'>('day');
@@ -187,6 +194,64 @@ export const Planning: React.FC = () => {
       }
   };
 
+  // --- PLAN BASE EN EL GANTT (Etapa C1) ---
+  // Las líneas base guardan los ítems, no las fechas: se recalculan con el mismo motor puro
+  // (computeSchedule). Usa rendimientos y vínculos actuales — limitación documentada en la spec.
+  const selectedSnapshot = useMemo(
+      () => snapshots.find(s => s.id === selectedSnapshotId) || null,
+      [snapshots, selectedSnapshotId],
+  );
+
+  const baselineSchedule = useMemo(() => {
+      if (!selectedSnapshot) return null;
+      const items = selectedSnapshot.items || [];
+      const deps = resolveDependencies(project.dependencies, items.map(i => ({ id: i.id, legacyDependencies: i.dependencies })));
+      return computeSchedule(
+          items.flatMap(item => {
+              const task = tasks.find(t => t.id === item.taskId);
+              if (!task) return [];
+              return [{
+                  id: item.id,
+                  quantity: item.quantity || 0,
+                  manualDuration: item.manualDuration,
+                  startDate: item.startDate,
+                  dailyYield: task.dailyYield,
+                  crewSize: item.crewsAssigned || 1,
+              }];
+          }),
+          deps,
+          project.startDate,
+          workingDays,
+          project.nonWorkingDates || [],
+      );
+  }, [selectedSnapshot, tasks, project.dependencies, project.startDate, project.nonWorkingDates, workingDays]);
+
+  // Banda "Plan vs Real": contra la línea base si hay una elegida; si no, conteo por estado.
+  const planVsReal = useMemo(() => {
+      if (!baselineSchedule) return null;
+      const current = cpmItems.map(i => ({ id: i.id, name: i.taskName, end: i.end }));
+      const baseline = cpmItems
+          .filter(i => baselineSchedule.has(i.id))
+          .map(i => ({ id: i.id, name: i.taskName, end: baselineSchedule.get(i.id)!.end }));
+      return comparePlanVsReal(current, baseline);
+  }, [baselineSchedule, cpmItems]);
+
+  const statusCounts = useMemo(() => {
+      const counts: Record<string, number> = { atrasada: 0, en_curso: 0, completada: 0, no_iniciada: 0 };
+      cpmItems.forEach(i => { counts[getItemStatus(i)]++; });
+      return counts;
+  }, [cpmItems, getItemStatus]);
+
+  // Avance físico de la obra: avance ponderado por costo (EV / BAC).
+  const physicalProgress = evm.BAC > 0 ? Math.round((evm.EV / evm.BAC) * 100) : 0;
+
+  const allSummaryIds = useMemo(
+      () => Array.from(new Set(cpmItems.map(i => `summary-${i.category || 'Sin Categoría'}`))),
+      [cpmItems],
+  );
+  const allCollapsed = allSummaryIds.length > 0 && allSummaryIds.every(id => collapsedSummaries.has(id));
+  const toggleCollapseAll = () => setCollapsedSummaries(allCollapsed ? new Set() : new Set(allSummaryIds));
+
   // --- DEPENDENCY NORMALIZATION ---
   const allDependencies = useMemo(() => {
       if (project.dependencies && project.dependencies.length > 0) {
@@ -236,6 +301,9 @@ export const Planning: React.FC = () => {
           const end = Math.max(...items.map(i => i.earlyFinish));
           const duration = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
           const totalCost = items.reduce((sum, i) => sum + (i.totalCost || 0), 0);
+          const progress = totalCost > 0
+              ? Math.round(items.reduce((sum, i) => sum + (i.totalCost || 0) * (i.progress || 0), 0) / totalCost)
+              : 0;
           const summaryId = `summary-${cat}`;
 
           results.push({
@@ -247,6 +315,8 @@ export const Planning: React.FC = () => {
               end: new Date(end).toISOString().split('T')[0],
               duration,
               totalCost,
+              progress,
+              category: cat,
               earlyStart: start,
               earlyFinish: end,
               isCritical: items.some(i => i.isCritical)
@@ -425,7 +495,18 @@ export const Planning: React.FC = () => {
                       return (
                           <tr key={item.id} style={rowStyle} className="bg-slate-100 font-bold text-slate-700">
                               <td className="p-2 text-center text-slate-400"></td>
-                              <td className="p-2 truncate" colSpan={5}>{item.taskName}</td>
+                              <td className="p-2 truncate" colSpan={5}>
+                                  <button
+                                      onClick={() => toggleSummary(item.id)}
+                                      className="inline-flex items-center gap-2 hover:text-slate-900"
+                                      title={collapsedSummaries.has(item.id) ? 'Expandir partida' : 'Colapsar partida'}
+                                  >
+                                      <ChevronRight size={14} className={`transition-transform ${collapsedSummaries.has(item.id) ? '' : 'rotate-90'}`} />
+                                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: getCategoryColor(item.category) }} />
+                                      {item.taskName}
+                                      <span className="text-[10px] font-medium text-slate-500">{item.progress}%</span>
+                                  </button>
+                              </td>
                               <td className="p-2 text-center">{item.duration}</td>
                               <td className="p-2"></td>
                               <td className="p-2"></td>
@@ -751,16 +832,18 @@ export const Planning: React.FC = () => {
               if (item.type === 'summary') {
                   const isCollapsed = collapsedSummaries.has(item.id);
                   const summaryBarY = y + (ROW_HEIGHT - 8) / 2;
+                  // Barra resumen de partida (C1): fina, con el color de la partida y su %.
+                  const summaryColor = getCategoryColor(item.category);
+                  const summaryProgressWidth = width * ((item.progress || 0) / 100);
                   return (
                       <g key={item.id} className="cursor-pointer hover:opacity-80" onClick={() => toggleSummary(item.id)}>
-                          <title>Click para {isCollapsed ? 'expandir' : 'colapsar'} grupo</title>
-                          {/* Main Bar */}
-                          <rect x={x} y={summaryBarY} width={width} height="8" fill="#475569" rx="1" />
-                          {/* End Caps (Brackets) */}
-                          <path d={`M ${x} ${summaryBarY} v 10 M ${x+width} ${summaryBarY} v 10`} stroke="#475569" strokeWidth="2" />
-                          {/* Label */}
-                          <text x={x + 5} y={summaryBarY - 3} fontSize="10" fill="#475569" fontWeight="bold" className="uppercase tracking-wider">
-                              {isCollapsed ? '[+] ' : '[-] '} {item.taskName}
+                          <title>{item.taskName} · {item.progress}% · click para {isCollapsed ? 'expandir' : 'colapsar'}</title>
+                          <rect x={x} y={summaryBarY} width={width} height="8" fill={summaryColor} fillOpacity={0.3} rx="4" />
+                          {showProgressLayer && summaryProgressWidth > 0 && (
+                              <rect x={x} y={summaryBarY} width={summaryProgressWidth} height="8" fill={summaryColor} rx="4" />
+                          )}
+                          <text x={x + 2} y={summaryBarY - 3} fontSize="9" fill="#475569" fontWeight="bold">
+                              {item.progress}%
                           </text>
                       </g>
                   );
@@ -800,7 +883,7 @@ export const Planning: React.FC = () => {
                           {item.hasCycleError ? ' — ⚠ ciclo de dependencias: se ignoraron sus vínculos' : ''}
                       </title>
                       {/* Dependency Lines */}
-                      {allDependencies.filter(d => d.toTaskId === item.id).map((dep, depIdx) => {
+                      {showDependencies && allDependencies.filter(d => d.toTaskId === item.id).map((dep, depIdx) => {
                           const pred = ganttItems.find(p => p.id === dep.fromTaskId);
                           if (!pred) return null;
 
@@ -829,6 +912,27 @@ export const Planning: React.FC = () => {
                           );
                       })}
 
+                      {/* Plan base (C1): barra fina punteada con las fechas de la línea base elegida */}
+                      {showBaseline && baselineSchedule?.has(item.id) && (() => {
+                          const base = baselineSchedule.get(item.id)!;
+                          const baseStartDay = Math.floor((new Date(base.start).getTime() - projectStart) / 86400000);
+                          return (
+                              <rect
+                                  x={baseStartDay * ganttScale}
+                                  y={barY + BAR_HEIGHT + 3}
+                                  width={Math.max(2, base.duration * ganttScale)}
+                                  height={4}
+                                  rx="2"
+                                  fill="#cbd5e1"
+                                  stroke="#94a3b8"
+                                  strokeWidth="1"
+                                  strokeDasharray="3 2"
+                              >
+                                  <title>Plan base: {toLocalDate(base.start).toLocaleDateString()} → {toLocalDate(base.end).toLocaleDateString()}</title>
+                              </rect>
+                          );
+                      })()}
+
                       {/* Task Bar — resto (claro): todo el ancho, opacidad baja */}
                       <rect
                           x={x}
@@ -837,14 +941,14 @@ export const Planning: React.FC = () => {
                           height={BAR_HEIGHT}
                           rx="4"
                           fill={barColor}
-                          fillOpacity={0.55}
+                          fillOpacity={showProgressLayer ? 0.55 : 0.95}
                           stroke={item.isCritical ? '#991b1b' : 'none'}
                           strokeWidth={item.isCritical ? 2 : 0}
                           className="transition-all shadow-sm"
                       />
 
                       {/* Tramo real (sólido): solo el avance ejecutado, mismo color que el resto */}
-                      {progress > 0 && (
+                      {showProgressLayer && progress > 0 && (
                           <rect
                               x={x}
                               y={barY}
@@ -865,7 +969,7 @@ export const Planning: React.FC = () => {
                               x={x + 10}
                               y={labelY}
                               fontSize="10"
-                              fill={progressWidth >= textWidth + 10 ? 'white' : '#475569'}
+                              fill={(showProgressLayer ? progressWidth : width) >= textWidth + 10 ? 'white' : '#475569'}
                               fontWeight="bold"
                               pointerEvents="none"
                               className="select-none"
@@ -895,27 +999,54 @@ export const Planning: React.FC = () => {
             <p className="text-sm text-slate-500 mt-1">Motor de cálculo CPM (Ruta Crítica) basado en Rendimientos Maestros.</p>
          </div>
          
-         <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
-             <div className="text-right border-r border-slate-200 pr-4">
-                 <div className="text-[10px] font-bold text-slate-400 uppercase">Fin de Obra Estimado</div>
-                 <div className="text-lg font-bold text-slate-800">{criticalPathStats.finishDate.toLocaleDateString()}</div>
-             </div>
-             <div className="text-right border-r border-slate-200 pr-4">
-                 <div className="text-[10px] font-bold text-slate-400 uppercase">Duración Total</div>
-                 <div className="text-lg font-bold text-blue-600">
-                     {criticalPathStats.totalDays} días hábiles
-                     <span className="text-xs font-medium text-slate-400"> · {naturalDays} corridos</span>
-                 </div>
-             </div>
-             <button 
-                onClick={handleSnapshot}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white hover:bg-black rounded-lg text-sm font-bold transition-all shadow-md"
-                title="Guardar estado actual como Línea Base"
-             >
-                 <Clock size={16} /> Fijar Línea Base
-             </button>
-         </div>
       </div>
+
+      {/* Cabecera de 4 tarjetas (C1): Inicio · Fin · Duración · Avance físico */}
+      {(() => {
+          const fmtDate = (d: Date) => d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: '2-digit' });
+          const fmtWeekday = (d: Date) => {
+              const w = d.toLocaleDateString('es-AR', { weekday: 'long' });
+              return w.charAt(0).toUpperCase() + w.slice(1);
+          };
+          const startD = toLocalDate(project.startDate);
+          const finishD = criticalPathStats.finishDate;
+          const hasSchedule = criticalPathStats.totalDays > 0;
+          const ringR = 20;
+          const ringC = 2 * Math.PI * ringR;
+          return (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-100 grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+                  <div className="p-4">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 uppercase"><CalendarDays size={12} /> Inicio</div>
+                      <div className="text-xl font-bold text-slate-800 mt-1">{fmtDate(startD)}</div>
+                      <div className="text-[11px] text-slate-400">{fmtWeekday(startD)}</div>
+                  </div>
+                  <div className="p-4">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 uppercase"><Clock size={12} /> Fin</div>
+                      <div className="text-xl font-bold text-slate-800 mt-1">{hasSchedule ? fmtDate(finishD) : '—'}</div>
+                      <div className="text-[11px] text-slate-400">{hasSchedule ? fmtWeekday(finishD) : 'Sin tareas programadas'}</div>
+                  </div>
+                  <div className="p-4">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase"><Calendar size={12} /> Duración</div>
+                      <div className="text-xl font-bold text-slate-800 mt-1">{Math.ceil(naturalDays / 7)} sem</div>
+                      <div className="text-[11px] text-slate-400">{criticalPathStats.totalDays} hábiles · {naturalDays} corridos</div>
+                  </div>
+                  <div className="p-4 flex items-center gap-3">
+                      <svg width="52" height="52" viewBox="0 0 52 52" className="flex-shrink-0">
+                          <circle cx="26" cy="26" r={ringR} fill="none" stroke="#e2e8f0" strokeWidth="6" />
+                          <circle
+                              cx="26" cy="26" r={ringR} fill="none" stroke="#f97316" strokeWidth="6" strokeLinecap="round"
+                              strokeDasharray={`${(ringC * physicalProgress) / 100} ${ringC}`}
+                              transform="rotate(-90 26 26)"
+                          />
+                      </svg>
+                      <div>
+                          <div className="text-[10px] font-bold text-slate-500 uppercase">Avance físico</div>
+                          <div className="text-xl font-bold text-slate-800">{physicalProgress}%</div>
+                      </div>
+                  </div>
+              </div>
+          );
+      })()}
 
       {/* Main Content */}
       <div className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
@@ -961,9 +1092,68 @@ export const Planning: React.FC = () => {
                   </div>
               )}
 
-              {((viewMode === 'table' && showGanttPanel) || (viewMode === 'control' && controlSubView === 'gantt')) && (
-                  <div className="flex items-center gap-4">
-                      {/* Time Scale Selector */}
+          </div>
+
+          {((viewMode === 'table' && showGanttPanel) || (viewMode === 'control' && controlSubView === 'gantt')) && (() => {
+              const chip = (active: boolean) =>
+                  `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${active ? 'bg-white text-slate-700 border-slate-300 shadow-sm' : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600'}`;
+              return (
+              <div className="px-4 py-3 border-b border-slate-200 bg-white space-y-2 print:hidden">
+                  {/* Fila 1: estructura, color, capas, cursor, hoy */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                      <button onClick={toggleCollapseAll} className={chip(true)} title={allCollapsed ? 'Expandir todas las partidas' : 'Colapsar todas las partidas'}>
+                          {allCollapsed ? <ChevronsUpDown size={14} /> : <ChevronsDownUp size={14} />} {allCollapsed ? 'Expandir todo' : 'Colapsar todo'}
+                      </button>
+
+                      <div className="flex items-center gap-1 bg-white rounded-lg border border-slate-200 p-1">
+                          {(['status', 'category', 'critical'] as const).map(mode => (
+                              <button
+                                  key={mode}
+                                  onClick={() => setBarColorMode(mode)}
+                                  className={`px-3 py-1 text-xs font-bold rounded-md ${barColorMode === mode ? 'bg-orange-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                                  title={mode === 'status' ? 'Color por estado (atrasada/en curso/completada)' : mode === 'category' ? 'Color por partida' : 'Rojo = ruta crítica, azul = resto'}
+                              >
+                                  {mode === 'status' ? 'Estado' : mode === 'category' ? 'Partida' : 'Ruta crítica'}
+                              </button>
+                          ))}
+                      </div>
+
+                      <button onClick={() => setShowProgressLayer(v => !v)} className={chip(showProgressLayer)} title="Mostrar el tramo de avance real dentro de cada barra">
+                          {showProgressLayer ? <Eye size={14} /> : <EyeOff size={14} />} Avance real
+                      </button>
+                      <button onClick={() => setShowDependencies(v => !v)} className={chip(showDependencies)} title="Mostrar las líneas de dependencia entre tareas">
+                          {showDependencies ? <Eye size={14} /> : <EyeOff size={14} />} Dependencias
+                      </button>
+
+                      <div className="flex items-center gap-1.5 bg-white rounded-lg border border-slate-200 px-2 py-1">
+                          <Crosshair size={14} className="text-violet-500" />
+                          <input
+                              type="date"
+                              value={cursorDate || ''}
+                              onChange={(e) => setCursorDate(e.target.value || null)}
+                              className="text-[11px] text-slate-600 outline-none w-28"
+                              title="Cursor de fecha: ¿cuánto debería estar hecho a esta fecha?"
+                          />
+                          {cursorDate && cursorStats && (
+                              <>
+                                  <span className="text-[11px] font-bold text-violet-600">{cursorStats.percent}% plan</span>
+                                  <button onClick={() => setCursorDate(null)} className="text-slate-300 hover:text-slate-500 text-xs leading-none" title="Apagar cursor">✕</button>
+                              </>
+                          )}
+                      </div>
+
+                      <button
+                          onClick={goToToday}
+                          disabled={todayLineX == null}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-red-600 hover:border-red-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={todayLineX == null ? 'La obra todavía no arrancó' : 'Ir a la fecha de hoy'}
+                      >
+                          <CalendarDays size={14} /> Hoy
+                      </button>
+                  </div>
+
+                  {/* Fila 2: escala, zoom, plan base, exportar */}
+                  <div className="flex items-center gap-2 flex-wrap">
                       <div className="flex bg-white rounded-lg border border-slate-200 p-1">
                           {(['day', 'week', 'month', 'quarter', 'project'] as const).map(mode => (
                               <button
@@ -976,55 +1166,41 @@ export const Planning: React.FC = () => {
                           ))}
                       </div>
 
-                      {/* Zoom Controls */}
-                      <div className="flex items-center gap-2 bg-white rounded-lg p-1 border border-slate-200">
-                          <button onClick={() => setGanttScale(s => Math.max(1, s * 0.8))} className="p-1 hover:bg-slate-100 rounded text-slate-500"><ZoomOut size={16}/></button>
-                          <button onClick={() => setGanttScale(s => Math.min(200, s * 1.2))} className="p-1 hover:bg-slate-100 rounded text-slate-500"><ZoomIn size={16}/></button>
+                      <div className="flex items-center gap-1 bg-white rounded-lg p-1 border border-slate-200">
+                          <button onClick={() => setGanttScale(s => Math.max(1, s * 0.8))} className="p-1 hover:bg-slate-100 rounded text-slate-500" title="Alejar"><ZoomOut size={16}/></button>
+                          <button onClick={() => setGanttScale(s => Math.min(200, s * 1.2))} className="p-1 hover:bg-slate-100 rounded text-slate-500" title="Acercar"><ZoomIn size={16}/></button>
                       </div>
 
-                      {/* Go to Today */}
-                      <button
-                          onClick={goToToday}
-                          disabled={todayLineX == null}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-red-600 hover:border-red-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          title={todayLineX == null ? 'La obra todavía no arrancó' : 'Ir a la fecha de hoy'}
-                      >
-                          <Crosshair size={14} /> Ir a HOY
-                      </button>
-
-                      {/* Color by */}
-                      <div className="flex items-center gap-1 bg-white rounded-lg border border-slate-200 p-1">
-                          {(['status', 'category', 'critical'] as const).map(mode => (
-                              <button
-                                  key={mode}
-                                  onClick={() => setBarColorMode(mode)}
-                                  className={`px-2 py-1 text-[10px] uppercase font-bold rounded ${barColorMode === mode ? 'bg-blue-100 text-blue-700' : 'text-slate-500 hover:bg-slate-50'}`}
-                                  title={mode === 'status' ? 'Color por estado (atrasada/en curso/completada)' : mode === 'category' ? 'Color por partida' : 'Rojo = ruta crítica, azul = resto'}
-                              >
-                                  {mode === 'status' ? 'Estado' : mode === 'category' ? 'Partida' : 'Crítica'}
-                              </button>
-                          ))}
-                      </div>
-
-                      {/* Cursor de fecha */}
+                      {/* Plan base: elegir línea base, mostrar/ocultar, fijar una nueva */}
                       <div className="flex items-center gap-1.5 bg-white rounded-lg border border-slate-200 px-2 py-1">
-                          <input
-                              type="date"
-                              value={cursorDate || ''}
-                              onChange={(e) => setCursorDate(e.target.value || null)}
-                              className="text-[10px] text-slate-600 outline-none w-28"
-                              title="Cursor de fecha: ¿cuánto debería estar hecho a esta fecha?"
-                          />
-                          {cursorDate && cursorStats && (
-                              <>
-                                  <span className="text-[10px] font-bold text-violet-600">{cursorStats.percent}% plan</span>
-                                  <button onClick={() => setCursorDate(null)} className="text-slate-300 hover:text-slate-500 text-xs leading-none" title="Apagar cursor">✕</button>
-                              </>
+                          <Flag size={14} className="text-slate-500" />
+                          <span className="text-xs font-bold text-slate-600">Plan base</span>
+                          <select
+                              value={selectedSnapshotId || ''}
+                              onChange={(e) => setSelectedSnapshotId(e.target.value || null)}
+                              className="text-[11px] text-slate-600 outline-none bg-transparent max-w-[160px]"
+                              title="Línea base contra la que se compara el cronograma"
+                          >
+                              <option value="">— ninguna —</option>
+                              {snapshots.map(s => (
+                                  <option key={s.id} value={s.id}>{s.name} · {new Date(s.date).toLocaleDateString()}</option>
+                              ))}
+                          </select>
+                          {selectedSnapshotId && (
+                              <button onClick={() => setShowBaseline(v => !v)} className="text-slate-400 hover:text-slate-600" title={showBaseline ? 'Ocultar plan base en el Gantt' : 'Mostrar plan base en el Gantt'}>
+                                  {showBaseline ? <Eye size={14} /> : <EyeOff size={14} />}
+                              </button>
                           )}
+                          <button
+                              onClick={handleSnapshot}
+                              className="ml-1 px-2 py-0.5 bg-slate-900 text-white hover:bg-black rounded text-[10px] font-bold"
+                              title="Guardar el estado actual como nueva línea base"
+                          >
+                              Fijar
+                          </button>
                       </div>
 
-                      {/* Export Actions */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 ml-auto">
                           <button onClick={handleExportProject} className="p-2 bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 rounded-lg transition-colors" title="Exportar a MS Project (XML)">
                               <Download size={16} />
                           </button>
@@ -1033,8 +1209,32 @@ export const Planning: React.FC = () => {
                           </button>
                       </div>
                   </div>
-              )}
-          </div>
+
+                  {/* Banda "Plan vs Real" */}
+                  {planVsReal ? (
+                      <div className={`flex items-center gap-3 flex-wrap px-3 py-2 rounded-lg border text-xs ${planVsReal.status === 'ok' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : planVsReal.status === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-red-50 border-red-200 text-red-900'}`}>
+                          <span className="flex items-center gap-1.5 font-bold"><Activity size={14} /> Plan vs Real</span>
+                          <span>
+                              Fin de obra:{' '}
+                              <b>{planVsReal.projectDelayDays > 0 ? `atrasado ${planVsReal.projectDelayDays} días` : planVsReal.projectDelayDays < 0 ? `adelantado ${-planVsReal.projectDelayDays} días` : 'en tiempo'}</b>
+                          </span>
+                          <span className="opacity-70">{planVsReal.late} atrasadas · {planVsReal.early} adelantadas · {planVsReal.onTime} en tiempo</span>
+                          {planVsReal.maxDelay && (
+                              <span className="opacity-70">Mayor desfase: <b>{planVsReal.maxDelay.name}</b> +{planVsReal.maxDelay.days} días</span>
+                          )}
+                      </div>
+                  ) : (
+                      <div className="flex items-center gap-3 flex-wrap px-3 py-2 rounded-lg border bg-slate-50 border-slate-200 text-xs text-slate-600">
+                          <span className="flex items-center gap-1.5 font-bold"><Activity size={14} /> Plan vs Real</span>
+                          <span>Fijá o elegí una línea base para comparar el plan contra lo real.</span>
+                          <span className="opacity-70">
+                              Hoy: {statusCounts.atrasada} atrasadas · {statusCounts.en_curso} en curso · {statusCounts.completada} completadas · {statusCounts.no_iniciada} sin iniciar
+                          </span>
+                      </div>
+                  )}
+              </div>
+              );
+          })()}
 
           {viewMode === 'table' && !showGanttPanel && (
               <div className="flex-1 overflow-auto">
@@ -1114,6 +1314,19 @@ export const Planning: React.FC = () => {
               </div>
           )}
 
+
+          {/* Leyenda de partidas (C1): al pie del Gantt cuando el color es por partida */}
+          {barColorMode === 'category' && ((viewMode === 'table' && showGanttPanel) || (viewMode === 'control' && controlSubView === 'gantt')) && (
+              <div className="flex items-center gap-4 flex-wrap px-4 py-2 border-t border-slate-200 bg-white text-[11px] text-slate-600">
+                  <span className="font-bold text-slate-400 uppercase text-[10px]">Leyenda · Partidas</span>
+                  {Array.from(new Set(cpmItems.map(i => i.category || 'Sin Categoría'))).map(cat => (
+                      <span key={cat} className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getCategoryColor(cat) }} />
+                          {cat}
+                      </span>
+                  ))}
+              </div>
+          )}
 
           {viewMode === 'control' && controlSubView === 'table' && (
               <div className="flex-1 flex flex-col overflow-hidden">

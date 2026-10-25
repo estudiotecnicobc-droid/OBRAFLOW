@@ -1,0 +1,18 @@
+Gantt Etapa C1 — aspecto tipo Brikel (referencia: docs/specs/gantt-etapa-c1-aspecto.md)
+
+Solo components/Planning.tsx + services/planVsReal.ts (puro, con tests). Sin migraciones, sin tocar
+ERPContext ni scheduleEngine.
+
+1. Cabecera de 4 tarjetas: Inicio, Fin, Duración (sem + hábiles · corridos), anillo de avance
+   físico (EV / BAC).
+2. Barra de herramientas del Gantt en dos filas: Colapsar todo · Color por · Avance real (toggle)
+   · Dependencias (toggle) · cursor de fecha · Hoy / escala · zoom · Plan base (selector, ojo,
+   Fijar) · exportar.
+3. Plan base: recalcular las fechas de la línea base elegida con computeSchedule sobre
+   snapshot.items y dibujarlas como barra fina punteada debajo de cada tarea.
+4. Banda Plan vs Real con comparePlanVsReal (fin de obra, atrasadas/adelantadas/en tiempo, mayor
+   desfase; verde/ámbar/rojo). Sin línea base: banda gris con conteo por estado.
+5. Barra de partida con su color y % ponderado por costo; punto de color y colapsar en la tabla;
+   leyenda de partidas al pie cuando el color es por partida.
+
+Verificar: tsc sin errores nuevos, vitest, vite build, QA en docs/qa/gantt-etapa-c1-aspecto.md.
