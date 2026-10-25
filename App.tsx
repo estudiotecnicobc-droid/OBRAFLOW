@@ -11,7 +11,7 @@ import { getProjectStage, StageLockedNotice } from './components/ProjectStage';
 import { Planning } from './components/Planning';
 import { DataAdmin } from './components/DataAdmin';
 import { ToolsManager } from './components/ToolsManager';
-import { ProjectSettings } from './components/ProjectSettings';
+import { SettingsModule } from './components/SettingsModule';
 import { MaterialReception } from './components/MaterialReception';
 import { ManagementPanel } from './components/ManagementPanel';
 import { Subcontractors } from './components/Subcontractors';
@@ -143,6 +143,7 @@ const AppContent = () => {
       case 'budget':
       case 'grid':
       case 'measurements':
+      case 'computo':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><BudgetModule activeTab={activeTab} onNavigate={setActiveTab} /></ProtectedRoute>;
       case 'apu':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><APUBuilder /></ProtectedRoute>;
@@ -163,11 +164,12 @@ const AppContent = () => {
       case 'admin_catalog':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin key={activeTab} initialSubTab="master" /></ProtectedRoute>;
       case 'admin_apu':
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin key={activeTab} initialSubTab="master-tasks" /></ProtectedRoute>;
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin key={activeTab} scope="catalog" initialSubTab="master-tasks" /></ProtectedRoute>;
       case 'company_labor':
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin key={activeTab} initialSubTab="labor" /></ProtectedRoute>;
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin key={activeTab} scope="labor" initialSubTab="labor" /></ProtectedRoute>;
       case 'settings':
-        return <ProtectedRoute allowedRoles={['admin']}><ProjectSettings /></ProtectedRoute>;
+      case 'admin_system':
+        return <ProtectedRoute allowedRoles={['admin']}><SettingsModule activeTab={activeTab} onNavigate={setActiveTab} /></ProtectedRoute>;
       case 'documents':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker', 'client']}><DocumentManager /></ProtectedRoute>;
       case 'quality':

@@ -1,18 +1,24 @@
 import React from 'react';
-import { Calculator, Ruler, Table } from 'lucide-react';
+import { Calculator, Ruler, Table, Shapes } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { BudgetEditor } from './BudgetEditor';
 import { MeasurementSheetComponent } from './MeasurementSheet';
 import { BudgetGrid } from './BudgetGrid';
+import { ParametricCalculator } from '../src/features/parametric-calculator/ParametricCalculator';
 
-export const BUDGET_MODULE_TABS = ['budget', 'measurements', 'grid'] as const;
+export const BUDGET_MODULE_TABS = ['budget', 'measurements', 'grid', 'computo'] as const;
 
 const TABS = [
   { id: 'budget', label: 'Ítems y presupuesto', icon: Calculator },
   { id: 'measurements', label: 'Cómputos', icon: Ruler },
   { id: 'grid', label: 'Grilla de costos', icon: Table },
+  { id: 'computo', label: 'Calculador de cómputo', icon: Shapes },
 ];
 
-export const BudgetModule: React.FC<{ activeTab: string; onNavigate: (tab: string) => void }> = ({ activeTab, onNavigate }) => (
+export const BudgetModule: React.FC<{ activeTab: string; onNavigate: (tab: string) => void }> = ({ activeTab, onNavigate }) => {
+  const { user, activeOrganizationId } = useAuth();
+  const organizationId = activeOrganizationId ?? user?.organizationId ?? '';
+  return (
   <div className="space-y-4">
     <div role="tablist" aria-label="Secciones del presupuesto" className="flex flex-wrap gap-1 border-b border-slate-200 print:hidden">
       {TABS.map(t => {
@@ -35,5 +41,7 @@ export const BudgetModule: React.FC<{ activeTab: string; onNavigate: (tab: strin
     {activeTab === 'budget' && <BudgetEditor onNavigate={onNavigate} />}
     {activeTab === 'measurements' && <MeasurementSheetComponent />}
     {activeTab === 'grid' && <BudgetGrid />}
+    {activeTab === 'computo' && organizationId && <ParametricCalculator organizationId={organizationId} />}
   </div>
-);
+  );
+};

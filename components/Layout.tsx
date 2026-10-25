@@ -81,7 +81,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
   ] as NavItem[]).filter(i => i.id === 'system_admin' || can(i.roles));
 
   const isActive = (id: string) =>
-    id === 'budget' ? BUDGET_MODULE_TABS.includes(activeTab as typeof BUDGET_MODULE_TABS[number]) : activeTab === id;
+    id === 'budget' ? BUDGET_MODULE_TABS.includes(activeTab as typeof BUDGET_MODULE_TABS[number])
+    : id === 'settings' ? activeTab === 'settings' || activeTab === 'admin_system'
+    : activeTab === id;
 
   const NavButton: React.FC<{ item: NavItem; locked?: boolean; badge?: string }> = ({ item, locked, badge }) => (
     <button

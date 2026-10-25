@@ -43,11 +43,21 @@ const InfoTooltip = ({ text, formula }: { text: string, formula?: string }) => (
   </div>
 );
 
+export type DataAdminScope = 'labor' | 'catalog' | 'system';
+
+const SCOPE_TABS: Record<DataAdminScope, string[]> = {
+  labor: ['labor'],
+  catalog: ['master-tasks', 'materials', 'master', 'resources', 'templates'],
+  system: ['system'],
+};
+
 interface DataAdminProps {
+  scope?: DataAdminScope;
   initialSubTab?: 'materials' | 'tasks' | 'tools' | 'labor' | 'rubros' | 'apu' | 'crews' | 'system' | 'master' | 'master-tasks' | 'templates' | 'calculator' | 'chandias' | 'computo' | 'reports' | 'resources';
 }
 
-export const DataAdmin: React.FC<DataAdminProps> = ({ initialSubTab }) => {
+export const DataAdmin: React.FC<DataAdminProps> = ({ initialSubTab, scope }) => {
+  const show = (tab: string) => !scope || SCOPE_TABS[scope].includes(tab);
   const { user, activeOrganizationId } = useAuth();
   const organizationId = activeOrganizationId ?? user?.organizationId ?? '';
   const {
@@ -803,9 +813,9 @@ export const DataAdmin: React.FC<DataAdminProps> = ({ initialSubTab }) => {
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <Database className="text-blue-600" /> Base de Datos Maestra
+            <Database className="text-blue-600" /> {scope === 'labor' ? 'Personal y cuadrillas' : scope === 'catalog' ? 'Catálogo maestro' : scope === 'system' ? 'Sistema' : 'Base de Datos Maestra'}
           </h2>
-          <p className="text-sm text-slate-500">Gestione los insumos, tareas, equipos y cuadrillas que alimentan sus presupuestos.</p>
+          <p className="text-sm text-slate-500">{scope === 'labor' ? 'Oficios, jornales y cuadrillas de la empresa. Todas las obras toman la mano de obra de acá.' : scope === 'catalog' ? 'Análisis de precios, insumos, equipos, materiales y plantillas que alimentan sus presupuestos.' : scope === 'system' ? 'Respaldos, importación y datos del sistema.' : 'Gestione los insumos, tareas, equipos y cuadrillas que alimentan sus presupuestos.'}</p>
         </div>
         <div className="flex gap-2 items-center">
           {/* Global Save Button */}
@@ -882,63 +892,82 @@ export const DataAdmin: React.FC<DataAdminProps> = ({ initialSubTab }) => {
       )}
 
       {/* Tabs */}
+      {(!scope || scope === 'catalog') && (
       <div className="flex flex-wrap gap-2 bg-white p-2 rounded-xl shadow-sm border border-slate-100">
+        {show('materials') && (
         <button
           onClick={() => { setActiveSubTab('materials'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'materials' || activeSubTab === 'tools' ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
           <Package size={18} /> Recursos
         </button>
+        )}
+        {show('master') && (
         <button
           onClick={() => { setActiveSubTab('master'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'master' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
           <Database size={18} /> Materiales de Empresa
         </button>
+        )}
+        {show('labor') && (
         <button
           onClick={() => { setActiveSubTab('labor'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'labor' || activeSubTab === 'crews' ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
           <Users size={18} /> Mano de Obra
         </button>
+        )}
+        {show('master-tasks') && (
         <button
           onClick={() => { setActiveSubTab('master-tasks'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'master-tasks' ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
           <BookOpen size={18} /> Analisis de Precios (APU)
         </button>
+        )}
+        {show('resources') && (
         <button
           onClick={() => { setActiveSubTab('resources'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'resources' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
           <Globe size={18} /> Recursos Globales
         </button>
+        )}
+        {show('templates') && (
         <button
           onClick={() => { setActiveSubTab('templates'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'templates' ? 'bg-violet-600 text-white shadow-md shadow-violet-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
           <LayoutGrid size={18} /> Plantillas
         </button>
+        )}
+        {show('computo') && (
         <button
           onClick={() => { setActiveSubTab('computo'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'computo' || activeSubTab === 'calculator' || activeSubTab === 'chandias' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
           <Ruler size={18} /> Cómputo
         </button>
+        )}
+        {show('reports') && (
         <button
           onClick={() => { setActiveSubTab('reports'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'reports' ? 'bg-blue-700 text-white shadow-md shadow-blue-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
           <BarChart3 size={18} /> Reportes
         </button>
+        )}
+        {show('system') && (
         <button
           onClick={() => { setActiveSubTab('system'); cancelEdit(); setEditingAPUTask(null); setEditingCrew(null); setEditingMaterialConfig(null); }}
           className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${activeSubTab === 'system' ? 'bg-slate-800 text-white shadow-md shadow-slate-200' : 'text-slate-500 hover:bg-slate-50'}`}
         >
           <ShieldCheck size={18} /> Sistema
         </button>
+        )}
       </div>
-
+      )}
       <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleFileUpload} />
       
       {/* SYSTEM TAB */}
