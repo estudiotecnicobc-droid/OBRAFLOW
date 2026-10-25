@@ -24,6 +24,7 @@ function projectFromRow(row: Record<string, any>): Project {
     startDate: row.start_date ?? new Date().toISOString().split('T')[0],
     endDate: row.end_date ?? undefined,
     status: row.status ?? 'planning',
+    createdAt: row.created_at ?? undefined,
     items: [],
     businessConfig,
     // Campos técnicos

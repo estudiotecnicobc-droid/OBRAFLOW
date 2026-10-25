@@ -1,10 +1,12 @@
 import React from 'react';
-import { SlidersHorizontal, ShieldCheck } from 'lucide-react';
+import { SlidersHorizontal, ShieldCheck, LineChart } from 'lucide-react';
+import { PriceIndicesAdmin } from './PriceIndicesAdmin';
 import { ProjectSettings } from './ProjectSettings';
 import { DataAdmin } from './DataAdmin';
 
 const TABS = [
   { id: 'settings', label: 'Proyecto', icon: SlidersHorizontal },
+  { id: 'admin_indices', label: 'Índices', icon: LineChart },
   { id: 'admin_system', label: 'Sistema', icon: ShieldCheck },
 ];
 
@@ -29,6 +31,7 @@ export const SettingsModule: React.FC<{ activeTab: string; onNavigate: (tab: str
       })}
     </div>
     {activeTab === 'settings' && <ProjectSettings />}
+    {activeTab === 'admin_indices' && <PriceIndicesAdmin />}
     {activeTab === 'admin_system' && <DataAdmin scope="system" initialSubTab="system" />}
   </div>
 );

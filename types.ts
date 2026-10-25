@@ -242,6 +242,7 @@ export interface Project {
   startDate: string;
   endDate?: string; // Fecha de Fin Prevista / Límite
   status: ProjectStatus; // NEW: Status field
+  createdAt?: string;
   items: BudgetItem[];
   
   // Global Settings for Labor & Calendar

@@ -168,6 +168,7 @@ const AppContent = () => {
       case 'company_labor':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin key={activeTab} scope="labor" initialSubTab="labor" /></ProtectedRoute>;
       case 'settings':
+      case 'admin_indices':
       case 'admin_system':
         return <ProtectedRoute allowedRoles={['admin']}><SettingsModule activeTab={activeTab} onNavigate={setActiveTab} /></ProtectedRoute>;
       case 'documents':

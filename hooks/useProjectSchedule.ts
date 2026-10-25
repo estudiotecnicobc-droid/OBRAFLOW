@@ -24,6 +24,11 @@ export interface ItemCost {
   quantity: number;
   /** Precio unitario completo (materiales + mano de obra + equipos) */
   unitCost: number;
+  /** Componentes del precio unitario */
+  materialUnitCost: number;
+  laborUnitCost: number;
+  toolUnitCost: number;
+  fixedUnitCost: number;
   /** = unitCost * quantity */
   totalCost: number;
   /** = totalCost * progress / 100 */
@@ -159,6 +164,10 @@ export function useProjectSchedule() {
         unit:      task.unit,
         quantity:  item.quantity,
         unitCost,
+        materialUnitCost: analysis.materialCost || 0,
+        laborUnitCost:    analysis.laborCost || 0,
+        toolUnitCost:     analysis.toolCost || 0,
+        fixedUnitCost:    analysis.fixedCost || 0,
         totalCost,
         earnedValue,
         progress,
