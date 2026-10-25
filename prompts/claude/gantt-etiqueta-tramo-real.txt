@@ -1,0 +1,32 @@
+Objetivo:
+Cuarto PR chico de la Etapa B del Gantt: el único ítem del relevamiento FAENA/Brikel que
+quedó pendiente sobre el Gantt, después de los 3 PRs anteriores (colores/líneas/tooltip,
+panel de la tabla, resto de detalles).
+
+Contexto:
+- docs/research/MEJORAS_VISUALIZACION_DIAGRAMAS_MENUS_2026-10-18.md §1, ítem B-3 (toma de
+  Brikel): etiqueta "Nd · X%" dentro de la barra + tramo real (oscuro) / resto (claro)
+  separados visualmente, en vez del overlay oscuro semitransparente actual.
+- Nombre coincidente, trabajo distinto: no confundir con la rama/PR
+  feat/gantt-etapa-b3-detalles (B-6 a B-10 del informe final, selector de color/cursor de
+  fecha/etc.) — esta es una numeración de un documento distinto.
+
+Cambios deseados:
+1) Etiqueta de la barra: "Nd · X%" (duración + avance) en vez del nombre de la tarea; "s/r"
+   si la tarea no tiene rendimiento cargado.
+2) Separar la barra en dos rects del mismo color (el que corresponda según barColorMode):
+   uno de ancho completo a opacidad baja (resto) y uno de ancho = avance a opacidad alta
+   (tramo real), en vez del overlay gris fijo anterior.
+
+No tocar:
+- scheduleEngine.ts / useProjectSchedule.ts (ningún cambio al motor)
+- El cálculo de progress/progressWidth
+
+Restricciones:
+- cambio contenido a components/Planning.tsx
+
+Entregables:
+1) Etiqueta y segmentos aplicados en renderGanttChart
+2) Probado visualmente en local (npm run dev) con el proyecto de prueba de mampostería
+3) npx vitest run / npx tsc --noEmit / npx vite build sin errores nuevos
+4) spec en docs/specs/, checklist QA en docs/qa/
