@@ -10,8 +10,9 @@
  *   OBRAFLOW_E2E_PASSWORD Contraseña del usuario QA
  *
  * Hard asserts: 01 login, 02 proyecto creado, 05 drawer+precio+badge,
- *               06 APU creado+visible, 07 subtotal > $0, 08+09 descargas > 500b,
- *               12 0 errores 5xx.
+ *               06 APU creado+visible+cantidades persistidas,
+ *               07 precio unitario > $0 y subtotal = unitario × 45,
+ *               08+09 descargas > 500b, 12 0 errores 5xx.
  * Soft asserts: 03 dashboard, 04 import (estado global), 10 reporte, 11 visual.
  */
 
@@ -50,6 +51,21 @@ const downloadedFiles: string[] = [];
 async function click(locator: Locator): Promise<void> {
   await locator.click();
   clickCount++;
+}
+
+/** Parsea "$1,745.00" (en-US) o "$1.745,00" (es-AR) → número */
+function parseCurrency(text: string): number {
+  const m = text.match(/\$\s*([\d.,]+)/);
+  if (!m) return NaN;
+  let s = m[1];
+  const lastComma = s.lastIndexOf(',');
+  const lastDot = s.lastIndexOf('.');
+  if (lastComma > lastDot) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else {
+    s = s.replace(/,/g, '');
+  }
+  return parseFloat(s);
 }
 
 async function waitForAppIdle(page: Page, ms = 2000): Promise<void> {
@@ -399,6 +415,20 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await unitInput.fill('m²');
     clickCount++;
 
+    // Rubro / Categoría → "Mampostería" (el ítem debe agrupar bajo su rubro, no "Sin Categoría")
+    const rubroSelect = page.locator('select').filter({
+      has: page.locator('option').filter({ hasText: '— Sin categoría —' }),
+    });
+    if (await rubroSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const rubroSet = await rubroSelect.selectOption({ label: 'Mampostería' }).catch(() => null);
+      if (rubroSet) {
+        clickCount++;
+        console.log('  Rubro seteado: Mampostería');
+      } else {
+        console.warn('⚠️  Rubro "Mampostería" no disponible — el ítem caerá en "Sin Categoría"');
+      }
+    }
+
     // El select de materiales se identifica por su option placeholder
     const matSelect = page.locator('select').filter({
       has: page.locator('option').filter({ hasText: '— Seleccionar material —' }),
@@ -430,20 +460,57 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
       await click(page.getByRole('button', { name: 'Agregar', exact: true }).first());
       await waitForAppIdle(page, 500);
 
-      // Cantidad en el último input numérico de tbody
-      const qtyInputs = page.locator('tbody input[type="number"]');
-      if (await qtyInputs.count() > 0) {
-        await qtyInputs.last().fill(qty);
-        await qtyInputs.last().press('Tab');
-        clickCount++;
-        materialesAgregados++;
-      }
+      // Cantidad: primer input numérico DE LA FILA del material recién agregado.
+      // Cada fila tiene 2 inputs: [0] = Cantidad, [1] = Desper.% — un .last()
+      // global llenaba Desper.% de la última fila y dejaba quantity = 1 (bug P0).
+      const materialRow = page.locator('tbody tr').filter({ hasText: new RegExp(keyword, 'i') }).first();
+      const quantityInput = materialRow.locator('input[type="number"]').first();
+      await expect(quantityInput, `Fila del material "${keyword}" no visible tras agregarlo`).toBeVisible({ timeout: 5000 });
+      await quantityInput.fill(qty);
+      await quantityInput.press('Tab');
+      clickCount++;
+      materialesAgregados++;
     }
 
     console.log(`  Materiales agregados al APU: ${materialesAgregados} de ${MATERIAL_YIELDS.length}`);
 
     // HARD ASSERT: al menos 1 material fue agregado
     expect(materialesAgregados, 'Ningún material pudo ser agregado al APU').toBeGreaterThan(0);
+
+    // ── Mano de Obra: 1 Oficial — el APU debe costear MO > $0 ──────────────
+    const laborSelect = page.locator('select').filter({
+      has: page.locator('option').filter({ hasText: '— Seleccionar categoría laboral —' }),
+    });
+    if (await laborSelect.isVisible({ timeout: 5000 }).catch(() => false)) {
+      let laborValue: string | null = null;
+      let laborName = '';
+      for (const opt of await laborSelect.locator('option').all()) {
+        const value = await opt.getAttribute('value');
+        if (!value) continue;
+        const text = (await opt.textContent() ?? '').trim();
+        if (!laborValue) { laborValue = value; laborName = text; } // fallback: primera categoría
+        if (text.toUpperCase().includes('OFICIAL')) { laborValue = value; laborName = text; break; }
+      }
+      if (laborValue) {
+        await laborSelect.selectOption({ value: laborValue });
+        clickCount++;
+        // Botón "Agregar" de la sección MO: hermano del contenedor del select
+        const laborAddBtn = laborSelect.locator('..').locator('..').getByRole('button', { name: 'Agregar', exact: true });
+        await click(laborAddBtn);
+        await waitForAppIdle(page, 500);
+
+        const laborRow = page.locator('tbody tr').filter({ hasText: laborName }).first();
+        const laborQtyInput = laborRow.locator('input[type="number"]').first();
+        if (await laborQtyInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await laborQtyInput.fill('1');
+          await laborQtyInput.press('Tab');
+          clickCount++;
+        }
+        console.log(`  MO agregada al APU: ${laborName} × 1`);
+      } else {
+        console.warn('⚠️  Sin categorías laborales disponibles — APU quedará sin MO');
+      }
+    }
 
     // Guardar APU
     const saveBtn = page.getByRole('button', { name: 'Guardar', exact: true }).first();
@@ -459,8 +526,30 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await expect(apuRow).toBeVisible({ timeout: 10000 });
     console.log(`  ✅ APU "${APU_NAME_RUN}" creado y visible en lista`);
 
+    // Soft check: badge de rubro en la fila de la lista
+    const rowText = await apuRow.textContent() ?? '';
+    console.log(`  Rubro en fila: ${rowText.includes('Mampostería') ? '✅ Mampostería' : '⚠️  sin badge Mampostería'}`);
+
+    // ── HARD ASSERT: cantidades persistidas — reabrir el APU y verificar ───
+    // Si el selector de cantidad estuviera roto, acá se leería quantity = 1.
+    await click(apuRow.locator('button[title="Editar"]'));
+    await waitForAppIdle(page, 1500);
+    for (const { keyword, qty } of MATERIAL_YIELDS) {
+      const row = page.locator('tbody tr').filter({ hasText: new RegExp(keyword, 'i') }).first();
+      if (!(await row.isVisible({ timeout: 3000 }).catch(() => false))) continue; // material no agregado (warn arriba)
+      const persisted = await row.locator('input[type="number"]').first().inputValue();
+      expect(Number(persisted), `Cantidad de "${keyword}" no persistió — esperado ${qty}, guardado ${persisted}`)
+        .toBeCloseTo(Number(qty), 3);
+    }
+    console.log('  ✅ Cantidades persistidas verificadas (6 / 0.01 / 0.5)');
+    await click(page.getByRole('button', { name: /Volver/i }).first());
+    await waitForAppIdle(page, 1000);
+
+    const apuRowBack = page.locator('table tbody tr').filter({ hasText: new RegExp(APU_NAME_RUN.slice(0, 20), 'i') }).first();
+    await expect(apuRowBack).toBeVisible({ timeout: 10000 });
+
     // ── Usar APU en presupuesto ────────────────────────────────────────────
-    const usarBtn = apuRow.getByRole('button', { name: 'Usar', exact: true });
+    const usarBtn = apuRowBack.getByRole('button', { name: 'Usar', exact: true });
     await expect(usarBtn).toBeVisible({ timeout: 5000 });
     await click(usarBtn);
     await waitForAppIdle(page, 1500);
@@ -485,7 +574,7 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 7 — Presupuesto: APU visible + subtotal > $0 (HARD ASSERTS)
   // ═══════════════════════════════════════════════════════════════════════════
-  test('07 — Presupuesto: APU con cantidad 45 y subtotal > $0', async ({ page }) => {
+  test('07 — Presupuesto: APU con cantidad 45 y subtotal = unitario × 45', async ({ page }) => {
     test.skip(!E2E_EMAIL || !E2E_PASSWORD, 'Credenciales QA no configuradas');
 
     await page.goto('/');
@@ -495,27 +584,42 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await navTo(page, 'Presupuesto');
     await waitForAppIdle(page, 2000);
 
-    const content = await page.textContent('body') ?? '';
-
     // Hard assert: sin errores 5xx
     expect(failedRequests.filter(r => r.startsWith('5')).length, '5xx requests detectadas').toBe(0);
 
-    // Hard assert: ítem APU visible en presupuesto
-    const apuShort = APU_NAME_RUN.slice(0, 15);
-    const hasApuItem = content.includes(apuShort);
-    console.log(`   Ítem APU en presupuesto: ${hasApuItem ? '✅' : '❌'} (buscando "${apuShort}")`);
-    expect(hasApuItem, `APU "${APU_NAME_RUN}" no aparece en el presupuesto`).toBe(true);
-
-    // Hard assert: subtotal > $0 (regex: $ seguido de dígito 1-9)
-    const hasPositiveCost = /\$[1-9][0-9,\.]+/.test(content);
-    console.log(`   Subtotal > $0: ${hasPositiveCost ? '✅' : '❌'}`);
-    expect(hasPositiveCost, 'Presupuesto sin subtotal > $0 — APU puede tener materiales sin precio').toBe(true);
-
-    // Verificar que NO aparece $0.00 sin razón (warning si hay)
-    const hasZeroCost = /\$0[,\.]00/.test(content);
-    if (hasZeroCost) {
-      console.warn('⚠️  Detectado $0.00 en presupuesto — posible ítem sin precio configurado');
+    // Los grupos de rubro arrancan colapsados → expandir (chevron en la 1ª celda de las filas rubro)
+    const expandButtons = page.locator('table tbody tr td:first-child button');
+    const expandCount = await expandButtons.count();
+    for (let i = 0; i < expandCount; i++) {
+      await expandButtons.nth(i).click().catch(() => null);
+      clickCount++;
     }
+    await waitForAppIdle(page, 800);
+
+    // Hard assert: fila del APU visible en el presupuesto
+    const apuShort = APU_NAME_RUN.slice(0, 15);
+    const apuRow = page.locator('table tbody tr').filter({ hasText: new RegExp(apuShort, 'i') }).first();
+    await expect(apuRow, `APU "${APU_NAME_RUN}" no aparece en el presupuesto`).toBeVisible({ timeout: 10000 });
+    console.log(`   Ítem APU en presupuesto: ✅ (buscando "${apuShort}")`);
+
+    // Hard assert: cantidad importada = 45 m²
+    const qtyValue = await apuRow.locator('input[type="number"]').first().inputValue();
+    expect(Number(qtyValue), `Cantidad del ítem debe ser 45 m² (leído: ${qtyValue})`).toBeCloseTo(45, 1);
+
+    // Hard asserts: contrato matemático — Subtotal = Precio Unitario × Cantidad.
+    // Columnas de BudgetGrid: 0 Descripción · 1 Unidad · 2 Cantidad · 3 Precio Unitario · 4 Subtotal
+    const unitPriceText = await apuRow.locator('td').nth(3).textContent() ?? '';
+    const subtotalText  = await apuRow.locator('td').nth(4).textContent() ?? '';
+    const unitPrice = parseCurrency(unitPriceText);
+    const subtotal  = parseCurrency(subtotalText);
+    console.log(`   Precio unitario: $${unitPrice} · Subtotal 45 m²: $${subtotal}`);
+
+    expect(unitPrice, `Precio unitario del APU inválido o $0 ("${unitPriceText}")`).toBeGreaterThan(0);
+    const expected = unitPrice * 45;
+    expect(
+      Math.abs(subtotal - expected),
+      `Subtotal (${subtotal}) ≠ precio unitario × 45 (${expected}) — explosión lineal rota`,
+    ).toBeLessThanOrEqual(expected * 0.01 + 1);
 
     console.log(`   Clics acumulados: ${clickCount}`);
   });
