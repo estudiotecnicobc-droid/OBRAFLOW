@@ -1,10 +1,19 @@
 
 import React, { useState } from 'react';
-import { LayoutDashboard, Calculator, CalendarDays, Settings, HardHat, Wrench, SlidersHorizontal, Table, Truck, TrendingUp, Users, LogOut, Ruler, FileText, ClipboardCheck, Save, CheckCircle2, X, ArrowLeftRight, Building, Menu, ChevronLeft, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Calculator, CalendarDays, HardHat, Wrench, SlidersHorizontal, Truck, TrendingUp, Users, LogOut, FileText, ClipboardCheck, Save, CheckCircle2, X, ArrowLeftRight, Building, Menu, ChevronLeft, ChevronDown, ChevronRight, ShieldCheck, Lock, BookOpen, LucideIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Role } from '../types';
 import { useERP } from '../context/ERPContext';
 import { useSave } from '../context/SaveContext';
+import { getProjectStage } from './ProjectStage';
+import { BUDGET_MODULE_TABS } from './BudgetModule';
+
+interface NavItem {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  roles: Role[];
+}
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -35,27 +44,63 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
     }
   };
 
-  // Define menu items with required permissions
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'project_manager', 'worker', 'client'] },
-    { id: 'management', label: 'Control de Gestión', icon: TrendingUp, roles: ['admin', 'project_manager', 'client'] },
-    { id: 'documents', label: 'Documentación', icon: FileText, roles: ['admin', 'project_manager', 'worker', 'client'] }, 
-    { id: 'quality', label: 'Control Calidad', icon: ClipboardCheck, roles: ['admin', 'project_manager', 'worker'] }, 
-    { id: 'measurements', label: 'Cómputos (Mediciones)', icon: Ruler, roles: ['admin', 'project_manager'] }, 
-    { id: 'subcontractors', label: 'Subcontratistas', icon: Users, roles: ['admin', 'project_manager'] },
-    { id: 'budget', label: 'Presupuesto', icon: Calculator, roles: ['admin', 'project_manager'] },
-    { id: 'grid', label: 'Grilla de Costos', icon: Table, roles: ['admin', 'project_manager'] },
-    { id: 'planning', label: 'Planificación', icon: CalendarDays, roles: ['admin', 'project_manager', 'worker'] },
-    { id: 'reception', label: 'Recepción (Remitos)', icon: Truck, roles: ['admin', 'worker'] },
-    { id: 'tools', label: 'Equipos', icon: Wrench, roles: ['admin', 'project_manager'] },
-    { id: 'admin', label: 'Administración de Proyecto', icon: Settings, roles: ['admin', 'project_manager'] },
-    { id: 'settings', label: 'Configuración', icon: SlidersHorizontal, roles: ['admin'] },
-  ];
+  const stage = getProjectStage(project.status);
+  const role = user?.role as Role;
+  const can = (roles: Role[]) => roles.includes(role);
 
-  const visibleItems = [
-    ...navItems.filter(item => item.roles.includes(user?.role as Role)),
+  const toolsKey = `obraflow_active_tools_${project.id}`;
+  const [activeTools, setActiveTools] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(toolsKey) || '[]'); } catch { return []; }
+  });
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const saveTools = (next: string[]) => {
+    setActiveTools(next);
+    try { localStorage.setItem(toolsKey, JSON.stringify(next)); } catch { /* sin almacenamiento local */ }
+  };
+
+  const extraTools = ([
+    { id: 'subcontractors', label: 'Subcontratistas', icon: Users, roles: ['admin', 'project_manager'] },
+    { id: 'reception', label: 'Recepción de remitos', icon: Truck, roles: ['admin', 'worker'] },
+    { id: 'tools', label: 'Equipos', icon: Wrench, roles: ['admin', 'project_manager'] },
+    { id: 'quality', label: 'Control de calidad', icon: ClipboardCheck, roles: ['admin', 'project_manager', 'worker'] },
+    { id: 'documents', label: 'Documentación', icon: FileText, roles: ['admin', 'project_manager', 'worker', 'client'] },
+  ] as NavItem[]).filter(t => can(t.roles));
+  const shownTools = extraTools.filter(t => activeTools.includes(t.id) || activeTab === t.id);
+  const hiddenTools = extraTools.filter(t => !shownTools.includes(t));
+
+  const budgetItem: NavItem = { id: 'budget', label: 'Presupuesto', icon: Calculator, roles: ['admin', 'project_manager'] };
+  const worksItems = ([
+    { id: 'planning', label: 'Planificación', icon: CalendarDays, roles: ['admin', 'project_manager', 'worker'] },
+    { id: 'management', label: 'Avance y control', icon: TrendingUp, roles: ['admin', 'project_manager', 'client'] },
+  ] as NavItem[]).filter(i => can(i.roles));
+  const companyItems = ([
+    { id: 'company_labor', label: 'Personal y cuadrillas', icon: HardHat, roles: ['admin', 'project_manager'] },
+    { id: 'admin_apu', label: 'Catálogo maestro', icon: BookOpen, roles: ['admin', 'project_manager'] },
+    { id: 'settings', label: 'Configuración', icon: SlidersHorizontal, roles: ['admin'] },
     ...(isMasterAdmin ? [{ id: 'system_admin', label: 'Admin del Sistema', icon: ShieldCheck, roles: [] as Role[] }] : []),
-  ];
+  ] as NavItem[]).filter(i => i.id === 'system_admin' || can(i.roles));
+
+  const isActive = (id: string) =>
+    id === 'budget' ? BUDGET_MODULE_TABS.includes(activeTab as typeof BUDGET_MODULE_TABS[number]) : activeTab === id;
+
+  const NavButton: React.FC<{ item: NavItem; locked?: boolean; badge?: string }> = ({ item, locked, badge }) => (
+    <button
+      onClick={() => setActiveTab(item.id)}
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium ${
+        isActive(item.id)
+          ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
+          : locked ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+      }`}
+    >
+      {locked ? <Lock size={18} /> : <item.icon size={18} />}
+      <span className="flex-1 text-left">{item.label}</span>
+      {badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800">{badge}</span>}
+    </button>
+  );
+
+  const SectionTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    <div className="px-3 pt-4 pb-1 text-[11px] font-bold tracking-wider text-slate-500 uppercase">{children}</div>
+  );
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
@@ -83,6 +128,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
                     {project.name}
                 </div>
                 <div className="text-[10px] text-slate-400 truncate">{project.client}</div>
+                <span className={`inline-block mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${stage === 'works' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                    {stage === 'works' ? 'En obra' : 'En presupuesto'}
+                </span>
             </div>
             
             {/* Close Sidebar Button */}
@@ -104,20 +152,63 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {visibleItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium ${
-                activeTab === item.id
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <item.icon size={18} />
-              {item.label}
-            </button>
-          ))}
+          <NavButton item={{ id: 'dashboard', label: 'Inicio', icon: LayoutDashboard, roles: [] }} />
+
+          {can(budgetItem.roles) && (
+            <>
+              <SectionTitle>Presupuesto</SectionTitle>
+              <NavButton item={budgetItem} badge={stage === 'works' ? 'Aprobado' : undefined} />
+            </>
+          )}
+
+          {worksItems.length > 0 && (
+            <>
+              <SectionTitle>Obra</SectionTitle>
+              {worksItems.map(item => <NavButton key={item.id} item={item} locked={stage === 'budget'} />)}
+              {stage === 'budget' && (
+                <div className="px-3 pl-10 pb-1 text-[11px] leading-snug text-slate-500">Se habilita al aprobar el presupuesto</div>
+              )}
+            </>
+          )}
+
+          {shownTools.length > 0 && (
+            <>
+              <SectionTitle>Herramientas</SectionTitle>
+              {shownTools.map(item => <NavButton key={item.id} item={item} />)}
+            </>
+          )}
+
+          {hiddenTools.length > 0 && (
+            <div className="pt-3">
+              <button
+                onClick={() => setToolsOpen(o => !o)}
+                aria-expanded={toolsOpen}
+                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 text-xs font-semibold"
+              >
+                {toolsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                Más herramientas ({hiddenTools.length})
+              </button>
+              {toolsOpen && hiddenTools.map(item => (
+                <div key={item.id} className="flex items-center justify-between gap-2 pl-8 pr-1 py-1">
+                  <span className="text-xs text-slate-400">{item.label}</span>
+                  <button
+                    onClick={() => { saveTools([...activeTools, item.id]); setActiveTab(item.id); }}
+                    className="text-[11px] font-bold text-blue-300 hover:text-white bg-slate-800 border border-slate-700 rounded px-2 py-1"
+                  >
+                    Activar
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {companyItems.length > 0 && (
+            <>
+              <div className="mt-4 border-t border-slate-800" />
+              <SectionTitle>Empresa</SectionTitle>
+              {companyItems.map(item => <NavButton key={item.id} item={item} />)}
+            </>
+          )}
         </nav>
         
         <div className="p-4 border-t border-slate-800 space-y-2 bg-slate-900">
