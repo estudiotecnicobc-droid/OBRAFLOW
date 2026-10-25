@@ -171,13 +171,28 @@ export const Planning: React.FC = () => {
       return diffDaysFromStart * ganttScale + ganttScale / 2;
   }, [project.startDate, todayMidnight, ganttScale]);
 
-  // Duración hábiles (criticalPathStats.totalDays, ya existía) y corrida (de calendario).
+  // Duración corrida (de calendario). criticalPathStats.totalDays también es corrido: los
+  // días hábiles se cuentan aparte con el calendario del proyecto (workingDays + feriados).
   const naturalDays = useMemo(() => {
       if (criticalPathStats.totalDays === 0) return 0;
       const f = criticalPathStats.finishDate;
       const finishStr = `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}-${String(f.getDate()).padStart(2, '0')}`;
       return diffDays(project.startDate, finishStr);
   }, [criticalPathStats, project.startDate]);
+
+  const workingDaysCount = useMemo(() => {
+      if (criticalPathStats.totalDays === 0) return 0;
+      const holidays = new Set((project.nonWorkingDates || []).map(h => h.date));
+      const d = toLocalDate(project.startDate);
+      const end = criticalPathStats.finishDate;
+      let count = 0;
+      while (d <= end) {
+          const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          if (workingDays.includes(d.getDay()) && !holidays.has(ymd)) count++;
+          d.setDate(d.getDate() + 1);
+      }
+      return count;
+  }, [criticalPathStats, project.startDate, project.nonWorkingDates, workingDays]);
 
   const goToToday = () => {
       if (scrollContainerRef.current && todayLineX != null) {
@@ -1028,7 +1043,7 @@ export const Planning: React.FC = () => {
                   <div className="p-4">
                       <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase"><Calendar size={12} /> Duración</div>
                       <div className="text-xl font-bold text-slate-800 mt-1">{Math.ceil(naturalDays / 7)} sem</div>
-                      <div className="text-[11px] text-slate-400">{criticalPathStats.totalDays} hábiles · {naturalDays} corridos</div>
+                      <div className="text-[11px] text-slate-400">{workingDaysCount} hábiles · {naturalDays} corridos</div>
                   </div>
                   <div className="p-4 flex items-center gap-3">
                       <svg width="52" height="52" viewBox="0 0 52 52" className="flex-shrink-0">
