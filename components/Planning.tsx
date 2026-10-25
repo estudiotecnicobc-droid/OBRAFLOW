@@ -773,15 +773,17 @@ export const Planning: React.FC = () => {
               const barColor = barColorMode === 'status' ? STATUS_COLORS[status]
                   : barColorMode === 'category' ? getCategoryColor(item.category || 'Sin Categoría')
                   : (item.isCritical ? '#ef4444' : '#3b82f6');
-              const barOpacity = 0.85;
 
               // Progress Calculation
               const progress = item.progress || 0;
               const progressWidth = width * (progress / 100);
 
-              // Text Overflow Logic
+              // Etiqueta "Nd · X%" (duración + avance): el nombre ya se ve en la tabla/
+              // sidebar de al lado (Etapa B-2), así que adentro de la barra no hace falta
+              // repetirlo — queda en el tooltip para consultarlo igual.
+              const barLabel = `${item.hasYield ? `${item.duration}d` : 's/r'}${progress > 0 ? ` · ${progress}%` : ''}`;
               const charWidth = 6; // Approx
-              const textWidth = item.taskName.length * charWidth;
+              const textWidth = barLabel.length * charWidth;
               const fitsInside = width > textWidth + 10;
 
               const task = tasksMap[item.taskId];
@@ -827,7 +829,7 @@ export const Planning: React.FC = () => {
                           );
                       })}
 
-                      {/* Task Bar */}
+                      {/* Task Bar — resto (claro): todo el ancho, opacidad baja */}
                       <rect
                           x={x}
                           y={barY}
@@ -835,34 +837,44 @@ export const Planning: React.FC = () => {
                           height={BAR_HEIGHT}
                           rx="4"
                           fill={barColor}
-                          fillOpacity={barOpacity}
+                          fillOpacity={0.55}
                           stroke={item.isCritical ? '#991b1b' : 'none'}
                           strokeWidth={item.isCritical ? 2 : 0}
-                          className="transition-all hover:fill-opacity-100 shadow-sm"
+                          className="transition-all shadow-sm"
                       />
 
-                      {/* Progress Bar Overlay */}
+                      {/* Tramo real (sólido): solo el avance ejecutado, mismo color que el resto */}
                       {progress > 0 && (
                           <rect
                               x={x}
                               y={barY}
                               width={progressWidth}
                               height={BAR_HEIGHT}
-                              fill="#1e293b"
-                              fillOpacity="0.4"
+                              fill={barColor}
+                              fillOpacity={0.95}
                               rx="4"
                               clipPath={`inset(0 ${width - progressWidth}px 0 0)`}
                           />
                       )}
 
-                      {/* Label */}
+                      {/* Label: "Nd · X%" — texto oscuro si no queda totalmente sobre el
+                          tramo sólido (progreso bajo/0%), porque ahí el fondo es el segmento
+                          claro de 55% opacidad y el blanco pierde contraste */}
                       {fitsInside ? (
-                          <text x={x + 10} y={labelY} fontSize="10" fill="white" fontWeight="bold" pointerEvents="none" className="select-none">
-                              {item.taskName} {progress > 0 && `(${progress}%)`}
+                          <text
+                              x={x + 10}
+                              y={labelY}
+                              fontSize="10"
+                              fill={progressWidth >= textWidth + 10 ? 'white' : '#475569'}
+                              fontWeight="bold"
+                              pointerEvents="none"
+                              className="select-none"
+                          >
+                              {barLabel}
                           </text>
                       ) : (
                           <text x={x + width + 5} y={labelY} fontSize="10" fill="#475569" fontWeight="medium">
-                              {item.taskName} {progress > 0 && `(${progress}%)`}
+                              {barLabel}
                           </text>
                       )}
                   </g>
