@@ -12,6 +12,7 @@ import { Planning } from './components/Planning';
 import { DataAdmin } from './components/DataAdmin';
 import { ToolsManager } from './components/ToolsManager';
 import { SettingsModule } from './components/SettingsModule';
+import { ProjectSettings } from './components/ProjectSettings';
 import { MaterialReception } from './components/MaterialReception';
 import { ManagementPanel } from './components/ManagementPanel';
 import { Subcontractors } from './components/Subcontractors';
@@ -135,7 +136,7 @@ const AppContent = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker', 'client']}><Dashboard onNavigate={setActiveTab} /></ProtectedRoute>;
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker', 'client']}><Dashboard key="dashboard" onNavigate={setActiveTab} /></ProtectedRoute>;
       case 'management': 
         return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'client']}>{gate('management', 'Avance y control', <ManagementPanel />)}</ProtectedRoute>;
       case 'subcontractors': 
@@ -168,6 +169,11 @@ const AppContent = () => {
       case 'company_labor':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin key={activeTab} scope="labor" initialSubTab="labor" /></ProtectedRoute>;
       case 'settings':
+        return <ProtectedRoute allowedRoles={['admin']}><ProjectSettings key="settings" /></ProtectedRoute>;
+      case 'project_labor':
+        return <ProtectedRoute allowedRoles={['admin']}><ProjectSettings key="project_labor" initialTab="labor" /></ProtectedRoute>;
+      case 'reports_view':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker', 'client']}><Dashboard key="reports_view" onNavigate={setActiveTab} initialView="reports" /></ProtectedRoute>;
       case 'admin_indices':
       case 'admin_system':
         return <ProtectedRoute allowedRoles={['admin']}><SettingsModule activeTab={activeTab} onNavigate={setActiveTab} /></ProtectedRoute>;
