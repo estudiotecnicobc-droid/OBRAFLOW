@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from "react";
 import {
- usePendingMappings, searchMasterMaterials, approveMapping, suggestMappings,
+ usePendingMappings, useApproveMapping, searchMasterMaterials, suggestMappings,
  type MaterialCandidate
 } from "./hooks/usePriceHomologation";
 
 export function PriceHomologationPage(props: {
- organizationId: string; batchId: string; supplierName: string;
+ organizationId: string; batchId: string; supplierId: string; supplierName: string;
  columnMapping: {sku:number;description:number;price:number;unit:number;currency:number};
 }) {
- const {rows,page,setPage,loading,error,reload}=
+ const {rows,page,setPage,loading,error,reload,dismissSku,hiddenSkus}=
    usePendingMappings(props.organizationId,props.batchId);
+ const {approve:approveRpc,isLoading:approving,error:approvalError}=useApproveMapping();
+ const visibleRows=rows.filter(r=>!hiddenSkus.includes(String(r.raw_cells[props.columnMapping.sku]??"").trim()));
  const [selected,setSelected]=useState<number|null>(null);
  const [search,setSearch]=useState("");
  const [materials,setMaterials]=useState<MaterialCandidate[]>([]);
@@ -28,23 +30,23 @@ export function PriceHomologationPage(props: {
    }).catch(e=>{if(live)setNotice(String(e));});
    return ()=>{live=false;};
  },[props.organizationId,search]);
- const row=rows.find(x=>x.row_number===selected);
+ const row=visibleRows.find(x=>x.row_number===selected);
  const cells=row?.raw_cells??[];
  const col=props.columnMapping;
  const sku=String(cells[col.sku]??"");
  const unit=String(cells[col.unit]??"");
  const currency=String(cells[col.currency]??"");
  const approve=async()=>{
-   if(selected===null||!row||!materialId||busy)return;
+   if(selected===null||!row||!materialId||busy||approving)return;
    setBusy(true);
    try{
-     await approveMapping({
-       batchId:props.batchId,rowNumber:selected,masterMaterialId:materialId,
-       supplierUnit:unit,conversionFactor:Number(factor),
-       currency:currency==="USD"?"USD":"ARS"
+     const result=await approveRpc({
+       organizationId:props.organizationId,supplierId:props.supplierId,
+       rawSku:sku,masterMaterialId:materialId,conversionFactor:Number(factor)
      });
-     setNotice("Equivalencia guardada. Pendiente de reprocesamiento por el Worker.");
-     setSelected(null); await reload();
+     dismissSku(sku.trim(),col.sku);
+     setNotice("Equivalencia aprobada: filas enviadas a reprocesamiento.");
+     setSelected(null); void reload();
    }catch(e){setNotice(e instanceof Error?e.message:String(e));}
    finally{setBusy(false);}
  };
@@ -62,13 +64,13 @@ export function PriceHomologationPage(props: {
    <h2>Homologación de precios — {props.supplierName}</h2>
    <p>Las sugerencias automáticas requieren confirmación humana.</p>
    {notice&&<p role="status">{notice}</p>}
-   {error&&<p role="alert">{error}</p>}
+   {(error||approvalError)&&<p role="alert">{error||approvalError}</p>}
    <table>
     <thead><tr><th>Fila</th><th>SKU</th><th>Descripción</th>
      <th>Proveedor</th><th>Precio original</th><th>Unidad</th>
      <th>Estado</th><th>Acción</th></tr></thead>
     <tbody>
-     {rows.map(r=><tr key={r.row_number}>
+     {visibleRows.map(r=><tr key={r.row_number}>
        <td>{r.row_number}</td>
        <td>{r.raw_cells[col.sku]}</td>
        <td>{r.raw_cells[col.description]}</td>
@@ -109,7 +111,7 @@ export function PriceHomologationPage(props: {
         if(s.conversionFactor!==null)setFactor(String(s.conversionFactor));
       }}>Usar en formulario (sin guardar)</button>
     </div>)}
-    <button disabled={busy||!materialId||Number(factor)<=0}
+    <button disabled={busy||approving||!materialId||!Number.isFinite(Number(factor))||Number(factor)<=0}
       onClick={()=>void approve()}>Aprobar equivalencia</button>
    </aside>}
   </section>
