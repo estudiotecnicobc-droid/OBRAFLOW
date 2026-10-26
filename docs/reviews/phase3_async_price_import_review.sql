@@ -2,29 +2,17 @@
 -- Se requiere extender este diseño con pruebas staging antes de desplegar.
 BEGIN;
 
-CREATE SCHEMA IF NOT EXISTS pgmq;
-CREATE EXTENSION IF NOT EXISTS pgmq WITH SCHEMA pgmq;
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pgmq.meta WHERE queue_name='price_imports') THEN
-    PERFORM pgmq.create('price_imports');
-  END IF;
-END $$;
-
--- Bucket privado y límites defensivos; archivo no editable por clientes.
-INSERT INTO storage.buckets (id, name, public, file_size_limit)
-VALUES ('price-imports', 'price-imports', false, 104857600)
-ON CONFLICT (id) DO NOTHING;
+-- PREREQUISITE: phase3_storage_csv_infrastructure_review.sql creates extensions, queue, bucket and policies.
 
 CREATE TABLE IF NOT EXISTS public.price_import_batches (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id),
   created_by uuid NOT NULL REFERENCES auth.users(id),
-  storage_bucket text NOT NULL DEFAULT 'price-imports'
-    CHECK (storage_bucket='price-imports'),
+  storage_bucket text NOT NULL DEFAULT 'price_imports'
+    CHECK (storage_bucket='price_imports'),
   storage_path text NOT NULL,
   storage_object_id uuid NOT NULL,
-  source_format text NOT NULL CHECK (source_format IN ('csv','xlsx')),
+  source_format text NOT NULL CHECK (source_format IN ('csv')),
   size_bytes bigint NOT NULL CHECK (size_bytes BETWEEN 1 AND 104857600),
   status text NOT NULL DEFAULT 'queued'
     CHECK (status IN ('queued','processing','raw_ready','failed','cancelled')),
@@ -90,30 +78,7 @@ CREATE POLICY price_import_rows_select ON public.price_import_rows
 -- No dar acceso directo INSERT/UPDATE/DELETE a usuarios; solo RPC de inicio
 -- y operaciones de servicio, con autorizacion comprobada.
 
--- Solo permitir uploads por miembros que puedan editar el catalogo.
-DROP POLICY IF EXISTS price_import_storage_insert ON storage.objects;
-CREATE POLICY price_import_storage_insert ON storage.objects
- FOR INSERT TO authenticated WITH CHECK (
-   bucket_id='price-imports'
-   AND name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/[a-zA-Z0-9._-]+[.](csv|xlsx)$'
-   AND EXISTS (
-     SELECT 1 FROM public.organization_members om
-     WHERE om.organization_id::text = split_part(name,'/',1)
-       AND om.user_id=(SELECT auth.uid())
-       AND om.role IN ('owner','admin','editor')
-   )
-);
-
-DROP POLICY IF EXISTS price_import_storage_select ON storage.objects;
-CREATE POLICY price_import_storage_select ON storage.objects
- FOR SELECT TO authenticated USING (
-   bucket_id='price-imports'
-   AND EXISTS (
-     SELECT 1 FROM public.organization_members om
-     WHERE om.organization_id::text = split_part(name,'/',1)
-       AND om.user_id=(SELECT auth.uid())
-   )
-);
+-- Storage RLS is exclusively defined in the prerequisite infrastructure migration.
 
 -- Inicia de forma ATOMICA el batch + mensaje en pgmq.
 -- El archivo ya fue subido: no confiar en MIME del cliente.
@@ -142,13 +107,13 @@ BEGIN
 
   IF p_storage_path IS NULL OR
      p_storage_path !~ ('^' || p_organization_id::text ||
-       '/[0-9a-f-]{36}/[a-zA-Z0-9._-]+[.](csv|xlsx)$') THEN
+       '/[0-9a-f-]{36}/[a-zA-Z0-9._-]+[.]csv$') THEN
     RAISE EXCEPTION 'Invalid file path' USING ERRCODE='22023';
   END IF;
 
   SELECT o.id,o.metadata,o.name INTO v_obj
   FROM storage.objects o
-  WHERE o.bucket_id='price-imports' AND o.name=p_storage_path;
+  WHERE o.bucket_id='price_imports' AND o.name=p_storage_path;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'File not found' USING ERRCODE='22023';
@@ -156,15 +121,14 @@ BEGIN
   IF COALESCE(v_obj.metadata->>'size','') !~ '^[0-9]+$' THEN
     RAISE EXCEPTION 'Storage file size missing' USING ERRCODE='22023';
   END IF;
+  IF coalesce(v_obj.metadata->>'mimetype', '') <> 'text/csv' THEN
+    RAISE EXCEPTION 'Only text/csv is accepted' USING ERRCODE='22023';
+  END IF;
   v_size := (v_obj.metadata->>'size')::bigint;
   v_format := CASE
-    WHEN lower(p_storage_path) LIKE '%.csv' THEN 'csv'
-    ELSE 'xlsx' END;
+    WHEN lower(p_storage_path) LIKE '%.csv' THEN 'csv' ELSE NULL END;
 
-  -- XLSX esta acotado a 2 MB para no descomprimir en RAM un archivo
-  -- potencialmente explosivo. Excel masivo: normalizar a CSV antes.
-  IF v_size < 1 OR v_size > CASE
-       WHEN v_format='xlsx' THEN 2097152 ELSE 104857600 END THEN
+  IF v_format IS NULL OR v_size < 1 OR v_size > 104857600 THEN
     RAISE EXCEPTION 'File size exceeds format limit'
       USING ERRCODE='22023';
   END IF;
@@ -173,7 +137,7 @@ BEGIN
     organization_id,created_by,storage_bucket,storage_path,
     storage_object_id,source_format,size_bytes
   ) VALUES (
-    p_organization_id,v_uid,'price-imports',p_storage_path,
+    p_organization_id,v_uid,'price_imports',p_storage_path,
     v_obj.id,v_format,v_size
   ) ON CONFLICT (storage_bucket,storage_path) DO NOTHING
   RETURNING id INTO v_batch_id;
@@ -181,7 +145,7 @@ BEGIN
   IF v_batch_id IS NULL THEN
     SELECT b.id INTO v_batch_id
     FROM public.price_import_batches b
-    WHERE b.storage_bucket='price-imports'
+    WHERE b.storage_bucket='price_imports'
       AND b.storage_path=p_storage_path
       AND b.organization_id=p_organization_id
       AND b.storage_object_id=v_obj.id;
@@ -285,9 +249,6 @@ BEGIN
           OR p_next_byte_offset > v_batch.size_bytes
           OR (p_done AND p_next_byte_offset<>v_batch.size_bytes)) THEN
     RAISE EXCEPTION 'Invalid CSV checkpoint' USING ERRCODE='22023';
-  END IF;
-  IF v_batch.source_format='xlsx' AND p_next_byte_offset<>0 THEN
-    RAISE EXCEPTION 'Invalid XLSX checkpoint' USING ERRCODE='22023';
   END IF;
   IF v_batch.header_cells IS NULL AND
       (p_header_cells IS NULL OR jsonb_typeof(p_header_cells)<>'array') THEN
