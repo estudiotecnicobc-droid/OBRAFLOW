@@ -1,0 +1,280 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { X, ArrowLeft, ArrowRight, Check, Zap, Loader2, Info } from 'lucide-react';
+import { MasterTask } from '../types';
+import { masterTasksService } from '../services/masterTasksSupabaseService';
+import { QUICK_TEMPLATES } from '../src/features/quickBudget/templates';
+import { buildRows, defaultValues, evaluate } from '../src/features/quickBudget/engine';
+import type { QuickRow, QuickTemplate, V } from '../src/features/quickBudget/types';
+
+export type QuickSource = { kind: 'org'; task: MasterTask } | { kind: 'global'; task: MasterTask } | { kind: 'none' };
+
+export interface QuickSelection extends QuickRow {
+  source: QuickSource;
+}
+
+interface Props {
+  orgTasks: MasterTask[];
+  onClose: () => void;
+  /** Devuelve un resumen para mostrar al terminar. */
+  onApply: (rows: QuickSelection[], template: QuickTemplate) => Promise<string>;
+}
+
+const norm = (s?: string) => (s ?? '').trim().toLowerCase();
+
+const fmt = (x: number) => x.toLocaleString('es-AR', { maximumFractionDigits: 2 });
+
+const SOURCE_BADGE: Record<QuickSource['kind'], { label: string; cls: string; title: string }> = {
+  org: { label: 'En tu catálogo', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', title: 'Se usa el análisis de precio de tu catálogo.' },
+  global: { label: 'Catálogo ObraFlow', cls: 'bg-blue-50 text-blue-700 border-blue-200', title: 'Se copia a tu catálogo con su análisis de precio.' },
+  none: { label: 'Precio a completar', cls: 'bg-amber-50 text-amber-700 border-amber-200', title: 'Todavía no tiene análisis de precio: se agrega la tarea y la cantidad, y el precio lo completás vos.' },
+};
+
+export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply }) => {
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [tpl, setTpl] = useState<QuickTemplate | null>(null);
+  const [inputs, setInputs] = useState<V>({});
+  const [overrides, setOverrides] = useState<Record<number, { included?: boolean; quantity?: number }>>({});
+  const [globalTasks, setGlobalTasks] = useState<MasterTask[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    masterTasksService.listGlobal().then(setGlobalTasks).catch(() => setGlobalTasks([]));
+  }, []);
+
+  const resolve = useMemo(() => {
+    const orgByCode = new Map<string, MasterTask>(orgTasks.filter(t => t.code).map(t => [norm(t.code), t]));
+    const orgByName = new Map<string, MasterTask>(orgTasks.map(t => [norm(t.name), t]));
+    const globByCode = new Map<string, MasterTask>(globalTasks.filter(t => t.code).map(t => [norm(t.code), t]));
+    const globByName = new Map<string, MasterTask>(globalTasks.map(t => [norm(t.name), t]));
+    return (name: string, code?: string): QuickSource => {
+      const o = (code ? orgByCode.get(norm(code)) : undefined) ?? orgByName.get(norm(name));
+      if (o) return { kind: 'org', task: o };
+      const g = (code ? globByCode.get(norm(code)) : undefined) ?? globByName.get(norm(name));
+      if (g) return { kind: 'global', task: g };
+      return { kind: 'none' };
+    };
+  }, [orgTasks, globalTasks]);
+
+  const pick = (t: QuickTemplate) => {
+    setTpl(t);
+    setInputs(defaultValues(t));
+    setOverrides({});
+    setStep(2);
+  };
+
+  const evaluated = useMemo(() => (tpl ? evaluate(tpl, inputs) : null), [tpl, inputs]);
+  const baseRows = useMemo(() => (tpl ? buildRows(tpl, inputs) : []), [tpl, inputs]);
+  const rows: QuickSelection[] = useMemo(
+    () => baseRows.map((r, i) => ({
+      ...r,
+      included: overrides[i]?.included ?? r.included,
+      quantity: overrides[i]?.quantity ?? r.quantity,
+      source: resolve(r.task.name, r.task.code),
+    })),
+    [baseRows, overrides, resolve],
+  );
+  const selected = rows.filter(r => r.included && r.quantity > 0);
+  const counts = selected.reduce((a, r) => ({ ...a, [r.source.kind]: (a[r.source.kind] ?? 0) + 1 }), {} as Record<string, number>);
+
+  const groups = useMemo(() => {
+    const out: { rubro: string; items: { row: QuickSelection; idx: number }[] }[] = [];
+    rows.forEach((row, idx) => {
+      const g = out[out.length - 1];
+      if (g && g.rubro === row.rubro) g.items.push({ row, idx });
+      else out.push({ rubro: row.rubro, items: [{ row, idx }] });
+    });
+    return out;
+  }, [rows]);
+
+  const setOv = (i: number, patch: { included?: boolean; quantity?: number }) =>
+    setOverrides(o => ({ ...o, [i]: { ...o[i], ...patch } }));
+
+  const apply = async () => {
+    if (!tpl) return;
+    setBusy(true); setError('');
+    try {
+      setResult(await onApply(selected, tpl));
+      setStep(4);
+    } catch (e: any) {
+      setError(e?.message ?? 'No se pudo cargar el presupuesto.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const titles = ['Elegí qué vas a presupuestar', 'Medidas y opciones', 'Revisá las tareas', 'Listo'];
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="qb-title">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-orange-100 flex items-center justify-center"><Zap size={18} className="text-orange-600" /></div>
+          <div className="flex-1 min-w-0">
+            <h2 id="qb-title" className="font-bold text-slate-800">Presupuesto rápido{tpl && step > 1 ? ` · ${tpl.name}` : ''}</h2>
+            <p className="text-xs text-slate-500">Paso {step} de 4 · {titles[step - 1]}</p>
+          </div>
+          <button onClick={onClose} aria-label="Cerrar" className="p-2 rounded-full hover:bg-slate-100 text-slate-500"><X size={18} /></button>
+        </div>
+
+        <div className="flex-1 overflow-auto p-6">
+          {step === 1 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {QUICK_TEMPLATES.map(t => {
+                const n = t.rubros.reduce((a, r) => a + r.tasks.length, 0);
+                return (
+                  <button key={t.id} onClick={() => pick(t)}
+                    className="text-left p-4 border border-slate-200 rounded-xl hover:border-orange-400 hover:shadow-sm transition-all">
+                    <div className="font-bold text-sm text-slate-800">{t.name}</div>
+                    <div className="text-xs text-slate-500 mt-1 leading-relaxed">{t.description}</div>
+                    <div className="text-[11px] text-slate-400 mt-2">{n} tareas posibles</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {step === 2 && tpl && evaluated && (
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              <div className="lg:col-span-3 space-y-3">
+                {tpl.inputs.map(inp => (
+                  <div key={inp.key} className="space-y-1">
+                    <label htmlFor={`qb-${inp.key}`} className="text-sm font-semibold text-slate-700 block">{inp.label}</label>
+                    {inp.kind === 'option' && inp.options ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label={inp.label}>
+                        {inp.options.map(o => (
+                          <button key={o.value} role="radio" aria-checked={inputs[inp.key] === o.value}
+                            onClick={() => setInputs(v => ({ ...v, [inp.key]: o.value }))}
+                            className={`text-left text-xs px-3 py-2 rounded-lg border ${inputs[inp.key] === o.value ? 'border-orange-500 bg-orange-50 text-orange-800 font-semibold' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}>
+                            {o.label}
+                          </button>
+                        ))}
+                      </div>
+                    ) : inp.kind === 'bool' ? (
+                      <div className="flex gap-2" role="radiogroup" aria-label={inp.label}>
+                        {[[1, 'Sí'], [0, 'No']].map(([val, lab]) => (
+                          <button key={val} role="radio" aria-checked={inputs[inp.key] === val}
+                            onClick={() => setInputs(v => ({ ...v, [inp.key]: val as number }))}
+                            className={`text-xs px-4 py-1.5 rounded-lg border ${inputs[inp.key] === val ? 'border-orange-500 bg-orange-50 text-orange-800 font-semibold' : 'border-slate-200 text-slate-600'}`}>
+                            {lab}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <input id={`qb-${inp.key}`} type="number" step="any" min={0} value={inputs[inp.key] ?? 0}
+                          onChange={e => setInputs(v => ({ ...v, [inp.key]: Number(e.target.value) }))}
+                          className="w-28 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                        <span className="text-xs text-slate-500">{inp.unit}</span>
+                      </div>
+                    )}
+                    {inp.note && inp.kind !== 'option' && <p className="text-[11px] text-slate-400">{inp.note}</p>}
+                  </div>
+                ))}
+              </div>
+              <div className="lg:col-span-2">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 lg:sticky lg:top-0">
+                  <div className="text-xs font-bold text-slate-500 uppercase">Se calcula solo</div>
+                  {tpl.calcs.map(c => (
+                    <div key={c.key} className="flex justify-between gap-3 text-sm">
+                      <span className="text-slate-600">{c.label}</span>
+                      <span className="font-semibold text-slate-800 whitespace-nowrap">
+                        {evaluated.labels[c.key] ?? `${fmt(evaluated.values[c.key] ?? 0)} ${c.unit}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-5">
+              <div className="flex flex-wrap gap-2 text-xs">
+                {(['org', 'global', 'none'] as const).map(k => (
+                  <span key={k} title={SOURCE_BADGE[k].title} className={`px-2 py-1 border rounded ${SOURCE_BADGE[k].cls}`}>
+                    {SOURCE_BADGE[k].label}: {counts[k] ?? 0}
+                  </span>
+                ))}
+              </div>
+              {groups.map(g => {
+                const anyIncluded = g.items.some(({ row }) => row.included);
+                return (
+                  <details key={g.rubro} open={anyIncluded} className="border border-slate-200 rounded-xl overflow-hidden">
+                    <summary className="px-4 py-2 bg-slate-50 text-xs font-bold text-slate-700 cursor-pointer">
+                      {g.rubro} <span className="font-normal text-slate-400">· {g.items.filter(i => i.row.included).length} de {g.items.length}{!anyIncluded ? ' · no corresponde con lo elegido' : ''}</span>
+                    </summary>
+                    <ul className="divide-y divide-slate-100">
+                      {g.items.map(({ row, idx }) => (
+                        <li key={idx} className={`px-4 py-3 flex gap-3 items-start ${row.included ? '' : 'opacity-50'}`}>
+                          <input type="checkbox" checked={row.included} aria-label={`Incluir ${row.task.name}`}
+                            onChange={e => setOv(idx, { included: e.target.checked })} className="mt-1 accent-orange-600" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-semibold text-slate-800">{row.task.name}</span>
+                              <span title={SOURCE_BADGE[row.source.kind].title} className={`text-[10px] px-1.5 py-0.5 border rounded ${SOURCE_BADGE[row.source.kind].cls}`}>
+                                {SOURCE_BADGE[row.source.kind].label}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-600 mt-0.5">{row.task.includes}</p>
+                            {row.task.note && <p className="text-[11px] text-slate-400 mt-0.5">{row.task.note}</p>}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <input type="number" step="any" min={0} value={row.quantity} aria-label={`Cantidad de ${row.task.name}`}
+                              onChange={e => setOv(idx, { quantity: Number(e.target.value) })}
+                              className="w-20 px-2 py-1 text-sm text-right border border-slate-200 rounded-lg" />
+                            <span className="text-xs text-slate-500 w-7">{row.task.unit}</span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                );
+              })}
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="max-w-md mx-auto text-center py-10 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mx-auto"><Check className="text-emerald-600" /></div>
+              <p className="font-bold text-slate-800">Tareas agregadas al presupuesto</p>
+              <p className="text-sm text-slate-600 whitespace-pre-line">{result}</p>
+            </div>
+          )}
+        </div>
+
+        {error && <div className="mx-6 mb-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>}
+
+        <div className="px-6 py-4 border-t border-slate-200 flex items-center gap-3">
+          {step === 3 && (
+            <p className="text-xs text-slate-500 flex items-center gap-1 flex-1">
+              <Info size={14} /> {selected.length} tareas seleccionadas. Podés cambiar cantidades y precios después en el presupuesto.
+            </p>
+          )}
+          {step !== 3 && <div className="flex-1" />}
+          {step > 1 && step < 4 && (
+            <button onClick={() => setStep(s => (s - 1) as 1 | 2 | 3)} disabled={busy}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-1">
+              <ArrowLeft size={14} /> Volver
+            </button>
+          )}
+          {step === 2 && (
+            <button onClick={() => setStep(3)} className="px-4 py-2 text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg flex items-center gap-1">
+              Ver tareas <ArrowRight size={14} />
+            </button>
+          )}
+          {step === 3 && (
+            <button onClick={apply} disabled={busy || selected.length === 0}
+              className="px-4 py-2 text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg flex items-center gap-1 disabled:opacity-40">
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Agregar {selected.length} tareas al presupuesto
+            </button>
+          )}
+          {step === 4 && (
+            <button onClick={onClose} className="px-4 py-2 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 rounded-lg">Ver presupuesto</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

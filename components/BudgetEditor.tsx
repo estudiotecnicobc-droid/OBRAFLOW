@@ -8,9 +8,9 @@ import {
   Trash2, Plus, Search, Settings, CheckSquare, Square,
   ArrowRight, Printer, Calculator, ChevronDown, ChevronRight, ChevronUp,
   Info, RefreshCcw, DollarSign, Clock, X, Package, Hammer, Edit3, AlertCircle, PenTool, Sparkles,
-  BookOpen, LayoutGrid,
+  BookOpen, LayoutGrid, Zap,
 } from 'lucide-react';
-import { BusinessConfig, Task, MasterTask, ProjectTemplate, MasterTaskMaterial, MasterTaskLabor, MasterTaskEquipment } from '../types';
+import { BusinessConfig, Task, MasterTask, LaborCategory, ProjectTemplate, MasterTaskMaterial, MasterTaskLabor, MasterTaskEquipment } from '../types';
 import { useBudgetTemplates } from '../hooks/useBudgetTemplates';
 import { BudgetCostComparisonPanel } from '../src/features/budgets/components/BudgetCostComparisonPanel';
 import { BudgetIndexUpdatePanel } from '../src/features/budgets/components/BudgetIndexUpdatePanel';
@@ -21,6 +21,11 @@ import { useMasterTasks } from '../hooks/useMasterTasks';
 import { useMasterMaterials } from '../hooks/useMasterMaterials';
 import { buildRubroImportPayloads } from '../services/importMasterRubro';
 import { buildImportPayload } from '../services/importMasterTask';
+import { QuickBudgetWizard, QuickSelection } from './QuickBudgetWizard';
+import { rubroCategory } from '../src/features/quickBudget/engine';
+import type { QuickTemplate } from '../src/features/quickBudget/types';
+import { masterTasksService } from '../services/masterTasksSupabaseService';
+import { supabase } from '../services/supabaseClient';
 import { BudgetBusinessPanel } from './BudgetBusinessPanel';
 import { useBudgetKStore, selectBusinessConfig, computeBudgetKSummary } from '../store/useBudgetKStore';
 import { computeBudgetItemSaleBreakdown, BudgetItemSaleBreakdown, ItemDirectCostInput } from '../services/budgetItemBreakdown';
@@ -153,7 +158,8 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   };
 
   // --- MASTER TASKS & TEMPLATES ---
-  const { add: addToMaster, tasks: masterTasks } = useMasterTasks(project.organizationId);
+  const { add: addToMaster, tasks: masterTasks, refetch: refetchMasterTasks } = useMasterTasks(project.organizationId);
+  const [quickOpen, setQuickOpen] = useState(false);
   const { templates: budgetTemplates } = useBudgetTemplates(project.organizationId);
   const { items: masterMaterials } = useMasterMaterials(project.organizationId);
   const masterMaterialsMap = useMemo(
@@ -193,6 +199,73 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
       setWizardDismissed(true);
     }
   };
+  // ── Presupuesto rápido: plantillas del sistema ──────────────────────────────
+  const handleQuickApply = async (rows: QuickSelection[], template: QuickTemplate): Promise<string> => {
+    if (project.id === '__phantom__') throw new Error('Abrí una obra para cargar el presupuesto.');
+    const orgId = project.organizationId;
+
+    // 1. Copiar a la empresa los APU que solo están en el catálogo general.
+    const globals = rows.filter(r => r.source.kind === 'global');
+    const cloneFailed: string[] = [];
+    for (const g of Array.from(new Map(globals.map(r => [r.source.kind === 'global' ? r.source.task.id : '', r])).values())) {
+      if (g.source.kind !== 'global') continue;
+      const { error } = await supabase.rpc('clone_master_task_to_org', {
+        p_master_task_id: g.source.task.id,
+        p_organization_id: orgId,
+      });
+      if (error) cloneFailed.push(g.task.name);
+    }
+    const orgTasks = globals.length > 0 ? await masterTasksService.list(orgId) : masterTasks;
+    if (globals.length > 0) refetchMasterTasks();
+
+    // 2. La mano de obra de los APU copiados se vincula por nombre de categoría.
+    const laborByRole = new Map((Object.values(laborCategoriesMap) as LaborCategory[]).map(c => [c.role.trim().toLowerCase(), c.id]));
+    const withLocalLabor = (mt: MasterTask): MasterTask => ({
+      ...mt,
+      labor: mt.labor.map(l => laborCategoriesMap[l.laborCategoryId]
+        ? l
+        : { ...l, laborCategoryId: laborByRole.get(l.laborCategoryName.trim().toLowerCase()) ?? l.laborCategoryId }),
+    });
+
+    let runningMaterials = [...projectMaterials];
+    let withApu = 0, withoutApu = 0;
+    const skippedLabor = new Set<string>();
+    for (const row of rows) {
+      let mt: MasterTask | undefined;
+      if (row.source.kind === 'org') mt = row.source.task;
+      else if (row.source.kind === 'global') {
+        const src = row.source.task;
+        mt = orgTasks.find(t => t.code === src.code && t.name === src.name);
+      }
+      const category = rubroCategory(row.rubro);
+      const base: MasterTask = mt ? withLocalLabor(mt) : {
+        id: '', organizationId: orgId, name: row.task.name, unit: row.task.unit, category,
+        description: row.task.includes, dailyYield: 1, materials: [], labor: [], equipment: [],
+        tags: [], isActive: true, createdAt: '', updatedAt: '',
+      } as MasterTask;
+      const p = buildImportPayload(
+        base, orgId, project.id, row.quantity,
+        laborCategoriesMap, toolsMap, runningMaterials, masterMaterialsMap,
+      );
+      p.budgetItem.quantity = row.quantity;
+      if (!mt) p.task.masterTaskId = undefined;
+      if (!p.task.category) p.task.category = category;
+      if (!p.task.description) p.task.description = row.task.includes;
+      p.skippedLabor.forEach(n => skippedLabor.add(n));
+      runningMaterials = [...runningMaterials, ...p.materialsToCreate];
+      await writePayload(p);
+      if (mt) withApu++; else withoutApu++;
+    }
+    setWizardDismissed(true);
+
+    const lines = [`${template.name}: ${rows.length} tareas agregadas.`];
+    lines.push(`${withApu} con análisis de precio.`);
+    if (withoutApu > 0) lines.push(`${withoutApu} sin análisis de precio todavía: tienen la cantidad cargada y el precio lo completás en cada tarea.`);
+    if (cloneFailed.length > 0) lines.push(`No se pudieron copiar del catálogo general: ${cloneFailed.join(', ')}.`);
+    if (skippedLabor.size > 0) lines.push(`Mano de obra que no está en tu lista de oficios: ${Array.from(skippedLabor).join(', ')}. Agregala en Personal y cuadrillas.`);
+    return lines.join('\n');
+  };
+
   const [savedToMasterIds, setSavedToMasterIds] = useState<Set<string>>(new Set());
 
   const handleSaveToMaster = (task: Task) => {
@@ -757,9 +830,14 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     );
   }
 
+  const quickModal = quickOpen ? (
+    <QuickBudgetWizard orgTasks={masterTasks} onClose={() => setQuickOpen(false)} onApply={handleQuickApply} />
+  ) : null;
+
   if (project.items.length === 0 && !wizardDismissed) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 bg-slate-50/50">
+        {quickModal}
         <div className="max-w-md w-full">
 
           <div className="text-center mb-8">
@@ -868,6 +946,20 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                 </div>
               </button>
 
+              {/* Presupuesto rápido — plantillas del sistema */}
+              <button
+                onClick={() => setQuickOpen(true)}
+                className="w-full flex items-start gap-4 p-4 bg-orange-50 border border-orange-200 rounded-xl hover:border-orange-400 hover:shadow-sm transition-all text-left group"
+              >
+                <div className="w-9 h-9 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                  <Zap size={18} className="text-orange-600" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm text-slate-800">Presupuesto rápido</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Cocina, muro, pintura, pisos, terraza, ampliación y más: cargás las medidas y se arma el listado de tareas.</p>
+                </div>
+              </button>
+
               {/* Opción 1 — vacío */}
               <button
                 onClick={() => setWizardDismissed(true)}
@@ -945,6 +1037,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   // Render logic
   return (
     <div className="flex h-full gap-6 font-sans relative">
+      {quickModal}
       
       {/* LEFT SIDEBAR: STAGES SELECTION */}
       <div className="w-72 flex-shrink-0 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-sm h-full print:hidden">
@@ -1016,6 +1109,12 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                               Precio Venta
                           </button>
                       </div>
+                      <button
+                          onClick={() => setQuickOpen(true)}
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors"
+                      >
+                          <Zap size={16} /> Presupuesto rápido
+                      </button>
                       <button
                           onClick={() => setShowComparison(v => !v)}
                           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-colors ${showComparison ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
