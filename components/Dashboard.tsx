@@ -11,6 +11,7 @@ import {
   BarChart2, TrendingUp, FileCheck, FolderPlus, PieChart as PieChartIcon,
   CheckCircle2, Circle, ArrowRight, BookOpen, Ruler, BarChart as BarChartIcon,
 } from 'lucide-react';
+import { NextStepsCard } from './ProjectStage';
 import { ProjectWizard } from './ProjectWizard';
 
 const COLORS = ['#0ea5e9', '#22c55e', '#9333ea', '#eab308', '#f97316', '#ef4444'];
@@ -1116,6 +1117,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           onNavigate={onNavigate}
         />
       )}
+
+      {project.items.length > 0 && <NextStepsCard onNavigate={onNavigate} />}
 
       {activeView === 'stats' ? (
         <>

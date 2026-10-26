@@ -13,6 +13,7 @@ import {
 import { BusinessConfig, Task, MasterTask, ProjectTemplate, MasterTaskMaterial, MasterTaskLabor, MasterTaskEquipment } from '../types';
 import { useBudgetTemplates } from '../hooks/useBudgetTemplates';
 import { BudgetCostComparisonPanel } from '../src/features/budgets/components/BudgetCostComparisonPanel';
+import { BudgetIndexUpdatePanel } from '../src/features/budgets/components/BudgetIndexUpdatePanel';
 import { BudgetStalenessAlert } from './BudgetStalenessAlert';
 import { PROJECT_TEMPLATES } from '../constants';
 import { APUBuilder } from './APUBuilder';
@@ -265,6 +266,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   // --- PRINT PREVIEW STATE ---
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
+  const [comparisonMode, setComparisonMode] = useState<'index' | 'dates'>('index');
   const [tableViewMode, setTableViewMode] = useState<'tecnico' | 'comercial'>('tecnico');
   const [printOptions, setPrintOptions] = useState({
       showUnitPrice: true,
@@ -1030,10 +1032,27 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
           {/* COMPARISON PANEL */}
           {showComparison && (
               <div className="flex-1 overflow-auto bg-slate-50/50 p-6">
-                  <BudgetCostComparisonPanel
-                      projectId={project.id}
-                      organizationId={project.organizationId}
-                  />
+                  <div role="tablist" aria-label="Tipo de comparación" className="flex flex-wrap gap-1 border-b border-slate-200 mb-6">
+                      {([['index', 'Actualizar por índice (CAC, ICC, inflación, dólar)'], ['dates', 'Comparar precios de la base entre dos fechas']] as const).map(([id, label]) => (
+                          <button
+                              key={id}
+                              role="tab"
+                              aria-selected={comparisonMode === id}
+                              onClick={() => setComparisonMode(id)}
+                              className={`px-4 py-3 text-sm font-semibold border-b-[3px] -mb-px ${comparisonMode === id ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                          >
+                              {label}
+                          </button>
+                      ))}
+                  </div>
+                  {comparisonMode === 'index' ? (
+                      <BudgetIndexUpdatePanel />
+                  ) : (
+                      <BudgetCostComparisonPanel
+                          projectId={project.id}
+                          organizationId={project.organizationId}
+                      />
+                  )}
               </div>
           )}
 

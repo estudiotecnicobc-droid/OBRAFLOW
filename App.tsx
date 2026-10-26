@@ -6,17 +6,16 @@ import { Layout } from './components/Layout';
 import { Login } from './components/Login';
 import { LandingPage } from './components/LandingPage';
 import { Dashboard } from './components/Dashboard';
-import { BudgetEditor } from './components/BudgetEditor';
-import { BudgetGrid } from './components/BudgetGrid';
+import { BudgetModule } from './components/BudgetModule';
+import { getProjectStage, StageLockedNotice } from './components/ProjectStage';
 import { Planning } from './components/Planning';
 import { DataAdmin } from './components/DataAdmin';
 import { ToolsManager } from './components/ToolsManager';
-import { ProjectSettings } from './components/ProjectSettings';
+import { SettingsModule } from './components/SettingsModule';
 import { MaterialReception } from './components/MaterialReception';
 import { ManagementPanel } from './components/ManagementPanel';
 import { Subcontractors } from './components/Subcontractors';
 import { DocumentManager } from './components/DocumentManager';
-import { MeasurementSheetComponent } from './components/MeasurementSheet';
 import { QualityControl } from './components/QualityControl';
 import { ProjectHub } from './components/ProjectHub';
 import { APUBuilder } from './components/APUBuilder';
@@ -48,8 +47,9 @@ const ProtectedRoute: React.FC<{
 
 const AppContent = () => {
   const { user, loading, isMasterAdmin, isPasswordRecovery, clearPasswordRecovery } = useAuth();
-  const { activeProjectId } = useERP();
+  const { activeProjectId, project } = useERP();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [openedLocked, setOpenedLocked] = useState<string[]>([]);
   const [showLogin, setShowLogin] = useState(false);
 
   // Leer token de invitación de la URL al montar y limpiarla inmediatamente
@@ -126,44 +126,53 @@ const AppContent = () => {
   }
 
   // STATE 3: Active Project (Main Layout)
+  const stage = getProjectStage(project.status);
+  const gate = (tab: string, label: string, content: React.ReactNode) =>
+    stage === 'budget' && !openedLocked.includes(`${project.id}:${tab}`)
+      ? <StageLockedNotice moduleLabel={label} onNavigate={setActiveTab} onOpenAnyway={() => setOpenedLocked(prev => [...prev, `${project.id}:${tab}`])} />
+      : content;
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker', 'client']}><Dashboard onNavigate={setActiveTab} /></ProtectedRoute>;
       case 'management': 
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'client']}><ManagementPanel /></ProtectedRoute>;
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'client']}>{gate('management', 'Avance y control', <ManagementPanel />)}</ProtectedRoute>;
       case 'subcontractors': 
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><Subcontractors /></ProtectedRoute>;
       case 'budget':
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><BudgetEditor onNavigate={setActiveTab} /></ProtectedRoute>;
+      case 'grid':
+      case 'measurements':
+      case 'computo':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><BudgetModule activeTab={activeTab} onNavigate={setActiveTab} /></ProtectedRoute>;
       case 'apu':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><APUBuilder /></ProtectedRoute>;
-      case 'grid': 
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><BudgetGrid /></ProtectedRoute>;
       case 'planning': 
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker']}><Planning /></ProtectedRoute>;
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker']}>{gate('planning', 'Planificación', <Planning />)}</ProtectedRoute>;
       case 'reception': 
         return <ProtectedRoute allowedRoles={['admin', 'worker']}><MaterialReception /></ProtectedRoute>;
       case 'tools': 
         return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><ToolsManager /></ProtectedRoute>;
       case 'admin':
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin /></ProtectedRoute>;
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin key={activeTab} /></ProtectedRoute>;
       case 'chandias':
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="chandias" /></ProtectedRoute>;
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin key={activeTab} initialSubTab="chandias" /></ProtectedRoute>;
       case 'reports':
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="reports" /></ProtectedRoute>;
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin key={activeTab} initialSubTab="reports" /></ProtectedRoute>;
       case 'admin_resources':
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="resources" /></ProtectedRoute>;
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin key={activeTab} initialSubTab="resources" /></ProtectedRoute>;
       case 'admin_catalog':
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="master" /></ProtectedRoute>;
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin key={activeTab} initialSubTab="master" /></ProtectedRoute>;
       case 'admin_apu':
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin initialSubTab="master-tasks" /></ProtectedRoute>;
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin key={activeTab} scope="catalog" initialSubTab="master-tasks" /></ProtectedRoute>;
+      case 'company_labor':
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><DataAdmin key={activeTab} scope="labor" initialSubTab="labor" /></ProtectedRoute>;
       case 'settings':
-        return <ProtectedRoute allowedRoles={['admin']}><ProjectSettings /></ProtectedRoute>;
+      case 'admin_indices':
+      case 'admin_system':
+        return <ProtectedRoute allowedRoles={['admin']}><SettingsModule activeTab={activeTab} onNavigate={setActiveTab} /></ProtectedRoute>;
       case 'documents':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker', 'client']}><DocumentManager /></ProtectedRoute>;
-      case 'measurements':
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager']}><MeasurementSheetComponent /></ProtectedRoute>;
       case 'quality':
         return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker']}><QualityControl /></ProtectedRoute>;
       case 'system_admin':
