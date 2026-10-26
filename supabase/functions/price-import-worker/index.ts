@@ -1,3 +1,4 @@
+import { parse } from "jsr:@std/csv@1.0.6/parse";
 import { createClient } from "npm:@supabase/supabase-js@2.99.1";
 
 // DESIGN DRAFT: worker accepts service-only invocation, preferably via
@@ -26,26 +27,23 @@ const checked = (x: { error: { message: string } | null; data?: unknown }) => {
 };
 
 function csvRecord(line: string, delimiter: string): string[] {
-  const out: string[] = [];
-  let val = "", quoted = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') {
-      if (quoted && line[i + 1] === '"') { val += '"'; i++; }
-      else quoted = !quoted;
-    } else if (c === delimiter && !quoted) {
-      out.push(val); val = "";
-    } else val += c;
-  }
-  if (quoted) throw Error("CSV_MULTILINE_NOT_SUPPORTED");
-  out.push(val);
-  return out;
+  // @std/csv implements RFC 4180 quote escaping. A chunk contains
+  // one physical line per record: multiline quoted fields are rejected.
+  if (line.includes("\n") || line.includes("\r"))
+    throw Error("CSV_MULTILINE_NOT_SUPPORTED");
+  const records = parse(line, { separator: delimiter, skipFirstRow: false });
+  if (records.length !== 1) throw Error("INVALID_CSV_RECORD");
+  return records[0];
 }
 function detectDelimiter(header: string): string {
-  const candidates = [",", ";", "\t"];
-  return candidates
-    .map(d => ({ d, count: csvRecord(header, d).length }))
-    .sort((a, b) => b.count - a.count)[0].d;
+  const possible = [",", ";", "\t"];
+  const parsed = possible.flatMap(separator => {
+    try { return [{ separator, cells: csvRecord(header,separator) }]; }
+    catch { return []; }
+  }).sort((a,b)=>b.cells.length-a.cells.length);
+  if (!parsed.length || parsed[0].cells.length < 2)
+    throw Error("CSV_HEADER_INVALID");
+  return parsed[0].separator;
 }
 // Each RPC commit accepts <= 250 rows; allow smaller chunks for tighter
 // Edge resource budgets. Never permit an environment variable to exceed SQL.
