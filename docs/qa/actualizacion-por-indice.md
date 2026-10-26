@@ -12,3 +12,10 @@ Previo: aplicar `supabase/migrations/059_price_indices_and_budget_versions.sql` 
 8. Guardar: se crean v1 (original) y v2; un segundo guardado crea v3.
 9. "Reporte": abre ventana con cálculo, resumen, rubros y detalle por ítem; imprime en A4.
 10. Obra en ejecución: se ve el cálculo, no aparece el botón Guardar.
+
+## Actualización automática (CAC e ICC)
+Previo: migración 060 aplicada y `SUPABASE_SERVICE_ROLE_KEY` y `CRON_SECRET` cargadas en Vercel (Production).
+11. Configuración → Índices → "Buscar actualización ahora": aparece "actualización manual del …" con el último CAC y el último ICC publicados.
+12. La tabla de CAC general muestra la serie desde 2002 con fuente "IERIC · ICC-CAC (automático …)".
+13. Al día siguiente, el estado dice "actualización automática" (corrió el cron).
+14. Sin sesión, `POST /api/sync-indices` responde 401.

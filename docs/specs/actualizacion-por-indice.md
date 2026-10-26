@@ -27,7 +27,13 @@ La pestaña "Comparar precios de la base entre dos fechas" es la comparación qu
 - Precio de venta = costo directo × K del Cuadro Empresario del proyecto.
 
 ## Datos
-- `price_indices` (migración 059): CAC e ICC, carga manual mensual del master admin en Configuración → Índices. Lectura para todos.
+- `price_indices` (migración 059): CAC e ICC. Se actualizan solos todos los días con `api/sync-indices.ts`
+  (cron de Vercel, 08:15 hora argentina), que lee las planillas públicas de IERIC:
+  - `ICC-CAC.xls`: CAC nivel general, materiales y mano de obra (base dic-2014 = 100). IERIC publica con unos 3 meses de atraso respecto de la Cámara.
+  - `ICC-INDEC.xls`: variaciones mensuales del ICC INDEC desde nov-2015, encadenadas con base oct-2015 = 100.
+  Cada corrida reemplaza la serie completa de cada código (misma base) y deja registro en `price_index_sync_runs` (migración 060).
+  Cualquier usuario con sesión puede forzarla con "Buscar actualización ahora". La carga manual del master admin sigue disponible.
+  Variables de entorno en Vercel: `SUPABASE_SERVICE_ROLE_KEY` y `CRON_SECRET`.
 - Inflación y dólar: función `api/indices.ts` (Vercel) que lee ArgentinaDatos, con caché de 3 h.
 - `budget_versions` (migración 059): fotos selladas. Al guardar la primera actualización se crea la v1 con el presupuesto original y la v2 actualizada.
 
