@@ -31,11 +31,16 @@ Deno.serve(async (req) => {
 
   const prefix = body.organizationId + "/";
   if (!body.storagePath.startsWith(prefix) ||
-      !/^[a-f0-9-]{36}\/[A-Za-z0-9._-]+\.(csv|xlsx)$/.test(
+      !/^[a-f0-9-]{36}\/[A-Za-z0-9._-]+\.csv$/.test(
         body.storagePath.slice(prefix.length)
       ))
     return json({ error: "invalid path" }, 400);
 
+  const { data: info, error: infoError } = await client.storage
+    .from("price_imports").info(body.storagePath);
+  if (infoError || !info || info.contentType !== "text/csv") {
+    return json({ error: "only text/csv is accepted" }, 415);
+  }\n
   // DB confirms membership, object identity, byte size, immutable path,
   // and creates the batch + durable queue message in one transaction.
   const { data: batchId, error } = await client.rpc("enqueue_price_import", {
