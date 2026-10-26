@@ -14,6 +14,7 @@ import {
   budgetVersionsService, BudgetVersion, BudgetVersionFactors, BudgetVersionItem, BudgetVersionTotals,
 } from '../../../../services/budgetVersionsService';
 import { openBudgetVersionReport } from './budgetVersionReport';
+import { IndexSyncStatus } from '../../../../components/IndexSyncStatus';
 
 type Mode = 'cac' | 'icc' | 'ipc' | 'usd' | 'mix_cac' | 'mix_icc' | 'custom';
 type Component = keyof BudgetVersionFactors;
@@ -117,6 +118,7 @@ export const BudgetIndexUpdatePanel: React.FC = () => {
   const [versions, setVersions] = useState<BudgetVersion[]>([]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const componentSeries = seriesFor(mode, usd);
   const codes = useMemo(() => componentSeries ? [...new Set(Object.values(componentSeries))] : [], [mode, usd]);
@@ -136,7 +138,7 @@ export const BudgetIndexUpdatePanel: React.FC = () => {
       .catch(err => { if (!cancelled) setLoadError(err.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [codes.join(',')]);
+  }, [codes.join(','), reloadKey]);
 
   // Períodos en los que todas las series del método tienen valor
   const commonPeriods = useMemo(() => {
@@ -338,13 +340,14 @@ export const BudgetIndexUpdatePanel: React.FC = () => {
       {mode !== 'custom' && (
         <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
           <h3 className="font-bold text-slate-800">2 · Período y coeficiente</h3>
+          {needsManual && <IndexSyncStatus onSynced={() => setReloadKey(k => k + 1)} />}
           {loading && <p className="text-sm text-slate-500 flex items-center gap-2"><RefreshCw size={14} className="animate-spin" /> Leyendo índices…</p>}
           {loadError && <p className="text-sm text-red-700 flex items-center gap-2"><AlertTriangle size={14} /> No se pudieron leer los índices: {loadError}</p>}
           {missingData && (
             <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
               <AlertTriangle size={16} className="shrink-0 mt-0.5" />
               {needsManual
-                ? 'Todavía no hay valores cargados para este índice. Se cargan en Configuración → Índices.'
+                ? 'Todavía no hay valores para este índice. Probá «Buscar actualización ahora» o cargalos en Configuración → Índices.'
                 : 'La serie no tiene valores disponibles en este momento.'}
             </p>
           )}
@@ -376,6 +379,7 @@ export const BudgetIndexUpdatePanel: React.FC = () => {
               {mode === 'ipc' || mode === 'usd' || mode.startsWith('mix') ? (
                 <p className="text-xs text-slate-500 pt-1">Inflación y dólar: datos de ArgentinaDatos (argentinadatos.com).</p>
               ) : null}
+              {needsManual && <p className="text-xs text-slate-500">CAC e ICC INDEC: planillas públicas de IERIC (ieric.org.ar).</p>}
             </div>
           )}
         </section>

@@ -35,6 +35,14 @@ export const MANUAL_INDEX_CODES: ManualIndexCode[] = [
 import type { IndexPoint } from './priceIndexMath';
 export type { IndexPoint } from './priceIndexMath';
 
+export interface PriceIndexSyncRun {
+  ranAt: string;
+  ok: boolean;
+  trigger: 'cron' | 'manual';
+  message: string;
+  details: { cac_ultimo?: string; icc_ultimo?: string };
+}
+
 export interface PriceIndexRow extends IndexPoint {
   id: string;
   code: ManualIndexCode;
@@ -70,6 +78,26 @@ async function fetchManualSeries(code: ManualIndexCode): Promise<IndexPoint[]> {
 }
 
 export const priceIndicesService = {
+  async lastSync(): Promise<PriceIndexSyncRun | null> {
+    const { data, error } = await supabase
+      .from('price_index_sync_runs')
+      .select('ran_at, ok, trigger, message, details')
+      .order('ran_at', { ascending: false })
+      .limit(1);
+    if (error || !data || data.length === 0) return null;
+    const r = data[0];
+    return { ranAt: r.ran_at, ok: r.ok, trigger: r.trigger, message: r.message ?? '', details: r.details ?? {} };
+  },
+
+  async runSync(): Promise<{ ok: boolean; error?: string }> {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return { ok: false, error: 'Sesión vencida' };
+    const r = await fetch('/api/sync-indices', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    const body = await r.json().catch(() => ({}));
+    return r.ok ? { ok: true } : { ok: false, error: body?.error ?? `Error ${r.status}` };
+  },
+
   async getSeries(code: IndexCode): Promise<IndexPoint[]> {
     return INDEX_SERIES[code].source === 'api'
       ? fetchApiSeries(code as ApiIndexCode)

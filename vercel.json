@@ -5,12 +5,26 @@
   "redirects": [
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": "www.obraflow.net" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "www.obraflow.net"
+        }
+      ],
       "destination": "https://obraflow.net/:path*",
       "permanent": true
     }
   ],
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/sync-indices",
+      "schedule": "15 11 * * *"
+    }
   ]
 }

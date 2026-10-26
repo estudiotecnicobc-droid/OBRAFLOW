@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Trash2, Upload, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { IndexSyncStatus } from './IndexSyncStatus';
 import {
   INDEX_SERIES, MANUAL_INDEX_CODES, ManualIndexCode, PriceIndexRow,
   priceIndicesService, parseIndexPaste, formatPeriod,
@@ -49,9 +50,11 @@ export const PriceIndicesAdmin: React.FC = () => {
       <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-2">
         <h2 className="text-lg font-bold text-slate-800">Índices de precios</h2>
         <p className="text-sm text-slate-600">
-          Valores mensuales de CAC e ICC INDEC para actualizar presupuestos. Son comunes a todas las empresas.
-          Inflación y dólar se leen solos de ArgentinaDatos y no hace falta cargarlos.
+          Valores mensuales de CAC e ICC INDEC para actualizar presupuestos. Son comunes a todas las empresas y se
+          actualizan solos todos los días desde las planillas públicas de IERIC. Inflación y dólar se leen en el momento
+          de ArgentinaDatos. La carga manual queda para corregir o completar.
         </p>
+        <IndexSyncStatus onSynced={load} />
         {!isMasterAdmin && <p className="text-xs text-slate-500">Solo el administrador del sistema puede cargar o corregir valores.</p>}
       </div>
 
