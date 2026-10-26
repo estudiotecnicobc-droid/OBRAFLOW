@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "../../../services/supabaseClient";
+import { supabase } from "../../../../services/supabaseClient";
 
 export type PendingRow = {
   batch_id: string;
