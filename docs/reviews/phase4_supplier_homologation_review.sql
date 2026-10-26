@@ -201,7 +201,7 @@ DECLARE
    FROM public.price_import_rows ir
    WHERE ir.batch_id=p_batch_id
      AND ir.organization_id=b.organization_id
-     AND ir.processing_status IN ('raw','pending_mapping')
+     AND ir.processing_status='raw'
    ORDER BY ir.row_number FOR UPDATE SKIP LOCKED LIMIT p_limit
  LOOP
    n_processed:=n_processed+1;
@@ -273,5 +273,67 @@ REVOKE ALL ON FUNCTION public.homologate_raw_price_rows(uuid,integer)
  FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.homologate_raw_price_rows(uuid,integer)
  TO service_role;
+
+
+-- Operador configura columnas y proveedor tras terminar la ingesta cruda.
+CREATE OR REPLACE FUNCTION public.configure_price_import_mapping(
+ p_batch_id uuid, p_supplier_id uuid, p_columns jsonb, p_observed_on date
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=pg_catalog,public AS $cfg$
+DECLARE v_batch public.price_import_batches%ROWTYPE;
+BEGIN
+ SELECT * INTO v_batch FROM public.price_import_batches
+ WHERE id=p_batch_id FOR UPDATE;
+ IF NOT FOUND OR v_batch.status<>'raw_ready'
+    OR NOT public.is_org_member_with_role(
+      v_batch.organization_id,ARRAY['owner','admin','editor']::text[])
+    OR NOT EXISTS(
+      SELECT 1 FROM public.price_suppliers s
+      WHERE s.id=p_supplier_id
+        AND s.organization_id=v_batch.organization_id AND s.is_active
+    ) THEN
+    RAISE EXCEPTION 'FORBIDDEN or batch not ready' USING ERRCODE='42501';
+ END IF;
+ IF p_observed_on IS NULL OR p_observed_on > current_date
+    OR jsonb_typeof(p_columns)<>'object'
+    OR NOT p_columns ?& ARRAY['sku','price','unit','currency'] THEN
+   RAISE EXCEPTION 'Invalid mapping configuration' USING ERRCODE='22023';
+ END IF;
+ UPDATE public.price_import_batches
+ SET supplier_id=p_supplier_id,column_mapping=p_columns,
+     observation_date=p_observed_on,updated_at=now()
+ WHERE id=p_batch_id;
+END $cfg$;
+REVOKE ALL ON FUNCTION public.configure_price_import_mapping(
+ uuid,uuid,jsonb,date) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.configure_price_import_mapping(
+ uuid,uuid,jsonb,date) TO authenticated;
+
+-- Tras aprobar nuevos SKU, reintentar solo filas pendientes sin
+-- reprocesar todos los registros ya homologados.
+CREATE OR REPLACE FUNCTION public.requeue_pending_price_mappings(
+ p_batch_id uuid
+) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=pg_catalog,public AS $retry$
+DECLARE v_org uuid; v_count integer;
+BEGIN
+ SELECT organization_id INTO v_org
+ FROM public.price_import_batches WHERE id=p_batch_id AND status='raw_ready';
+ IF v_org IS NULL OR NOT public.is_org_member_with_role(
+    v_org,ARRAY['owner','admin','editor']::text[]) THEN
+   RAISE EXCEPTION 'FORBIDDEN' USING ERRCODE='42501';
+ END IF;
+ UPDATE public.price_import_rows
+ SET processing_status='raw',validation_errors=ARRAY[]::text[]
+ WHERE batch_id=p_batch_id AND processing_status='pending_mapping';
+ GET DIAGNOSTICS v_count=ROW_COUNT;
+ RETURN v_count;
+END $retry$;
+REVOKE ALL ON FUNCTION public.requeue_pending_price_mappings(uuid)
+ FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.requeue_pending_price_mappings(uuid)
+ TO authenticated;
 
 COMMIT;
