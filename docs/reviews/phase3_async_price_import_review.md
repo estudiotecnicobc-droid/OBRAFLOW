@@ -1,52 +1,46 @@
-# Fase 3 — Importador asíncrono de precios (revisión, NO desplegar)
+# ObraFlow — revisión conjunta Fase 3 final / Fase 4
+**SOLO REVISIÓN. No ejecutar en producción. No desplegar Edge Functions.**
 
-## Arquitectura
-1. UI React/Vite hace upload a Storage privado `price-imports`, usando el prefijo `{organizationId}/{uploadId}/archivo.csv`; utilizar `upsert:false`.
-2. Edge Function autenticada `price-import-start` valida token, forma de ruta e invoca `enqueue_price_import`.
-3. RPC PostgreSQL valida membresía de la organización, existencia e identidad del objeto y límites, inserta `price_import_batches` y publica el mensaje en `pgmq` **en la misma transacción**.
-4. Un programador seguro invoca `price-import-worker` repetidamente. El Worker lee 1 mensaje con VT, reclama lote mediante lease, procesa 1 chunk, escribe filas crudas y checkpoint en una transacción y archiva el mensaje. Se publica siguiente mensaje si quedan filas.
-5. `price_import_rows` conserva datos de entrada, sin homologar ni escribir en `master_materials`/APU.
+## Orden de SQL propuesto
+1. `phase3_storage_csv_infrastructure_review.sql`: extensiones pgmq, pg_cron y pg_net; cola `price_imports`; bucket privado `price_imports` y Storage RLS.
+2. `phase3_async_price_import_review.sql`: `price_import_batches`, `price_import_rows`, RPC `enqueue_price_import`, leases/checkpoints y commits por fragmento.
+3. `phase4_supplier_homologation_review.sql`: `price_suppliers`, `supplier_products`, `price_observations`, configuración de columnas, staging y motor de homologación.
 
-## Archivos
-- `docs/reviews/phase3_async_price_import_review.sql` – tablas, RLS, bucket, RPCs para iniciar, reclamar, confirmar, reintentar, archivar.
-- `supabase/functions/price-import-start/index.ts` – Edge iniciadora.
-- `supabase/functions/price-import-worker/index.ts` – Worker inicial; CSV Range con delimitadores comunes, XLSX experimental acotado.
+## Contrato de ingesta CSV exclusivamente
+- Frontend React/Vite convierte XLSX → CSV ANTES del upload usando `xlsx` ya declarado en `package.json`.
+- UI debe mostrar previsualización; el usuario confirma encabezados, separador, unidades, moneda y política de decimales. Normalizar a UTF-8, LF, valores decimales con punto, máximo de columnas/celdas/filas.
+- Upload a bucket privado `price_imports`, ruta `organizationId/uploadId/archivo.csv`, `upsert:false`, `contentType:'text/csv'`.
+- Edge `price-import-start` comprueba JWT, ruta y `storage.info(...).contentType === 'text/csv'`.
+- RPC `enqueue_price_import` comprueba la organización, objeto, metadatos (mimetype), tamaño e inserta batch + mensaje de cola en transacción.
+- Worker solo reconoce `csv`. Los bytes CSV todavía tienen que ser validados contra archivos maliciosos: extensión/MIME *no prueban* que el contenido sea CSV.
+- No se escribe en `master_materials`, `resources`, APU, snapshots o presupuestos al ingerir el archivo.
 
-## Estado y controles
-- La extensión `pgmq` está disponible, pero **no instalada** en Supabase actual. `pg_cron` no está instalada; **no existe todavía scheduler**, bucket ni Edge Functions de precios.
-- `price_import_batches.status`: queued → processing → raw_ready; fallos → queued (reintento) o failed; cancelled reservado para integración posterior.
-- `raw_rows`, `next_row_number` y `next_byte_offset` son checkpoints. PK `(batch_id,row_number)` impide duplicados.
-- La cola ofrece entrega durable **at least once**; la aplicación implementa idempotencia. No anunciar «exactly once» extremo a extremo.
-- El enlace `storage_object_id` evita reusar silenciosamente la ruta de otro archivo. Se requiere política de Storage que **no conceda UPDATE/DELETE** sobre objetos del bucket a usuarios.
-- `service_role` solo en las Edge Functions; nunca en UI.
-- No importamos precios validados, no recalculamos presupuestos ni modificamos APU.
+## Homologación
+- `price_suppliers`: proveedor por organización + `external_code` único.
+- `supplier_products`: vínculo aprobado `(org,supplier,sku) → master_material_id`, unidad comercial, factor de conversión, moneda.
+- `price_observations`: histórico normalizado; UNIQUE `(batch_id,row_number)`. No sobrescribir precios maestros automáticamente.
+- Cada batch tiene `supplier_id`, `column_mapping` explícito (índices de cabecera 0-based) y `observation_date` aprobados por operador con la RPC `configure_price_import_mapping`.
+- `homologate_raw_price_rows(batch_id, limit)` se ejecuta **solo con service_role**. Procesa filas `raw` con `FOR UPDATE SKIP LOCKED`, en chunks de 250: SKU conocido + unidad/moneda compatible → `mapped` e inserta observación; SKU desconocido/incompatibilidad → `pending_mapping`; datos inválidos → `invalid`.
+- El procedimiento **no decide equivalencias por similitud de texto**. Futuro agente IA solo propondrá mapeos, que debe aprobar un operador.
+- Tras aprobar mappings, `requeue_pending_price_mappings` vuelve `pending_mapping → raw` para intentar esas filas. No reintentar pending en un bucle infinito.
+- El precio técnico se calcula como `original_price/unit_factor`. Verificar unidades comerciales, IVA, bonificaciones y moneda antes de publicar observaciones como referencia.
 
-## BLOQUEANTES detectados antes de staging / despliegue
-1. **CSV demasiado denso**: el borrador usa 256 KB por lectura con límite RPC de 250 filas. Si un bloque tiene más de 250 filas, falla; diseñar una ventana adaptativa <=250 filas o checkpoint parcial por bytes. No usar la versión actual para importaciones grandes.
-2. **CSV multilínea y UTF-8 en rangos**: v1 rechaza comillas con saltos de línea, pero un corte al final de una ventana en mitad de un carácter multibyte exige mantener el framing por separadores LF (ya se realiza) y comprobar CRLF/BOM. Agregar pruebas de archivos adversariales y límite de tamaño por campo.
-3. **XLSX experimental**: requiere evaluar licencia, suministro y seguridad de parser; descompresión ZIP, fórmulas, celdas enormes y memoria. Migrar Excel masivo a CSV mediante conversor externo de confianza o Worker especializado. La rama XLSX incluida es **prototipo de revisión**, no apta para producción.
-4. **Visibilidad/leases**: la VT es 120 s, lease 100 s. Los chunks deben terminar por debajo de ambos o incorporar heartbeats y `pgmq.set_vt`/renovación atómica; hay que probar crash, concurrencia y reentrega.
-5. **Seguridad RPC**: `price_import_poll/claim/commit_chunk/handle_failure/archive/defer` deben quedar revocadas para PUBLIC, anon y authenticated. Verificar herencia de GRANTs y que únicamente service_role tenga ejecución.
-6. **Claim/ACK vinculación**: el borrador confirma posesión de lease pero **no verifica dentro del SQL que `p_msg_id` corresponda a `p_batch_id`**. Endurecer vinculación de mensaje a lote antes del despliegue; no confiar en un Worker con permisos administrativos como única barrera.
-7. **Idempotencia y objeto inmutable**: proteger sobreescritura/renombrado de archivos mediante Storage RLS; validar `storage_object_id` en reintentos. Un archivo cambiado en Storage invalida checkpoints.
-8. **Scheduler**: definir Cron + llamada autenticada por token secreto (no visible), cadencia, alertas de cola y mecanismo para reactivar lotes detenidos. Dejar `verify_jwt=false` solamente con autorización segura de nivel de red/secret y revisión.
-9. **Errores y progreso**: limitar tamaño de `raw_cells` para evitar payloads JSON grandes. La RPC `price_import_commit_chunk` debería verificar que la cantidad insertada coincide con la cantidad esperada y bloquear duplicados conflictivos, no solo omitirlos.
-10. **Validación de ruta**: endurecer patrón UUID y ownership de upload. Revisar políticas Storage preexistentes antes de crear las nuevas; `DROP POLICY IF EXISTS` no revoca otras políticas permisivas de storage.objects.
+## Limitaciones y BLOQUEANTES de staging
+1. Las tres migraciones todavía no se han compilado ni probado en PostgreSQL. Revisar columnas/tipos, orden, grants y permisos de `pgmq` / storage. El SQL anterior de Fase 3 fue alineado con el nuevo bucket, pero la rama sigue en borrador.
+2. El lector CSV del Worker todavía usa una ventana fija de 256 KB y un máximo de 250 filas. Debe rediseñarse para chunks adaptativos: la versión actual falla en CSV densos y NO es production-ready.
+3. CSV con comillas multilínea, celdas enormes, desbordes y reintentos necesitan validación real; la conversión frontend debe garantizar un CSV canonizado y el backend **debe volver a validar** sus bytes.
+4. Seguridad: Storage RLS restrictiva bloquea UPDATE y DELETE al usuario final en `price_imports`, pero `service_role` puede reemplazar archivos. Auditar políticas preexistentes, ausencia de rutas públicas y conservar identidad/hash del objeto.
+5. `price_import_commit_chunk` todavía debe verificar pertenencia de `msg_id` al `batch_id` y que la deduplicación no oculte registros de distinto contenido. Añadir tests crash/retries/leases.
+6. Seguridad del SQL `SECURITY DEFINER`: verificar ownership, grants, `search_path`, funciones de lectura y que solo `service_role` pueda consumir mensajes.
+7. Planificar Cron+pg_net+Vault para llamar Worker; **no se programó un cron job**, no insertar secretos en migraciones.
+8. Homologación: validación de factor de conversión, IVA, descuentos, unidades, días y mapeos ambiguos; faltan pruebas de tensiones con RLS y reglas de edición de mapping.
+9. Resolver técnico de Fase 2 y Observaciones Fase 4 **no están integrados**. La publicación de precio canónico o regional pertenece a fase posterior, no se crea un trigger oculto.
+10. Corregir condiciones de carrera y ACK de las RPCs antes de deploy; NO aprobar merge hasta que CI y prueba de 100.000 filas sean exitosos.
 
-## Pruebas obligatorias
-- Usuario anónimo no puede iniciar ni leer lotes; organización ajena retorna 42501.
-- Lote repetido produce el mismo ID y un solo flujo de procesamiento.
-- Archivo faltante, extensión falsa, MIME falso, ZIP malicioso, tamaño desmesurado.
-- 1000, 50k y 100k filas CSV; 2 workers simultáneos; caída tras insertar y antes de ACK; reenvío de mensajes; reintentos; visibilidad vencida.
-- Error de conversión y de encodings: sin precios falsos ni pérdida de filas.
-- `SELECT` exclusivo para organización; `service_role` no sale del servidor.
-- Ninguna escritura en `master_materials`, `resources`, snapshots ni presupuestos.
-- Índices y `EXPLAIN ANALYZE` para lotes de 100k filas.
-
-## Fuentes oficiales
+## Lecturas oficiales
 - https://supabase.com/docs/guides/queues
-- https://supabase.com/docs/guides/queues/api
-- https://supabase.com/docs/guides/functions/background-tasks
-- https://supabase.com/docs/guides/api/securing-your-api
+- https://supabase.com/docs/guides/cron/install
+- https://supabase.com/docs/guides/database/extensions/pg_net
+- https://supabase.com/docs/guides/storage/security/access-control
 
-**Decisión de release:** revisión arquitectónica aprobable; código SQL/Worker NO aptos aún para desplegar hasta cerrar bloqueantes y ejecutar suites de integración en staging.
+**Estado:** Diseño de Fase 3 final + Fase 4 entregado para revisión. Base de producción intacta.
