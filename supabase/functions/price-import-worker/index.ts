@@ -1,5 +1,4 @@
 import { createClient } from "npm:@supabase/supabase-js@2.99.1";
-import * as XLSX from "npm:xlsx@0.18.5";
 
 // DESIGN DRAFT: worker accepts service-only invocation, preferably via
 // pg_cron -> pg_net or external scheduler, with dedicated WORKER_TOKEN.
@@ -12,7 +11,7 @@ const db = createClient(url, serviceKey, {
 });
 type Batch = {
   id: string; storage_bucket: string; storage_path: string;
-  source_format: "csv" | "xlsx"; size_bytes: number;
+  source_format: "csv"; size_bytes: number;
   next_byte_offset: number; next_row_number: number;
   header_cells: string[] | null; csv_delimiter: string | null;
   attempts: number; lease_token: string;
@@ -103,40 +102,6 @@ async function getCsvChunk(batch: Batch) {
   };
 }
 
-async function getXlsxChunk(batch: Batch) {
-  if (batch.size_bytes > 2 * 1024 * 1024)
-    throw Error("XLSX_CONVERT_TO_CSV_REQUIRED");
-  // XLSX is compressed: cannot seek by byte into rows. For this
-  // bounded convenience path parse all, store in DB once.
-  // Production must guard decompression ratio and use a sandboxed converter
-  // for untrusted workbooks; do not activate this draft for arbitrary XLSX.
-  const { data, error } = await db.storage
-    .from(batch.storage_bucket).download(batch.storage_path);
-  if (error || !data) throw Error(error?.message ?? "STORAGE_MISSING");
-  const workbook = XLSX.read(await data.arrayBuffer(), {
-    type: "array", dense: true, sheetRows: 5001
-  });
-  if (!workbook.SheetNames.length) throw Error("XLSX_NO_SHEETS");
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const records = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1, raw: false, defval: ""
-  });
-  if (records.length < 1 || records.length > 5001)
-    throw Error("XLSX_TOO_MANY_ROWS");
-  const header = records[0].map(String);
-  if (header.length < 2 || header.length > 200)
-    throw Error("INVALID_HEADER");
-  const remaining = records.slice(batch.next_row_number,
-    batch.next_row_number + 250);
-  return {
-    rows: remaining.map((cells, i) => ({
-      row_number: batch.next_row_number + i, raw_cells: cells.map(String)
-    })),
-    header, delimiter: null, nextOffset: 0,
-    done: batch.next_row_number + remaining.length >= records.length
-  };
-}
-
 async function oneMessage() {
   const msgs = checked(await db.rpc("price_import_poll")) as
     { msg_id: number; read_ct: number; batch_id: string }[] | null;
@@ -159,8 +124,8 @@ async function oneMessage() {
     return { state: "not_claimed" };
   }
   try {
-    const chunk = batch.source_format === "csv"
-      ? await getCsvChunk(batch) : await getXlsxChunk(batch);
+    if (batch.source_format !== "csv") throw Error("CSV_ONLY");
+    const chunk = await getCsvChunk(batch);
     checked(await db.rpc("price_import_commit_chunk", {
       p_batch_id: batch.id,
       p_lease_token: batch.lease_token,
@@ -175,7 +140,7 @@ async function oneMessage() {
       inserted: chunk.rows.length };
   } catch (e) {
     const reason = e instanceof Error ? e.message : "Unknown error";
-    const terminal = /^(CSV_MULTILINE|CSV_LINE_EXCEEDS|XLSX_|INVALID_|CSV_HEADER|STORAGE_RANGE_NOT_SUPPORTED)/.test(reason)
+    const terminal = /^(CSV_MULTILINE|CSV_LINE_EXCEEDS|XLSX_|INVALID_|CSV_HEADER|STORAGE_RANGE_NOT_SUPPORTED|CSV_ONLY)/.test(reason)
       || batch.attempts >= 5;
     checked(await db.rpc("price_import_handle_failure", {
       p_batch_id: batch.id,
