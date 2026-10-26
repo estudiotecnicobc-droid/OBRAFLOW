@@ -12,6 +12,7 @@ import {
   CheckCircle2, Circle, ArrowRight, BookOpen, Ruler, BarChart as BarChartIcon,
 } from 'lucide-react';
 import { NextStepsCard } from './ProjectStage';
+import { ProjectDashboardHeader } from './ProjectDashboardHeader';
 import { ProjectWizard } from './ProjectWizard';
 
 const COLORS = ['#0ea5e9', '#22c55e', '#9333ea', '#eab308', '#f97316', '#ef4444'];
@@ -171,11 +172,12 @@ const OnboardingChecklist: React.FC<{
 
 interface DashboardProps {
   onNavigate?: (tab: string) => void;
+  initialView?: 'stats' | 'reports';
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, initialView }) => {
   const { project, tasks, materials, yields, tools, toolYields, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, receptions, snapshots, laborCategoriesMap, taskLaborYieldsIndex, taskCrewYieldsIndex, crewsMap, budgetItemsLoading, tasksLoaded } = useERP();
-  const [activeView, setActiveView] = useState<'stats' | 'reports'>('stats');
+  const [activeView, setActiveView] = useState<'stats' | 'reports'>(initialView ?? 'stats');
 
   // --- Wizard State ---
   const [showWizard, setShowWizard] = useState(false);
@@ -1118,6 +1120,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         />
       )}
 
+      {project.items.length > 0 && activeView === 'stats' && <ProjectDashboardHeader />}
       {project.items.length > 0 && <NextStepsCard onNavigate={onNavigate} />}
 
       {activeView === 'stats' ? (

@@ -9,10 +9,10 @@ import { Holiday, ProjectLaborDefinition, ProjectCrewDefinition, CalendarPreset,
 
 type Tab = 'general' | 'financial' | 'calendar' | 'labor';
 
-export const ProjectSettings: React.FC = () => {
+export const ProjectSettings: React.FC<{ initialTab?: Tab }> = ({ initialTab }) => {
   const { project, updateProjectSettings, loadTemplate, calendarPresets, addCalendarPreset, applyCalendarPreset, deleteProject, laborCategories, crews, laborCategoriesMap, addCrew, updateCrew, removeCrew } = useERP();
   const { registerSave, unregisterSave } = useSave();
-  const [activeTab, setActiveTab] = useState<Tab>('general');
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? 'general');
 
   // Crew Editing State
   const [isCrewModalOpen, setIsCrewModalOpen] = useState(false);
