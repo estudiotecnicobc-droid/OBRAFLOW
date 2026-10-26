@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     .from("price_imports").info(body.storagePath);
   if (infoError || !info || info.contentType !== "text/csv") {
     return json({ error: "only text/csv is accepted" }, 415);
-  }\n
+  }
   // DB confirms membership, object identity, byte size, immutable path,
   // and creates the batch + durable queue message in one transaction.
   const { data: batchId, error } = await client.rpc("enqueue_price_import", {
