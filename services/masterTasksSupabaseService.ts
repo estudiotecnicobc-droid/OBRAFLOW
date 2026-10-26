@@ -182,6 +182,7 @@ export const masterTasksService = {
             laborCategoryId: res.id,
             laborCategoryName: res.name,
             quantity: Number(y.quantity),
+            snapshotHourlyRate: res.base_cost != null ? Number(res.base_cost) : undefined,
           });
         } else if (res.type === 'EQUIPMENT') {
           (equipMap[taskId] ??= []).push({

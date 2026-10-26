@@ -58,7 +58,9 @@ export const laborCategoriesService = {
   },
 
   async create(lc: LaborCategory): Promise<void> {
-    const { error } = await supabase.from('labor_categories').insert(laborCategoryToRow(lc));
+    const { error } = await supabase
+      .from('labor_categories')
+      .upsert(laborCategoryToRow(lc), { onConflict: 'id', ignoreDuplicates: true });
     if (error) throw new Error(`[laborCategoriesService.create] ${error.message}`);
   },
 

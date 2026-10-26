@@ -26,6 +26,7 @@ import { rubroCategory } from '../src/features/quickBudget/engine';
 import type { QuickTemplate } from '../src/features/quickBudget/types';
 import { masterTasksService } from '../services/masterTasksSupabaseService';
 import { supabase } from '../services/supabaseClient';
+import { laborCategoriesService } from '../services/laborCategoriesService';
 import { BudgetBusinessPanel } from './BudgetBusinessPanel';
 import { useBudgetKStore, selectBusinessConfig, computeBudgetKSummary } from '../store/useBudgetKStore';
 import { computeBudgetItemSaleBreakdown, BudgetItemSaleBreakdown, ItemDirectCostInput } from '../services/budgetItemBreakdown';
@@ -40,7 +41,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     project, tasks, rubros, rubroPresets,
     materials: projectMaterials,
     addBudgetItem, removeBudgetItem, updateBudgetItem, updateTask, addTask,
-    addMaterial, updateMaterial, updateLaborCategory, addTaskYield, addTaskLaborYield, addTaskToolYield,
+    addMaterial, updateMaterial, updateLaborCategory, addLaborCategory, addTaskYield, addTaskLaborYield, addTaskToolYield,
     addRubroPreset, removeRubroPreset, addRubro,
     yieldsIndex, materialsMap, toolYieldsIndex, toolsMap,
     taskCrewYieldsIndex, crewsMap, laborCategoriesMap, taskLaborYieldsIndex,
@@ -218,11 +219,40 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     const orgTasks = globals.length > 0 ? await masterTasksService.list(orgId) : masterTasks;
     if (globals.length > 0) refetchMasterTasks();
 
-    // 2. La mano de obra de los APU copiados se vincula por nombre de categoría.
-    const laborByRole = new Map((Object.values(laborCategoriesMap) as LaborCategory[]).map(c => [c.role.trim().toLowerCase(), c.id]));
+    // 2. La mano de obra de los APU copiados se vincula por nombre de categoría;
+    //    si la empresa no tiene ese oficio, se crea con el valor hora de referencia.
+    const resolveMt = (row: QuickSelection): MasterTask | undefined => {
+      if (row.source.kind === 'org') return row.source.task;
+      if (row.source.kind === 'global') {
+        const src = row.source.task;
+        return orgTasks.find(t => t.code === src.code && t.name === src.name);
+      }
+      return undefined;
+    };
+    const laborMap: Record<string, LaborCategory> = { ...laborCategoriesMap };
+    const laborByRole = new Map((Object.values(laborMap) as LaborCategory[]).map(c => [c.role.trim().toLowerCase(), c.id]));
+    for (const row of rows) {
+      for (const l of resolveMt(row)?.labor ?? []) {
+        const key = l.laborCategoryName.trim().toLowerCase();
+        if (laborMap[l.laborCategoryId] || laborByRole.has(key)) continue;
+        const lc: LaborCategory = {
+          id: crypto.randomUUID(), organizationId: orgId, role: l.laborCategoryName,
+          basicHourlyRate: l.snapshotHourlyRate ?? 0, socialChargesPercent: 95, insurancePercent: 5,
+          family: 'MANO DE OBRA',
+        };
+        try {
+          await laborCategoriesService.create(lc);
+          addLaborCategory(lc);
+          laborMap[lc.id] = lc;
+          laborByRole.set(key, lc.id);
+        } catch (e) {
+          console.error('[handleQuickApply] No se pudo crear la categoría de mano de obra', l.laborCategoryName, e);
+        }
+      }
+    }
     const withLocalLabor = (mt: MasterTask): MasterTask => ({
       ...mt,
-      labor: mt.labor.map(l => laborCategoriesMap[l.laborCategoryId]
+      labor: mt.labor.map(l => laborMap[l.laborCategoryId]
         ? l
         : { ...l, laborCategoryId: laborByRole.get(l.laborCategoryName.trim().toLowerCase()) ?? l.laborCategoryId }),
     });
@@ -231,12 +261,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     let withApu = 0, withoutApu = 0;
     const skippedLabor = new Set<string>();
     for (const row of rows) {
-      let mt: MasterTask | undefined;
-      if (row.source.kind === 'org') mt = row.source.task;
-      else if (row.source.kind === 'global') {
-        const src = row.source.task;
-        mt = orgTasks.find(t => t.code === src.code && t.name === src.name);
-      }
+      const mt = resolveMt(row);
       const category = rubroCategory(row.rubro);
       const base: MasterTask = mt ? withLocalLabor(mt) : {
         id: '', organizationId: orgId, name: row.task.name, unit: row.task.unit, category,
@@ -245,7 +270,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
       } as MasterTask;
       const p = buildImportPayload(
         base, orgId, project.id, row.quantity,
-        laborCategoriesMap, toolsMap, runningMaterials, masterMaterialsMap,
+        laborMap, toolsMap, runningMaterials, masterMaterialsMap,
       );
       p.budgetItem.quantity = row.quantity;
       if (!mt) p.task.masterTaskId = undefined;
