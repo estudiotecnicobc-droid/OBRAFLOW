@@ -108,7 +108,8 @@ async function oneMessage() {
   const msg = msgs?.[0];
   if (!msg) return { state: "empty" };
   const batches = checked(await db.rpc("price_import_claim", {
-    p_batch_id: msg.batch_id
+    p_batch_id: msg.batch_id,
+    p_msg_id: msg.msg_id
   })) as Batch[] | null;
   const batch = batches?.[0];
   if (!batch) {
