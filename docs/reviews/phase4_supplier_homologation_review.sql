@@ -83,6 +83,12 @@ ALTER TABLE public.price_import_batches
   FOREIGN KEY (organization_id,supplier_id)
   REFERENCES public.price_suppliers(organization_id,id);
 
+-- Persist normalized keys once in staging for fast exact SKU approval.
+ALTER TABLE public.price_import_rows
+  ADD COLUMN IF NOT EXISTS supplier_sku text,
+  ADD COLUMN IF NOT EXISTS supplier_unit text,
+  ADD COLUMN IF NOT EXISTS source_currency text;
+
 ALTER TABLE public.price_import_rows
   DROP CONSTRAINT IF EXISTS price_import_rows_processing_status_check;
 ALTER TABLE public.price_import_rows
@@ -209,6 +215,11 @@ DECLARE
    unit_text:=nullif(btrim(r.raw_cells->>(cols->>'unit')::integer),'');
    curr:=upper(btrim(coalesce(r.raw_cells->>(cols->>'currency')::integer,'')));
    price_text:=btrim(coalesce(r.raw_cells->>(cols->>'price')::integer,''));
+   -- Capture source attributes regardless of mapping outcome; never
+   -- infer supplier unit/currency from the LLM.
+   UPDATE public.price_import_rows
+   SET supplier_sku=sku, supplier_unit=unit_text, source_currency=curr
+   WHERE batch_id=p_batch_id AND row_number=r.row_number;
    -- Decimal canónico: punto decimal, sin separadores de millares.
    IF sku IS NULL OR unit_text IS NULL
       OR curr NOT IN ('ARS','USD')
