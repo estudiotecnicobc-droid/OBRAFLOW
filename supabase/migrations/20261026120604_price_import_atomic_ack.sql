@@ -120,7 +120,8 @@ BEGIN
     RAISE EXCEPTION 'Missing CSV header' USING ERRCODE='22023';
   END IF;
   IF b.csv_delimiter IS NULL
-      AND p_csv_delimiter IS DISTINCT FROM ALL(ARRAY[',',';',E'\t']) THEN
+      AND (p_csv_delimiter IS NULL
+        OR p_csv_delimiter NOT IN (',',';',E'\t')) THEN
     RAISE EXCEPTION 'Missing/invalid delimiter' USING ERRCODE='22023';
   END IF;
 
