@@ -55,6 +55,17 @@ DECLARE
   v_deleted_ct  int;
 BEGIN
 
+  -- Seed/reparación histórica de una organización concreta: no crear
+  -- usuarios ni organizaciones artificiales durante un arranque local limpio.
+  -- La migración de esquema sigue siendo válida aunque esa organización no exista.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.organizations WHERE id = v_org_uuid
+  ) THEN
+    RAISE NOTICE 'Omitiendo 035_seed_structural_families_fun_004_005_006.sql: organización de origen no presente';
+    RETURN;
+  END IF;
+
+
   RAISE NOTICE '════════════════════════════════════════════════════════════';
   RAISE NOTICE 'MIGRATION 035 — Inicio';
 
