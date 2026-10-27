@@ -42,6 +42,17 @@ DECLARE
   v_task_exists boolean;
 BEGIN
 
+  -- Seed/reparación histórica de una organización concreta: no crear
+  -- usuarios ni organizaciones artificiales durante un arranque local limpio.
+  -- La migración de esquema sigue siendo válida aunque esa organización no exista.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.organizations WHERE id = v_org_uuid
+  ) THEN
+    RAISE NOTICE 'Omitiendo 032_t1033_complete_reset.sql: organización de origen no presente';
+    RETURN;
+  END IF;
+
+
   -- ── 0. Verificar que v_t1033 existe y pertenece a la org canónica ───────────
   SELECT EXISTS(
     SELECT 1 FROM public.master_tasks
