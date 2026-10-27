@@ -48,6 +48,17 @@ DECLARE
   v_acero_price numeric := 0;
 BEGIN
 
+  -- Seed/reparación histórica de una organización concreta: no crear
+  -- usuarios ni organizaciones artificiales durante un arranque local limpio.
+  -- La migración de esquema sigue siendo válida aunque esa organización no exista.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.organizations WHERE id = v_org_uuid
+  ) THEN
+    RAISE NOTICE 'Omitiendo 029_t1034_vigas_fundacion.sql: organización de origen no presente';
+    RETURN;
+  END IF;
+
+
   -- ── 1. Sanear duplicados activos en la org canónica ────────────────────────
   SELECT COUNT(*) INTO v_active_ct
   FROM public.master_tasks
