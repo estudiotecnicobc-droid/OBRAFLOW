@@ -131,7 +131,7 @@ budget_raw AS (
           ON t.id = bi.task_id
          AND t.master_task_id IS NOT NULL
   INNER JOIN public.master_tasks mt
-          ON mt.id = t.master_task_id::uuid
+          ON mt.id = t.master_task_id
          AND mt.is_active = true
   WHERE bi.project_id        = p_project_id
     AND bi.quantity           > 0
@@ -143,7 +143,7 @@ items_without_master AS (
   FROM public.budget_items bi
   INNER JOIN public.tasks t ON t.id = bi.task_id
   WHERE bi.project_id = p_project_id
-    AND (t.master_task_id IS NULL OR t.master_task_id = '')
+    AND t.master_task_id IS NULL
 )
 SELECT jsonb_build_object(
   'items', COALESCE((
@@ -327,7 +327,7 @@ BEGIN
           ON t.id = bi.task_id
          AND t.master_task_id IS NOT NULL
   INNER JOIN public.master_task_materials mtm
-          ON mtm.master_task_id = t.master_task_id::uuid
+          ON mtm.master_task_id = t.master_task_id
   INNER JOIN public.master_materials mm
           ON mm.id = mtm.master_material_id
          AND mm.is_active = true
@@ -366,7 +366,8 @@ COMMENT ON FUNCTION public.get_budget_cost_staleness IS
 -- =============================================================================
 -- Resumen de snapshots por proyecto para mostrar en BudgetEditor o Reportes.
 
-CREATE OR REPLACE VIEW public.v_budget_snapshot_summary AS
+CREATE OR REPLACE VIEW public.v_budget_snapshot_summary
+WITH (security_invoker = true) AS
 SELECT
   bcs.id,
   bcs.project_id,
@@ -381,7 +382,7 @@ SELECT
   (bcs.result->'totals'->>'equipment')::numeric      AS total_equipment
 FROM public.budget_cost_snapshots bcs;
 
--- RLS hereda de la tabla base (la vista no tiene RLS propio en PG/Supabase)
+-- security_invoker=true permite aplicar RLS de la tabla base según el usuario llamador.
 GRANT SELECT ON public.v_budget_snapshot_summary TO authenticated;
 
 COMMENT ON VIEW public.v_budget_snapshot_summary IS
