@@ -1,5 +1,8 @@
 # ObraFlow — Fase 8: integración LOCAL (revisión; no tocar producción)
 
+## Corrección del primer error local (2026-10-27)
+El primer `supabase start` falló en `001_global_catalog.sql` porque no existía `public.organizations`. Se añadió `supabase/migrations/000_legacy_base_schema.sql` con 22 tablas legacy estructurales, sin datos de producción, a partir de metadatos de columnas leídos en modo solo lectura. **El nuevo SQL no fue ejecutado ni comprobado mediante CLI**. El próximo error puede ser una incompatibilidad posterior, ya que la historia de migraciones presupone otras estructuras ya creadas. Ejecutar `npx supabase start` de nuevo y compartir el primer error, sin editar producción.
+
 ## Estado verificable
 Rama: `feature/staging-integration` creada a partir de PR #34 (incluye PR #33). Los 6 SQL de fase 2–5 fueron copiados a `supabase/migrations` con 14 dígitos, usando el borrador de fase 2 del PR #30.
 
