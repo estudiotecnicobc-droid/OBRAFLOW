@@ -1131,7 +1131,7 @@ CREATE POLICY "task_crew_yields_select" ON public.task_crew_yields
   USING (
     EXISTS (
       SELECT 1 FROM public.tasks t
-      WHERE t.id = task_id
+      WHERE t.id::text = task_crew_yields.task_id
         AND is_org_member(t.organization_id)
     )
   );
@@ -1141,7 +1141,7 @@ CREATE POLICY "task_crew_yields_insert" ON public.task_crew_yields
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.tasks t
-      WHERE t.id = task_id
+      WHERE t.id::text = task_crew_yields.task_id
         AND is_org_member_with_role(t.organization_id, ARRAY['owner','admin','editor'])
     )
   );
@@ -1151,14 +1151,14 @@ CREATE POLICY "task_crew_yields_update" ON public.task_crew_yields
   USING (
     EXISTS (
       SELECT 1 FROM public.tasks t
-      WHERE t.id = task_id
+      WHERE t.id::text = task_crew_yields.task_id
         AND is_org_member_with_role(t.organization_id, ARRAY['owner','admin','editor'])
     )
   )
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.tasks t
-      WHERE t.id = task_id
+      WHERE t.id::text = task_crew_yields.task_id
         AND is_org_member_with_role(t.organization_id, ARRAY['owner','admin','editor'])
     )
   );
@@ -1168,7 +1168,7 @@ CREATE POLICY "task_crew_yields_delete" ON public.task_crew_yields
   USING (
     EXISTS (
       SELECT 1 FROM public.tasks t
-      WHERE t.id = task_id
+      WHERE t.id::text = task_crew_yields.task_id
         AND is_org_member_with_role(t.organization_id, ARRAY['owner','admin','editor'])
     )
   );
