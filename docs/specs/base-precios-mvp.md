@@ -10,6 +10,7 @@ El lote `ff81fe88-4541-4408-a817-5759a9392a49`, sus 100.000 filas y los estados 
 
 * Identidad técnica: master_materials; equivalencias comerciales: supplier_products, aprobadas por usuario miembro con rol owner/admin/editor. La IA solo sugiere.
 * Evidencia de mercado: price_observations, con lote/fila, precio comercial y factor. Precio técnico = precio comercial / factor. Las tablas no conceden escritura de observaciones a authenticated.
+* La observación todavía no captura la unidad técnica normalizada ni condiciones de IVA/flete. Antes de usarla como cotización seleccionada debe persistir esa unidad al homologar; leer la unidad mutable del maestro no conserva evidencia histórica.
 * Selección: resolve_reference_price es SECURITY INVOKER y valida pertenencia. Actualmente NO consulta observaciones. Prioriza override de proyecto, maestro propio, maestro global, snapshot de recurso, costo base y fallback APU. FROZEN rechaza la llamada: todavía no es un modo implementado.
 * Consumo: no hay llamadas al resolvedor en los servicios actuales. Los APU conservan last_known_unit_price y los presupuestos tienen cálculos propios. No debe copiarse un precio de proveedor al maestro para simular integración.
 * Versiones: budget_versions guarda items y totales JSON enviados por cliente; no guarda evidencia por componente ni demuestra una resolución del servidor. Permite borrar versiones a owner/admin. No satisface todavía un contrato FROZEN auditable.
@@ -27,3 +28,9 @@ El lote `ff81fe88-4541-4408-a817-5759a9392a49`, sus 100.000 filas y los estados 
 6. Catálogo y fuentes Argentina/CABA: después del recorrido anterior. Registrar procedencia, licencia, fecha, región, impuestos, moneda, unidad comercial y frecuencia. Índices CAC/ICC sirven para actualización, no como cotización comercial. Empezar con catálogo pequeño revisado; ampliar después con trabajos idempotentes y alertas por vencimiento.
 
 No se considera terminado el MVP hasta pasar etapas 1–5. Cada entrega debe identificar qué se probó realmente y qué sigue pendiente.
+
+## Primera entrega
+
+La migración 20261030182638 corrige los reintentos idénticos de aprobación y el alcance de proyecto/material/recurso/componente en las políticas de overrides. Agrega guardas restrictivas para proyecto y autor de budget_versions. No reconstruye ni corrige registros históricos: los registros inconsistentes quedan fuera de la lectura autenticada; su reparación requiere auditoría separada.
+
+Pruebas PostgreSQL efímeras: 14 casos de aprobación, normalización, reintentos, trazabilidad del aprobador, inmutabilidad histórica y permisos de tenant. Se ejecutan las migraciones reales del módulo contra un esquema anfitrión mínimo, no contra todas las migraciones ni Storage/pgmq. No cubren carreras entre conexiones. La migración no se aplicó a Supabase local ni remoto.

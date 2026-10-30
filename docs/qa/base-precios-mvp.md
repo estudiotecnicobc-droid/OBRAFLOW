@@ -4,6 +4,10 @@
 
 Ejecutar pruebas unitarias y compilación con dependencias del lockfile. Las pruebas embebidas de PostgreSQL verifican funciones y roles en una base efímera; no sustituyen Supabase Storage, colas, API ni concurrencia real.
 
+Comandos: `npm test`, `npm run build`, `npm run lint`. Vitest excluye tests/e2e porque esos archivos pertenecen a `npm run test:e2e` (Playwright).
+
+Resultado primera entrega: 14 pruebas nuevas de PostgreSQL pasan y build pasa. El chequeo de tipos reporta errores en BudgetEditor, Dashboard, MasterMaterialsPanel, useBudgetSummary, usePlan, servicios de billing/importación/APU, BudgetCostComparisonPanel y ReportPreviewModal; esos archivos no fueron modificados por esta entrega. No se declara el repositorio libre de errores de tipos ni se ejecutó Playwright contra una aplicación conectada.
+
 ## Reanudación en obraflow-local-staging
 
 1. Verificar que Docker esté activo y seleccionar exactamente supabase_db_obraflow-local-staging. No reiniciar, borrar ni resetear bases.
