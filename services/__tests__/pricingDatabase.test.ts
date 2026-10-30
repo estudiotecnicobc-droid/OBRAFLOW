@@ -75,7 +75,9 @@ describe('pricing migrations on ephemeral PostgreSQL', () => {
     await login();
     expect(await approve()).toMatchObject({ mapping_id: first.mapping_id, queued_rows: 0 });
     expect((await db.query('SELECT approved_by,approved_at FROM supplier_products')).rows[0]).toEqual(evidence);
-    const observations = (await db.query('SELECT normalized_price,unit_factor,batch_id,row_number FROM price_observations')).rows;
+    const observations = (await db.query<{ normalized_price: string; unit_factor: string; batch_id: string; row_number: number }>(
+      'SELECT normalized_price,unit_factor,batch_id,row_number FROM price_observations',
+    )).rows;
     expect(observations).toHaveLength(1);
     expect(Number(observations[0].normalized_price)).toBe(100);
     expect(observations[0].batch_id).toBe(batch);
