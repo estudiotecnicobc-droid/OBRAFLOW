@@ -670,6 +670,7 @@ export interface MasterTaskLabor {
   // Motor recursivo (migration 010)
   resourceId?: string;           // UUID del recurso LABOR — tarifa actualizada por índice
   snapshotHourlyRate?: number;   // tarifa/h capturada al importar — fallback si sin resourceId
+  socialChargesPct?: number;     // cargas sociales del recurso del catálogo (0 en gremios por cuenta propia)
 }
 
 export interface MasterTaskEquipment {

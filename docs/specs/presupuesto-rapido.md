@@ -17,6 +17,17 @@ Que un usuario nuevo arme un presupuesto en minutos a partir de plantillas del s
   - mano de obra UOCRA Zona A de octubre 2026;
   - precios de referencia AMBA de octubre 2026, con la fuente en `resources.pricing_notes`.
 
+## Base maestra por rubro (migración 062)
+- `062_base_maestra_obraflow_rubros.sql` (idempotente) carga en el "Catálogo ObraFlow" los APU de las 40 planillas de `docs/Rubros`:
+  - 489 APU (366 nuevos y 123 actualizados de la 061), cada uno con su rubro oficial en `category`, "Qué incluye", alcance y rendimiento;
+  - 442 recursos; los gremios por cuenta propia tienen 0 % de cargas sociales y la mano de obra UOCRA, 95 %.
+- El asistente suma la sección "Por rubro": 41 plantillas (`rubroTemplates.ts`, generadas desde las planillas) que se pueden combinar. Cada rubro trae todas sus tareas con las opciones de la planilla (tipo de piso, pintura, mesada…) y las cantidades de la vivienda de referencia de 70 m².
+- Al crear un oficio que falta, el asistente usa las cargas sociales del recurso del catálogo (0 % para gremios).
+
+## Rubros del presupuesto
+- La lista base son los rubros 01 a 38 y 90 a 95, sin "Mampostería" ni "Revoques" sueltos.
+- Las categorías de APU que no son rubros (Mampostería, Pinturas, Morteros, Obra gruesa, Instalaciones…) se muestran en su rubro oficial (`src/features/budgets/rubroMap.ts`). Las que agrupan varios rubros se ubican por el nombre de la tarea. El editor ya no crea rubros nuevos con esas categorías y quita los que se habían agregado.
+
 ## Fuera de alcance
 - Actualización periódica de precios del catálogo.
 - Plantillas del sistema editables por el usuario.

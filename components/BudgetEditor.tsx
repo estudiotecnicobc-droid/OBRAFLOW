@@ -23,6 +23,7 @@ import { buildRubroImportPayloads } from '../services/importMasterRubro';
 import { buildImportPayload } from '../services/importMasterTask';
 import { QuickBudgetWizard, QuickSelection } from './QuickBudgetWizard';
 import { rubroCategory } from '../src/features/quickBudget/engine';
+import { officialRubro, isLegacyRubro } from '../src/features/budgets/rubroMap';
 import type { QuickTemplate } from '../src/features/quickBudget/types';
 import { masterTasksService } from '../services/masterTasksSupabaseService';
 import { supabase } from '../services/supabaseClient';
@@ -42,7 +43,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     materials: projectMaterials,
     addBudgetItem, removeBudgetItem, updateBudgetItem, updateTask, addTask,
     addMaterial, updateMaterial, updateLaborCategory, addLaborCategory, addTaskYield, addTaskLaborYield, addTaskToolYield,
-    addRubroPreset, removeRubroPreset, addRubro,
+    addRubroPreset, removeRubroPreset, addRubro, removeRubro,
     yieldsIndex, materialsMap, toolYieldsIndex, toolsMap,
     taskCrewYieldsIndex, crewsMap, laborCategoriesMap, taskLaborYieldsIndex,
     loadTemplate,
@@ -237,7 +238,8 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
         if (laborMap[l.laborCategoryId] || laborByRole.has(key)) continue;
         const lc: LaborCategory = {
           id: crypto.randomUUID(), organizationId: orgId, role: l.laborCategoryName,
-          basicHourlyRate: l.snapshotHourlyRate ?? 0, socialChargesPercent: 95, insurancePercent: 5,
+          basicHourlyRate: l.snapshotHourlyRate ?? 0,
+          socialChargesPercent: l.socialChargesPct ?? 95, insurancePercent: l.socialChargesPct === 0 ? 0 : 5,
           family: 'MANO DE OBRA',
         };
         try {
@@ -415,7 +417,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     const grouped: Record<string, any[]> = {};
     const categoryTotals: Record<string, { mat: number, lab: number, total: number }> = {};
 
-    Array.from(selectedRubros).sort().forEach((r: string) => {
+    Array.from(selectedRubros).filter((r: string) => !isLegacyRubro(r)).sort().forEach((r: string) => {
         grouped[r] = [];
         categoryTotals[r] = { mat: 0, lab: 0, total: 0 };
     });
@@ -440,7 +442,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
       // Fix: usar la categoría real de la tarea; crear bucket dinámico si no existe.
       // Antes: caía en 'Otros' si la categoría no estaba en selectedRubros.
-      const category = task.category?.trim() || 'Otros';
+      const category = officialRubro(task.category, task.name);
       if (!grouped[category]) {
         grouped[category] = [];
         categoryTotals[category] = { mat: 0, lab: 0, total: 0 };
@@ -567,11 +569,13 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   useEffect(() => {
     if (!tasksLoaded) return;
     const currentRubros = rubrosRef.current;
+    currentRubros.filter(isLegacyRubro).forEach(r => removeRubro(r));
     const unknown = [
       ...new Set(
         tasks
-          .map(t => t.category?.trim())
-          .filter((c): c is string => !!c && !currentRubros.includes(c)),
+          .filter(t => t.category?.trim())
+          .map(t => officialRubro(t.category, t.name))
+          .filter(c => !currentRubros.includes(c)),
       ),
     ];
     if (unknown.length > 0) {
@@ -597,10 +601,12 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   const allSidebarRubros = useMemo(() => {
     const extra = new Set<string>();
     tasks.forEach(t => {
-      const cat = t.category?.trim();
-      if (cat && !rubros.includes(cat)) extra.add(cat);
+      if (!t.category?.trim()) return;
+      const cat = officialRubro(t.category, t.name);
+      if (!rubros.includes(cat)) extra.add(cat);
     });
-    return extra.size > 0 ? [...rubros, ...[...extra].sort()] : rubros;
+    const base = rubros.filter(r => !isLegacyRubro(r));
+    return extra.size > 0 ? [...base, ...[...extra].sort()] : base;
   }, [rubros, tasks]);
 
   // --- HANDLERS ---
@@ -1218,7 +1224,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                       </thead>
                       <tbody>
                           {[
-                              ...Array.from(selectedRubros),
+                              ...Array.from(selectedRubros).filter((r: string) => !isLegacyRubro(r)),
                               // Categorías dinámicas con ítems, aún no en selectedRubros
                               // (estado transitorio antes de que el useEffect sincronice).
                               ...Object.keys(budgetData.grouped).filter(cat =>
