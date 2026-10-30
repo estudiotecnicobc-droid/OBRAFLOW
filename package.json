@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "test": "vitest run",
+    "pricing:prepare": "node scripts/pricing/prepare-workbook-catalog.mjs",
     "seed:global": "tsx scripts/seedGlobalCatalog.ts",
     "db:migrate": "supabase db push",
     "db:migrate:status": "supabase migration list",

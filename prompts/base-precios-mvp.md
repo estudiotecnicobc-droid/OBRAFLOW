@@ -1,3 +1,5 @@
 # Continuación base de precios
 
 Trabajar sobre feature/staging-integration de estudiotecnicobc-droid/OBRAFLOW preservando producción. Leer docs/specs/base-precios-mvp.md y docs/qa/base-precios-mvp.md. Verificar rama, PR y estado real antes de operar. No repetir importación de 100.000 filas. La aprobación del SKU_000002_AR no está confirmada en la base local. Usar exclusivamente obraflow-local-staging; nunca db push remoto ni contenedores ajenos. Hacer commits pequeños con pruebas. No declarar FROZEN implementado por guardar JSON del cliente. Cerrar primero un recorrido trazable antes de ampliar fuentes y catálogo.
+
+Las tareas de las planillas fueron cargadas por Claude según el usuario, probablemente en el catálogo global. El preparador pricing:prepare produce un paquete normalizado de 40 libros con precios documentales y alias para dos colisiones. Antes de cargar, obtener un export global completo, conciliar por código+identidad+unidad y conservar UUID. No tratar los Excel como cotizaciones de proveedor aprobadas ni insertar tareas a ciegas. Los alquileres diarios/mensuales no son tarifas horarias.

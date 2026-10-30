@@ -34,3 +34,19 @@ No se considera terminado el MVP hasta pasar etapas 1–5. Cada entrega debe ide
 La migración 20261030182638 corrige los reintentos idénticos de aprobación y el alcance de proyecto/material/recurso/componente en las políticas de overrides. Agrega guardas restrictivas para proyecto y autor de budget_versions. No reconstruye ni corrige registros históricos: los registros inconsistentes quedan fuera de la lectura autenticada; su reparación requiere auditoría separada.
 
 Pruebas PostgreSQL efímeras: 14 casos de aprobación, normalización, reintentos, trazabilidad del aprobador, inmutabilidad histórica y permisos de tenant. Se ejecutan las migraciones reales del módulo contra un esquema anfitrión mínimo, no contra todas las migraciones ni Storage/pgmq. No cubren carreras entre conexiones. La migración no se aplicó a Supabase local ni remoto.
+
+## Preparación de las planillas 01–95
+
+El usuario indica que Claude ya cargó las tareas y cree que quedaron en el catálogo maestro/global. El entorno y los UUID no están verificados. No insertar ni reemplazar tareas para deducir ese estado.
+
+`npm run pricing:prepare -- --input-dir <carpeta> --output-dir <carpeta-nueva>` consolida los libros con un contrato JSON versionado y genera Excel/CSV, precios documentales, composición, fuentes, alias y plantillas de ejemplo. Es una herramienta sin conexión a Supabase ni escrituras de base. No requiere migración de esquema.
+
+La tanda entregada contiene 40 archivos: rubros 01–38, 90 y un libro conjunto 91–95. No son 95 archivos ni se infiere cobertura 39–89. Se obtienen 489 tareas, 444 recursos, 1.807 componentes canónicos y 444 referencias de precio. Los APU compartidos se deduplican conservando todas las referencias de origen.
+
+Se detectaron dos códigos reutilizados para identidades distintas. Los alias de alcance de archivo son OF-M-PPL-PINTURA en rubro 34 y OF-M-CPA-CESPED en rubro 35; los originales conservan puerta placa y caja eléctrica. Se exige revisar identidad contra el catálogo cargado. No se modifican códigos en la base.
+
+Las referencias declaran AMBA, octubre 2026, ARS e IVA incluido; no se inventa día de observación, alícuota, proveedor o aprobación. Se guarda basic price y loaded price por separado para no duplicar cargas de MO. La cantidad canónica de MO es HH/unidad; personas y rendimiento se conservan. Los alquileres mantienen la unidad y base temporal del origen: no se convierten automáticamente a tarifa por hora.
+
+`export-global-catalog.sql` produce un JSON de solo lectura del catálogo global. Con `--existing-export <archivo.json>` el preparador detecta IDs reutilizables, conflictos de identidad/tipo, registros inactivos, códigos duplicados y posibles coincidencias por nombre con otro código. No ejecuta altas, reemplazos de hijos ni actualizaciones de precio. Una exportación incompleta por RLS no demuestra que un código falte; se debe confirmar cobertura antes de una carga.
+
+Aceptación de esta entrega: todos los libros se procesan sin referencias rotas ni diferencias de costos/HH; los dos alias se propagan a composición; repetición genera el mismo catálogo; un código existente no da lugar a un alta automática; tipos/alcances incompatibles quedan señalados. La incorporación real y el enlace al resolvedor siguen pendientes de conciliación con el catálogo cargado.

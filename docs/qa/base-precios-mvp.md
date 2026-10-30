@@ -17,3 +17,9 @@ Resultado primera entrega: 14 pruebas nuevas de PostgreSQL pasan y build pasa. E
 5. Ejecutar worker acotado; verificar observación normalizada, mapped y ausencia de duplicados en reintento. No procesar 99.990 filas para demostrar un solo precio.
 6. Verificar aislamiento con anon, viewer, editor y otro tenant. Verificar material ajeno y proyecto de otro tenant, también siendo miembro de ambos.
 7. No promover el PR #35 hasta tener pruebas de proveedor → resolvedor → APU → presupuesto → FROZEN y advisors sin pendientes materiales.
+
+## Paquete de catálogo documental
+
+Ejecutar `services/__tests__/workbookCatalog.test.ts` y la suite completa. Comprobar cargos de MO una sola vez, separación personas/HH, conservación de alquiler diario, alias por archivo, deduplicación con procedencia y rechazo de fórmulas sin caché o referencias inválidas. En conciliación, verificar alcance global, códigos múltiples, identidad/tipo, inactivos y coincidencias con otro código; ninguna acción escribe en base.
+
+Con los 40 archivos, comprobar 489 tareas, 444 recursos y 1.807 componentes, sin códigos ni enlaces huérfanos; abrir de nuevo Excel/CSV/JSON y comparar cantidades y totales. Verificar hashes de origen y que todo `reference_price` sea documental no verificado, con observed_on=null y activate_automatically=false. No dar por cargado un paquete porque esté normalizado.
