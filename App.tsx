@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout } from './components/Layout';
 import { Login } from './components/Login';
 import { LandingPage } from './components/LandingPage';
+import { LegalPage } from './components/LegalPage';
 import { Dashboard } from './components/Dashboard';
 import { BudgetModule } from './components/BudgetModule';
 import { getProjectStage, StageLockedNotice } from './components/ProjectStage';
@@ -68,6 +69,14 @@ const AppContent = () => {
     if (v) window.history.replaceState({}, '', window.location.pathname);
     return v === 'success';
   });
+
+  // STATE -1: Rutas legales públicas — accesibles sin sesión, antes de cualquier otro estado
+  if (window.location.pathname === '/terminos') {
+    return <LegalPage doc="terminos" />;
+  }
+  if (window.location.pathname === '/privacidad') {
+    return <LegalPage doc="privacidad" />;
+  }
 
   // STATE 0: Password recovery (show immediately — URL hash detected or onAuthStateChange fired)
   if (isPasswordRecovery) {
