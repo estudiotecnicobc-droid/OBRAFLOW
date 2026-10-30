@@ -156,7 +156,7 @@ export const masterTasksService = {
     if (emptyTaskIds.length > 0) {
       const { data: catalogYields } = await supabase
         .from('catalog_task_yields')
-        .select('quantity, master_task_id, resources(id, name, unit, base_cost, type)')
+        .select('quantity, master_task_id, resources(id, name, unit, base_cost, type, social_charges_pct)')
         .in('master_task_id', emptyTaskIds);
 
       for (const y of catalogYields ?? []) {
@@ -183,6 +183,7 @@ export const masterTasksService = {
             laborCategoryName: res.name,
             quantity: Number(y.quantity),
             snapshotHourlyRate: res.base_cost != null ? Number(res.base_cost) : undefined,
+            socialChargesPct: res.social_charges_pct != null ? Number(res.social_charges_pct) : undefined,
           });
         } else if (res.type === 'EQUIPMENT') {
           (equipMap[taskId] ??= []).push({

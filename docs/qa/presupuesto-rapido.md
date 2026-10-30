@@ -18,3 +18,14 @@
 - [ ] Empresa sin el oficio "Oficial Especializado": se crea solo y la tarea queda con mano de obra.
 - [ ] Las tareas sin APU quedan con la cantidad y precio en cero, listas para completar.
 - [ ] Repetir la misma plantilla no duplica APU en el catálogo de la empresa.
+
+## Base maestra por rubro (062)
+- [ ] Migración 062 ejecutada (NOTICE: "Base maestra ObraFlow: 366 APU nuevos, 123 actualizados"; una segunda corrida da 0 nuevos).
+- [ ] Paso 1 muestra "Obras completas" y "Por rubro" con 41 rubros; el buscador filtra por rubro o tarea (por ejemplo, "látex").
+- [ ] Elegir 34 Pintura y 31 Amoblamiento: el paso 2 muestra los datos de cada rubro por separado; cambiar la pintura de paredes a "Satinado lavable" cambia la tarea incluida.
+- [ ] Las tareas de pintura se copian con el oficio "Pintor" con 0 % de cargas sociales.
+- [ ] Las tareas quedan en su rubro oficial (por ejemplo, "34 PINTURA"), sin crear rubros nuevos.
+
+## Rubros
+- [ ] En un presupuesto que tenía "Mampostería", "Pinturas" u "Obra gruesa" como rubros, esas tareas aparecen dentro de 06, 34 y el rubro que corresponda, y los rubros sueltos desaparecen de la lista.
+- [ ] Imprimir el presupuesto: los subtotales por rubro coinciden con la pantalla.

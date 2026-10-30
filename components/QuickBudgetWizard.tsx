@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, ArrowLeft, ArrowRight, Check, Zap, Loader2, Info } from 'lucide-react';
+import { X, ArrowLeft, ArrowRight, Check, Zap, Loader2, Info, Search, Layers } from 'lucide-react';
 import { MasterTask } from '../types';
 import { masterTasksService } from '../services/masterTasksSupabaseService';
 import { QUICK_TEMPLATES } from '../src/features/quickBudget/templates';
@@ -31,8 +31,11 @@ const SOURCE_BADGE: Record<QuickSource['kind'], { label: string; cls: string; ti
 
 export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const [tpl, setTpl] = useState<QuickTemplate | null>(null);
-  const [inputs, setInputs] = useState<V>({});
+  const [picked, setPicked] = useState<QuickTemplate[]>([]);
+  const [inputsBy, setInputsBy] = useState<Record<string, V>>({});
+  const [rubroTemplates, setRubroTemplates] = useState<QuickTemplate[]>([]);
+  const [checked, setChecked] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
   const [overrides, setOverrides] = useState<Record<number, { included?: boolean; quantity?: number }>>({});
   const [globalTasks, setGlobalTasks] = useState<MasterTask[]>([]);
   const [busy, setBusy] = useState(false);
@@ -41,6 +44,9 @@ export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply 
 
   useEffect(() => {
     masterTasksService.listGlobal().then(setGlobalTasks).catch(() => setGlobalTasks([]));
+    import('../src/features/quickBudget/rubroTemplates')
+      .then(m => setRubroTemplates(m.RUBRO_TEMPLATES))
+      .catch(() => setRubroTemplates([]));
   }, []);
 
   const resolve = useMemo(() => {
@@ -57,15 +63,39 @@ export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply 
     };
   }, [orgTasks, globalTasks]);
 
-  const pick = (t: QuickTemplate) => {
-    setTpl(t);
-    setInputs(defaultValues(t));
+  const pick = (ts: QuickTemplate[]) => {
+    setPicked(ts);
+    setInputsBy(prev => Object.fromEntries(ts.map(t => [t.id, prev[t.id] ?? defaultValues(t)])));
     setOverrides({});
     setStep(2);
   };
 
-  const evaluated = useMemo(() => (tpl ? evaluate(tpl, inputs) : null), [tpl, inputs]);
-  const baseRows = useMemo(() => (tpl ? buildRows(tpl, inputs) : []), [tpl, inputs]);
+  const tpl: QuickTemplate | null = picked.length === 0 ? null
+    : picked.length === 1 ? picked[0]
+    : { ...picked[0], id: 'combinado', name: `${picked.length} rubros`, description: picked.map(t => t.name).join(', ') };
+
+  const toggleChecked = (id: string) =>
+    setChecked(c => (c.includes(id) ? c.filter(x => x !== id) : [...c, id]));
+
+  const visibleRubros = useMemo(() => {
+    const q = norm(search);
+    if (!q) return rubroTemplates;
+    return rubroTemplates.filter(t =>
+      norm(t.name).includes(q) || norm(t.description).includes(q) ||
+      t.rubros.some(r => r.tasks.some(k => norm(k.name).includes(q))));
+  }, [rubroTemplates, search]);
+
+  const setInput = (tid: string, key: string, val: number) =>
+    setInputsBy(p => ({ ...p, [tid]: { ...p[tid], [key]: val } }));
+
+  const evaluatedBy = useMemo(
+    () => Object.fromEntries(picked.map(t => [t.id, evaluate(t, inputsBy[t.id] ?? defaultValues(t))])),
+    [picked, inputsBy],
+  );
+  const baseRows = useMemo(
+    () => picked.flatMap(t => buildRows(t, inputsBy[t.id] ?? defaultValues(t))),
+    [picked, inputsBy],
+  );
   const rows: QuickSelection[] = useMemo(
     () => baseRows.map((r, i) => ({
       ...r,
@@ -120,72 +150,129 @@ export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply 
 
         <div className="flex-1 overflow-auto p-6">
           {step === 1 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {QUICK_TEMPLATES.map(t => {
-                const n = t.rubros.reduce((a, r) => a + r.tasks.length, 0);
-                return (
-                  <button key={t.id} onClick={() => pick(t)}
-                    className="text-left p-4 border border-slate-200 rounded-xl hover:border-orange-400 hover:shadow-sm transition-all">
-                    <div className="font-bold text-sm text-slate-800">{t.name}</div>
-                    <div className="text-xs text-slate-500 mt-1 leading-relaxed">{t.description}</div>
-                    <div className="text-[11px] text-slate-400 mt-2">{n} tareas posibles</div>
-                  </button>
-                );
-              })}
+            <div className="space-y-6">
+              <section>
+                <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Obras completas</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {QUICK_TEMPLATES.map(t => {
+                    const n = t.rubros.reduce((a, r) => a + r.tasks.length, 0);
+                    return (
+                      <button key={t.id} onClick={() => pick([t])}
+                        className="text-left p-4 border border-slate-200 rounded-xl hover:border-orange-400 hover:shadow-sm transition-all">
+                        <div className="font-bold text-sm text-slate-800">{t.name}</div>
+                        <div className="text-xs text-slate-500 mt-1 leading-relaxed">{t.description}</div>
+                        <div className="text-[11px] text-slate-400 mt-2">{n} tareas posibles</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section>
+                <div className="flex flex-wrap items-end gap-3 mb-2">
+                  <div className="flex-1 min-w-[200px]">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase">Por rubro</h3>
+                    <p className="text-xs text-slate-500">Elegí uno o varios rubros: cada uno trae todas sus tareas con opciones y cantidades de una vivienda tipo de 70 m² para que las ajustes.</p>
+                  </div>
+                  <div className="relative">
+                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar rubro o tarea"
+                      aria-label="Buscar rubro o tarea"
+                      className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg w-56 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                  </div>
+                </div>
+                {rubroTemplates.length === 0 ? (
+                  <p className="text-xs text-slate-400 flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Cargando rubros…</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {visibleRubros.map(t => {
+                      const n = t.rubros.reduce((a, r) => a + r.tasks.length, 0);
+                      const on = checked.includes(t.id);
+                      return (
+                        <label key={t.id}
+                          className={`flex gap-2 items-start p-3 border rounded-xl cursor-pointer transition-all ${on ? 'border-orange-500 bg-orange-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                          <input type="checkbox" checked={on} onChange={() => toggleChecked(t.id)} className="mt-0.5 accent-orange-600" />
+                          <span className="min-w-0">
+                            <span className="block font-semibold text-sm text-slate-800">{t.name}</span>
+                            <span className="block text-[11px] text-slate-500 leading-snug">{t.description}</span>
+                            <span className="block text-[11px] text-slate-400 mt-0.5">{n} tareas</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                    {visibleRubros.length === 0 && <p className="text-xs text-slate-400">No hay rubros ni tareas con ese nombre.</p>}
+                  </div>
+                )}
+              </section>
             </div>
           )}
 
-          {step === 2 && tpl && evaluated && (
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-              <div className="lg:col-span-3 space-y-3">
-                {tpl.inputs.map(inp => (
-                  <div key={inp.key} className="space-y-1">
-                    <label htmlFor={`qb-${inp.key}`} className="text-sm font-semibold text-slate-700 block">{inp.label}</label>
-                    {inp.kind === 'option' && inp.options ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label={inp.label}>
-                        {inp.options.map(o => (
-                          <button key={o.value} role="radio" aria-checked={inputs[inp.key] === o.value}
-                            onClick={() => setInputs(v => ({ ...v, [inp.key]: o.value }))}
-                            className={`text-left text-xs px-3 py-2 rounded-lg border ${inputs[inp.key] === o.value ? 'border-orange-500 bg-orange-50 text-orange-800 font-semibold' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}>
-                            {o.label}
-                          </button>
+          {step === 2 && picked.length > 0 && (
+            <div className="space-y-4">
+              {picked.map(t => {
+                const ev = evaluatedBy[t.id];
+                const vals = inputsBy[t.id] ?? {};
+                return (
+                  <details key={t.id} open={picked.length <= 2} className="border border-slate-200 rounded-xl">
+                    <summary className="px-4 py-2 bg-slate-50 text-sm font-bold text-slate-700 cursor-pointer rounded-t-xl">
+                      {t.name} <span className="font-normal text-xs text-slate-400">· {t.inputs.length} datos</span>
+                    </summary>
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 p-4">
+                      <div className="lg:col-span-3 space-y-3">
+                        {t.inputs.map(inp => (
+                          <div key={inp.key} className="space-y-1">
+                            <label htmlFor={`qb-${t.id}-${inp.key}`} className="text-sm font-semibold text-slate-700 block">{inp.label}</label>
+                            {inp.kind === 'option' && inp.options ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label={inp.label}>
+                                {inp.options.map(o => (
+                                  <button key={o.value} role="radio" aria-checked={vals[inp.key] === o.value}
+                                    onClick={() => setInput(t.id, inp.key, o.value)}
+                                    className={`text-left text-xs px-3 py-2 rounded-lg border ${vals[inp.key] === o.value ? 'border-orange-500 bg-orange-50 text-orange-800 font-semibold' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}>
+                                    {o.label}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : inp.kind === 'bool' ? (
+                              <div className="flex gap-2" role="radiogroup" aria-label={inp.label}>
+                                {[[1, 'Sí'], [0, 'No']].map(([val, lab]) => (
+                                  <button key={val} role="radio" aria-checked={vals[inp.key] === val}
+                                    onClick={() => setInput(t.id, inp.key, val as number)}
+                                    className={`text-xs px-4 py-1.5 rounded-lg border ${vals[inp.key] === val ? 'border-orange-500 bg-orange-50 text-orange-800 font-semibold' : 'border-slate-200 text-slate-600'}`}>
+                                    {lab}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <input id={`qb-${t.id}-${inp.key}`} type="number" step="any" min={0} value={vals[inp.key] ?? 0}
+                                  onChange={e => setInput(t.id, inp.key, Number(e.target.value))}
+                                  className="w-28 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                                <span className="text-xs text-slate-500">{inp.unit}</span>
+                              </div>
+                            )}
+                            {inp.note && inp.kind !== 'option' && <p className="text-[11px] text-slate-400">{inp.note}</p>}
+                          </div>
                         ))}
                       </div>
-                    ) : inp.kind === 'bool' ? (
-                      <div className="flex gap-2" role="radiogroup" aria-label={inp.label}>
-                        {[[1, 'Sí'], [0, 'No']].map(([val, lab]) => (
-                          <button key={val} role="radio" aria-checked={inputs[inp.key] === val}
-                            onClick={() => setInputs(v => ({ ...v, [inp.key]: val as number }))}
-                            className={`text-xs px-4 py-1.5 rounded-lg border ${inputs[inp.key] === val ? 'border-orange-500 bg-orange-50 text-orange-800 font-semibold' : 'border-slate-200 text-slate-600'}`}>
-                            {lab}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <input id={`qb-${inp.key}`} type="number" step="any" min={0} value={inputs[inp.key] ?? 0}
-                          onChange={e => setInputs(v => ({ ...v, [inp.key]: Number(e.target.value) }))}
-                          className="w-28 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400" />
-                        <span className="text-xs text-slate-500">{inp.unit}</span>
-                      </div>
-                    )}
-                    {inp.note && inp.kind !== 'option' && <p className="text-[11px] text-slate-400">{inp.note}</p>}
-                  </div>
-                ))}
-              </div>
-              <div className="lg:col-span-2">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 lg:sticky lg:top-0">
-                  <div className="text-xs font-bold text-slate-500 uppercase">Se calcula solo</div>
-                  {tpl.calcs.map(c => (
-                    <div key={c.key} className="flex justify-between gap-3 text-sm">
-                      <span className="text-slate-600">{c.label}</span>
-                      <span className="font-semibold text-slate-800 whitespace-nowrap">
-                        {evaluated.labels[c.key] ?? `${fmt(evaluated.values[c.key] ?? 0)} ${c.unit}`}
-                      </span>
+                      {t.calcs.length > 0 && ev && (
+                        <div className="lg:col-span-2">
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 lg:sticky lg:top-0">
+                            <div className="text-xs font-bold text-slate-500 uppercase">Se calcula solo</div>
+                            {t.calcs.map(c => (
+                              <div key={c.key} className="flex justify-between gap-3 text-sm">
+                                <span className="text-slate-600">{c.label}</span>
+                                <span className="font-semibold text-slate-800 whitespace-nowrap">
+                                  {ev.labels[c.key] ?? `${fmt(ev.values[c.key] ?? 0)} ${c.unit}`}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </details>
+                );
+              })}
             </div>
           )}
 
@@ -257,6 +344,12 @@ export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply 
             <button onClick={() => setStep(s => (s - 1) as 1 | 2 | 3)} disabled={busy}
               className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-1">
               <ArrowLeft size={14} /> Volver
+            </button>
+          )}
+          {step === 1 && checked.length > 0 && (
+            <button onClick={() => pick(rubroTemplates.filter(t => checked.includes(t.id)))}
+              className="px-4 py-2 text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg flex items-center gap-1">
+              <Layers size={14} /> Continuar con {checked.length} {checked.length === 1 ? 'rubro' : 'rubros'} <ArrowRight size={14} />
             </button>
           )}
           {step === 2 && (
