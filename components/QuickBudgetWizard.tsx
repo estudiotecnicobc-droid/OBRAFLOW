@@ -10,6 +10,8 @@ export type QuickSource = { kind: 'org'; task: MasterTask } | { kind: 'global'; 
 
 export interface QuickSelection extends QuickRow {
   source: QuickSource;
+  /** La tarea ya está en el presupuesto. */
+  already?: boolean;
 }
 
 interface Props {
@@ -17,6 +19,10 @@ interface Props {
   onClose: () => void;
   /** Devuelve un resumen para mostrar al terminar. */
   onApply: (rows: QuickSelection[], template: QuickTemplate) => Promise<string>;
+  /** Abre el asistente directo en las tareas de este rubro (por ejemplo, "34 PINTURA"). */
+  initialRubro?: string;
+  /** Códigos y nombres de las tareas que ya están en el presupuesto. */
+  existing?: { codes: string[]; names: string[] };
 }
 
 const norm = (s?: string) => (s ?? '').trim().toLowerCase();
@@ -29,7 +35,7 @@ const SOURCE_BADGE: Record<QuickSource['kind'], { label: string; cls: string; ti
   none: { label: 'Precio a completar', cls: 'bg-amber-50 text-amber-700 border-amber-200', title: 'Todavía no tiene análisis de precio: se agrega la tarea y la cantidad, y el precio lo completás vos.' },
 };
 
-export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply }) => {
+export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply, initialRubro, existing }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [picked, setPicked] = useState<QuickTemplate[]>([]);
   const [inputsBy, setInputsBy] = useState<Record<string, V>>({});
@@ -45,9 +51,27 @@ export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply 
   useEffect(() => {
     masterTasksService.listGlobal().then(setGlobalTasks).catch(() => setGlobalTasks([]));
     import('../src/features/quickBudget/rubroTemplates')
-      .then(m => setRubroTemplates(m.RUBRO_TEMPLATES))
+      .then(m => {
+        setRubroTemplates(m.RUBRO_TEMPLATES);
+        const num = initialRubro?.trim().slice(0, 2);
+        if (!num || !/^\d\d$/.test(num)) return;
+        const matches = m.RUBRO_TEMPLATES.filter(t => t.name.startsWith(num + ' '));
+        if (matches.length === 1) {
+          pick(matches);
+          setStep(3);
+        } else if (matches.length > 1) {
+          setChecked(matches.map(t => t.id));
+        }
+      })
       .catch(() => setRubroTemplates([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const isAlready = useMemo(() => {
+    const codes = new Set((existing?.codes ?? []).map(norm));
+    const names = new Set((existing?.names ?? []).map(norm));
+    return (name: string, code?: string) => (!!code && codes.has(norm(code))) || names.has(norm(name));
+  }, [existing]);
 
   const resolve = useMemo(() => {
     const orgByCode = new Map<string, MasterTask>(orgTasks.filter(t => t.code).map(t => [norm(t.code), t]));
@@ -97,13 +121,17 @@ export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply 
     [picked, inputsBy],
   );
   const rows: QuickSelection[] = useMemo(
-    () => baseRows.map((r, i) => ({
-      ...r,
-      included: overrides[i]?.included ?? r.included,
-      quantity: overrides[i]?.quantity ?? r.quantity,
-      source: resolve(r.task.name, r.task.code),
-    })),
-    [baseRows, overrides, resolve],
+    () => baseRows.map((r, i) => {
+      const already = isAlready(r.task.name, r.task.code);
+      return {
+        ...r,
+        included: overrides[i]?.included ?? (r.included && !already),
+        quantity: overrides[i]?.quantity ?? r.quantity,
+        source: resolve(r.task.name, r.task.code),
+        already,
+      };
+    }),
+    [baseRows, overrides, resolve, isAlready],
   );
   const selected = rows.filter(r => r.included && r.quantity > 0);
   const counts = selected.reduce((a, r) => ({ ...a, [r.source.kind]: (a[r.source.kind] ?? 0) + 1 }), {} as Record<string, number>);
@@ -303,6 +331,11 @@ export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply 
                               <span title={SOURCE_BADGE[row.source.kind].title} className={`text-[10px] px-1.5 py-0.5 border rounded ${SOURCE_BADGE[row.source.kind].cls}`}>
                                 {SOURCE_BADGE[row.source.kind].label}
                               </span>
+                              {row.already && (
+                                <span title="Ya está en el presupuesto: no se agrega salvo que la tildes." className="text-[10px] px-1.5 py-0.5 border rounded bg-amber-50 text-amber-700 border-amber-200">
+                                  Ya incluida
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs text-slate-600 mt-0.5">{row.task.includes}</p>
                             {row.task.note && <p className="text-[11px] text-slate-400 mt-0.5">{row.task.note}</p>}

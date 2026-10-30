@@ -162,6 +162,9 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   // --- MASTER TASKS & TEMPLATES ---
   const { add: addToMaster, tasks: masterTasks, refetch: refetchMasterTasks } = useMasterTasks(project.organizationId);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [quickRubro, setQuickRubro] = useState<string | undefined>(undefined);
+  const [globalTasks, setGlobalTasks] = useState<MasterTask[] | null>(null);
+  const [globalError, setGlobalError] = useState('');
   const { templates: budgetTemplates } = useBudgetTemplates(project.organizationId);
   const { items: masterMaterials } = useMasterMaterials(project.organizationId);
   const masterMaterialsMap = useMemo(
@@ -662,6 +665,35 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     }
   };
 
+  useEffect(() => {
+    if (!configPanel.isOpen || configPanel.mode !== 'add' || globalTasks !== null) return;
+    masterTasksService.listGlobal().then(setGlobalTasks).catch(() => setGlobalTasks([]));
+  }, [configPanel.isOpen, configPanel.mode, globalTasks]);
+
+  const budgetExisting = useMemo(() => {
+    const codes: string[] = [];
+    const names: string[] = [];
+    for (const it of project.items) {
+      const t = tasks.find(x => x.id === it.taskId);
+      if (!t) continue;
+      names.push(t.name);
+      const code = t.masterTaskId ? masterTasks.find(m => m.id === t.masterTaskId)?.code : undefined;
+      if (code) codes.push(code);
+    }
+    return { codes, names };
+  }, [project.items, tasks, masterTasks]);
+
+  const GLOBAL_PREFIX = 'global:';
+  const selectedGlobal = configPanel.selectedTaskId.startsWith(GLOBAL_PREFIX)
+    ? (globalTasks ?? []).find(g => g.id === configPanel.selectedTaskId.slice(GLOBAL_PREFIX.length))
+    : undefined;
+
+  const openQuickForRubro = (rubro?: string) => {
+    setQuickRubro(rubro);
+    setConfigPanel(prev => ({ ...prev, isOpen: false }));
+    setQuickOpen(true);
+  };
+
   // Quick Add Handler
   const handleQuickAddTask = (category: string) => {
       setTaskSearch('');
@@ -694,6 +726,34 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
       // Guard síncrono: previene doble-INSERT aunque React 18 batching retrase el re-render
       if (isSavingRef.current) return;
       if (!configPanel.selectedTaskId) return;
+
+      if (selectedGlobal) {
+          isSavingRef.current = true;
+          setSaveStatus('saving');
+          setGlobalError('');
+          try {
+              const rubro = officialRubro(configPanel.category);
+              await handleQuickApply([{
+                  rubro,
+                  task: {
+                      name: selectedGlobal.name, includes: selectedGlobal.description ?? '', scope: '',
+                      unit: selectedGlobal.unit, qty: configPanel.quantity, include: true, code: selectedGlobal.code,
+                  },
+                  quantity: configPanel.quantity,
+                  included: true,
+                  source: { kind: 'global', task: selectedGlobal },
+              }], { id: 'panel', name: selectedGlobal.name, description: '', inputs: [], calcs: [], rubros: [] });
+              setSaveStatus('ok');
+              setTimeout(() => { setSaveStatus('idle'); setConfigPanel(prev => ({ ...prev, isOpen: false })); }, 700);
+          } catch (e: any) {
+              setGlobalError(e?.message ?? 'No se pudo agregar la tarea.');
+              setSaveStatus('error');
+              setTimeout(() => setSaveStatus('idle'), 2500);
+          } finally {
+              isSavingRef.current = false;
+          }
+          return;
+      }
 
       // Dedup: no insertar si la tarea ya está en el presupuesto
       if (configPanel.mode === 'add') {
@@ -862,7 +922,8 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   }
 
   const quickModal = quickOpen ? (
-    <QuickBudgetWizard orgTasks={masterTasks} onClose={() => setQuickOpen(false)} onApply={handleQuickApply} />
+    <QuickBudgetWizard orgTasks={masterTasks} initialRubro={quickRubro} existing={budgetExisting}
+      onClose={() => { setQuickOpen(false); setQuickRubro(undefined); }} onApply={handleQuickApply} />
   ) : null;
 
   if (project.items.length === 0 && !wizardDismissed) {
@@ -1465,6 +1526,12 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                               <p className="text-xs text-slate-500 font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded w-fit mt-1">
                                   {configPanel.category}
                               </p>
+                              {configPanel.mode === 'add' && (
+                                  <button onClick={() => openQuickForRubro(officialRubro(configPanel.category))}
+                                      className="mt-2 text-xs font-bold text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg px-2.5 py-1 flex items-center gap-1">
+                                      <Zap size={12} /> Elegir varias tareas del rubro
+                                  </button>
+                              )}
                           </div>
                           <button onClick={() => setConfigPanel({ ...configPanel, isOpen: false })} className="p-2 hover:bg-slate-200 rounded-full text-slate-400"><X size={20}/></button>
                       </div>
@@ -1507,7 +1574,37 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                   (!search || t.name.toLowerCase().includes(search))
                               );
 
-                              const hasAnyResults = sameCatMaster.length > 0 || otherCatMaster.length > 0 || catProjectTasks.length > 0;
+                              const orgCodes = new Set(activeMasterTasks.filter(mt => mt.code).map(mt => normCat(mt.code!)));
+                              const panelRubro = officialRubro(configPanel.category);
+                              const freeGlobals = (configPanel.mode === 'add' ? globalTasks ?? [] : []).filter(g =>
+                                  !(g.code && orgCodes.has(normCat(g.code))) &&
+                                  (!search || normCat(g.name).includes(normCat(search))));
+                              const sameCatGlobal = freeGlobals.filter(g => officialRubro(g.category, g.name) === panelRubro);
+                              const otherCatGlobal = search
+                                  ? freeGlobals.filter(g => officialRubro(g.category, g.name) !== panelRubro).slice(0, 40)
+                                  : [];
+                              const anyGlobal = sameCatGlobal.length > 0 || otherCatGlobal.length > 0;
+
+                              const renderGlobalRow = (g: MasterTask) => {
+                                  const isSelected = configPanel.selectedTaskId === GLOBAL_PREFIX + g.id;
+                                  const showCat = officialRubro(g.category, g.name) !== panelRubro && g.category;
+                                  return (
+                                      <button
+                                          key={g.id}
+                                          onClick={() => { setConfigPanel(prev => ({ ...prev, selectedTaskId: GLOBAL_PREFIX + g.id })); setDuplicateWarning(false); setGlobalError(''); }}
+                                          disabled={importingMaster}
+                                          className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-100 last:border-0 transition-colors disabled:opacity-60 ${isSelected ? 'bg-orange-50 border-l-2 border-l-orange-500' : 'hover:bg-orange-50/60'}`}
+                                      >
+                                          <div className="flex-1 min-w-0">
+                                              <span className="text-sm text-slate-700 font-medium truncate block">{g.name}</span>
+                                              <span className="text-[10px] text-slate-400">{g.unit}{showCat ? ` · ${officialRubro(g.category, g.name)}` : ''}</span>
+                                          </div>
+                                          <span className="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold shrink-0">Catálogo ObraFlow</span>
+                                      </button>
+                                  );
+                              };
+
+                              const hasAnyResults = sameCatMaster.length > 0 || otherCatMaster.length > 0 || catProjectTasks.length > 0 || anyGlobal;
 
                               const renderMasterRow = (mt: MasterTask) => {
                                   const projTask = tasks.find(t => t.masterTaskId === mt.id);
@@ -1559,7 +1656,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                       </div>
 
                                       {/* Empty state: no master tasks at all */}
-                                      {noMasterTasksAtAll && catProjectTasks.length === 0 && (
+                                      {noMasterTasksAtAll && catProjectTasks.length === 0 && !anyGlobal && globalTasks !== null && !search && (
                                           <div className="border border-slate-200 rounded-lg px-4 py-5 text-center space-y-3">
                                               <p className="text-sm font-bold text-slate-700">No hay APUs disponibles para agregar.</p>
                                               <p className="text-xs text-slate-500">Primero importá o creá APUs en el Catálogo de Empresa. Luego podrás agregarlas al presupuesto.</p>
@@ -1583,8 +1680,8 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                       )}
 
                                       {/* Grouped list */}
-                                      {(!noMasterTasksAtAll || catProjectTasks.length > 0) && (
-                                          <div className="max-h-52 overflow-y-auto border border-slate-200 rounded-lg">
+                                      {(!noMasterTasksAtAll || catProjectTasks.length > 0 || anyGlobal || !!search) && (
+                                          <div className="max-h-80 overflow-y-auto border border-slate-200 rounded-lg">
                                               {/* Same-category APUs */}
                                               {sameCatMaster.length > 0 && (
                                                   <>
@@ -1594,6 +1691,18 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                                           </span>
                                                       </div>
                                                       {sameCatMaster.map(renderMasterRow)}
+                                                  </>
+                                              )}
+
+                                              {/* Catálogo ObraFlow (todavía no copiado a la empresa) */}
+                                              {sameCatGlobal.length > 0 && (
+                                                  <>
+                                                      <div className="px-3 py-1.5 bg-orange-50 sticky top-0 z-10">
+                                                          <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wide flex items-center gap-1">
+                                                              <Zap size={9} /> Catálogo ObraFlow — {panelRubro}
+                                                          </span>
+                                                      </div>
+                                                      {sameCatGlobal.map(renderGlobalRow)}
                                                   </>
                                               )}
 
@@ -1639,6 +1748,21 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                                   </>
                                               )}
 
+                                              {otherCatGlobal.length > 0 && (
+                                                  <>
+                                                      <div className="px-3 py-1.5 bg-orange-50/60 sticky top-0 z-10">
+                                                          <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wide flex items-center gap-1">
+                                                              <Zap size={9} /> Catálogo ObraFlow — otros rubros
+                                                          </span>
+                                                      </div>
+                                                      {otherCatGlobal.map(renderGlobalRow)}
+                                                  </>
+                                              )}
+
+                                              {configPanel.mode === 'add' && globalTasks === null && (
+                                                  <div className="px-3 py-2 text-[11px] text-slate-400 italic">Cargando el Catálogo ObraFlow…</div>
+                                              )}
+
                                               {!hasAnyResults && (
                                                   <div className="px-3 py-5 text-xs text-slate-400 text-center italic">
                                                       {taskSearch
@@ -1651,6 +1775,16 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                       )}
 
                                       {/* Feedback messages */}
+                                      {selectedGlobal && (
+                                          <div className="text-xs text-orange-800 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 space-y-1">
+                                              <p className="font-bold">{selectedGlobal.name}</p>
+                                              {selectedGlobal.description && <p className="text-orange-700">{selectedGlobal.description}</p>}
+                                              <p className="text-[11px] text-orange-600">Al agregarla se copia a los APU de tu empresa con materiales y mano de obra.</p>
+                                          </div>
+                                      )}
+                                      {globalError && (
+                                          <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{globalError}</p>
+                                      )}
                                       {duplicateWarning && (
                                           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
                                               <AlertCircle size={13} /> Esta tarea ya está en el presupuesto. Editá la cantidad desde el ítem existente.
@@ -1666,7 +1800,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                           })()}
 
                           {/* Task Resource Composition — visible al seleccionar una tarea */}
-                          {configPanel.selectedTaskId && (() => {
+                          {configPanel.selectedTaskId && !selectedGlobal && (() => {
                               const selTask   = tasks.find(t => t.id === configPanel.selectedTaskId);
                               const mats      = yieldsIndex[configPanel.selectedTaskId]          ?? [];
                               const labors    = taskLaborYieldsIndex[configPanel.selectedTaskId] ?? [];
@@ -1840,7 +1974,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                       min="0"
                                   />
                                   <div className="w-16 h-12 flex items-center justify-center bg-slate-100 rounded-lg text-sm font-bold text-slate-500 border border-slate-200">
-                                      {tasks.find(t => t.id === configPanel.selectedTaskId)?.unit || '-'}
+                                      {selectedGlobal?.unit || tasks.find(t => t.id === configPanel.selectedTaskId)?.unit || '-'}
                                   </div>
                               </div>
                           </div>
