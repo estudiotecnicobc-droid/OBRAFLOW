@@ -6,7 +6,7 @@ import {
   Calendar, Clock, AlertCircle, ArrowDown, Calculator,
   ChevronsRight, Users, Check, Layout, List, PenTool,
   ZoomIn, ZoomOut, MoveRight, Download, Printer, FileText, ChevronLeft, ChevronRight, DollarSign, TrendingUp, Crosshair,
-  ChevronsDownUp, ChevronsUpDown, Eye, EyeOff, Flag, GitBranch, Activity, CalendarDays
+  ChevronsDownUp, ChevronsUpDown, Eye, EyeOff, Flag, GitBranch, Activity, CalendarDays, Sparkles
 } from 'lucide-react';
 import { LinkType, ProjectDependency } from '../types';
 import { toLocalDate, diffDays } from '../services/calculationService';
@@ -14,6 +14,7 @@ import { computeSchedule, resolveDependencies } from '../services/scheduleEngine
 import { comparePlanVsReal } from '../services/planVsReal';
 import { APUBuilder } from './APUBuilder';
 import { ResizableSplitPane } from './ResizableSplitPane';
+import { AutoPlanModal } from './AutoPlanModal';
 
 export const Planning: React.FC = () => {
   const {
@@ -34,6 +35,7 @@ export const Planning: React.FC = () => {
   // Modo lectura por defecto: nadie cambia cantidad/avance/precedencia sin querer. "Editar"
   // habilita los inputs de la tabla (no afecta el panel de ajuste de rendimiento del APU).
   const [editMode, setEditMode] = useState(false);
+  const [showAutoPlan, setShowAutoPlan] = useState(false);
   // Color de barra del Gantt a elección: por estado automático (default), por partida, o
   // el binario crítica/normal de antes de la Etapa B.
   const [barColorMode, setBarColorMode] = useState<'status' | 'category' | 'critical'>('status');
@@ -1063,6 +1065,8 @@ export const Planning: React.FC = () => {
           );
       })()}
 
+      {showAutoPlan && <AutoPlanModal onClose={() => setShowAutoPlan(false)} />}
+
       {/* Main Content */}
       <div className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
           
@@ -1096,6 +1100,15 @@ export const Planning: React.FC = () => {
                           title={editMode ? 'Volver a modo lectura' : 'Habilitar edición de cantidad, frentes, avance y precedencia'}
                       >
                           <PenTool size={16} /> {editMode ? 'Modo lectura' : 'Editar'}
+                      </button>
+                  )}
+                  {viewMode === 'table' && (
+                      <button
+                          onClick={() => setShowAutoPlan(true)}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
+                          title="Arma el orden y las fechas de las tareas a partir del presupuesto"
+                      >
+                          <Sparkles size={16} /> Generar plan de trabajos
                       </button>
                   )}
               </div>
