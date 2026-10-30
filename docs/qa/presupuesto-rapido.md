@@ -29,3 +29,11 @@
 ## Rubros
 - [ ] En un presupuesto que tenía "Mampostería", "Pinturas" u "Obra gruesa" como rubros, esas tareas aparecen dentro de 06, 34 y el rubro que corresponda, y los rubros sueltos desaparecen de la lista.
 - [ ] Imprimir el presupuesto: los subtotales por rubro coinciden con la pantalla.
+
+## Agregar tarea desde el presupuesto
+- [ ] "Agregar Nueva Tarea en 34 PINTURA": el panel muestra "Catálogo ObraFlow — 34 PINTURA" con las tareas que la empresa todavía no tiene.
+- [ ] Buscar "látex": aparecen también tareas del catálogo de otros rubros.
+- [ ] Elegir una tarea del catálogo, poner cantidad y "Agregar Ítem": queda en el rubro con materiales y mano de obra, y pasa a "APUs de Empresa".
+- [ ] "Elegir varias tareas del rubro" abre el Presupuesto rápido directo en las tareas de ese rubro (paso 3).
+- [ ] Desde 01 DEMOLICIONES abre el paso 1 con demolición total y parcial tildadas para elegir.
+- [ ] Las tareas que ya están en el presupuesto aparecen como "Ya incluida", destildadas; si se tildan a mano, se agregan igual.
