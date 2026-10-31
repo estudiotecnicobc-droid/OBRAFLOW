@@ -1513,7 +1513,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
           {/* CONFIGURATION SIDE PANEL (OVERLAY) */}
           {configPanel.isOpen && (
-              <div className="absolute inset-0 z-50 flex justify-end">
+              <div className="fixed inset-0 z-50 flex justify-end">
                   <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity" onClick={() => setConfigPanel({ ...configPanel, isOpen: false })}></div>
                   <div className="w-[450px] bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 z-50">
                       
