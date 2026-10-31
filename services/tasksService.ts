@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 import { Task, TaskYield, TaskLaborYield, TaskToolYield } from '../types';
 import { normalizeUnit } from '../utils/normalizeUnit';
+import { selectInChunks } from './supabaseBatch';
 
 // ─── Mappers — Tasks ──────────────────────────────────────────────────────────
 
@@ -115,15 +116,17 @@ export const tasksService = {
     toolYields: TaskToolYield[];
   }> {
     if (taskIds.length === 0) return { yields: [], laborYields: [], toolYields: [] };
+    // En lotes: con todas las tareas de la org en un solo .in() la URL excede
+    // el límite y PostgREST responde 400 (los yields quedaban vacíos y la
+    // grilla del presupuesto mostraba $0 en material y mano de obra).
     const [{ data: yd, error: ye }, { data: lyd, error: lye }, { data: tyd, error: tye }] =
       await Promise.all([
-        supabase.from('task_yields').select('*').in('task_id', taskIds),
-        supabase.from('task_labor_yields').select('*').in('task_id', taskIds),
-        supabase.from('task_tool_yields').select('*').in('task_id', taskIds),
+        selectInChunks('task_yields', 'task_id', taskIds),
+        selectInChunks('task_labor_yields', 'task_id', taskIds),
+        selectInChunks('task_tool_yields', 'task_id', taskIds),
       ]);
-    if (ye)  console.error('[tasksService] task_yields', ye.message);
-    if (lye) console.error('[tasksService] task_labor_yields', lye.message);
-    if (tye) console.error('[tasksService] task_tool_yields', tye.message);
+    const err = ye ?? lye ?? tye;
+    if (err) throw new Error(`[tasksService.listYieldsForTasks] ${err.message}`);
     return {
       yields: (yd ?? []).map(yieldFromRow),
       laborYields: (lyd ?? []).map(laborYieldFromRow),

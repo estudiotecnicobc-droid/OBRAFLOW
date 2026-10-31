@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { Crew, TaskCrewYield } from '../types';
+import { selectInChunks } from './supabaseBatch';
 
 // ─── Mappers — Crews ──────────────────────────────────────────────────────────
 
@@ -74,11 +75,11 @@ export const crewsService = {
 
   async listCrewYieldsForTasks(taskIds: string[]): Promise<TaskCrewYield[]> {
     if (taskIds.length === 0) return [];
-    const { data, error } = await supabase
-      .from('task_crew_yields')
-      .select('*')
-      .in('task_id', taskIds);
-    if (error) { console.error('[crewsService.listCrewYieldsForTasks]', error.message); return []; }
+    // En lotes (ver selectInChunks): un .in() con cientos de IDs da 400.
+    const { data, error } = await selectInChunks('task_crew_yields', 'task_id', taskIds, {
+      orderBy: ['task_id', 'crew_id'],
+    });
+    if (error) throw new Error(`[crewsService.listCrewYieldsForTasks] ${error.message}`);
     return (data ?? []).map(crewYieldFromRow);
   },
 
