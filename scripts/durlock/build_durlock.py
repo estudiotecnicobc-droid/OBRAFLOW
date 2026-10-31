@@ -31,25 +31,80 @@ EST = 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'
 def derived(base_code, base_note, factor_txt):
     return f'Derivado de {base_code} ({base_note}){factor_txt}; verificar'
 
-# nombre normalizado -> (precio, nota)
+# nombre normalizado -> (precio con IVA, nota). Relevamiento del 31/10/2026.
+RM = 'Red Materiales (redmateriales.com.ar), promedio de corralones, octubre 2026'
+RMD = 'Red Materiales (redmateriales.com.ar), precio desde, octubre 2026'
+ACQ = 'Corralón Aconquija, precio web con IVA, octubre 2026'
+MLB = 'Mercado Libre, mediana de publicaciones, octubre 2026'
+EST = 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'
 PRICES = {
-    'Placa Estándar 12,5 mm 1,20x2,40': (round(12844 * 2.88, 2), derived('OF-M-PY', APPM, ' × 2,88 m² por placa')),
-    'Placa RH 12,5 mm 1,20x2,40': (round(17500 * 2.88, 2), derived('OF-M-PYV', 'estimado', ' × 2,88 m² por placa')),
-    'Montante 69 mm x 2,60 m': (round(1522 * 2.6, 2), derived('OF-M-M70', APPM, ' × 2,60 m')),
-    'Solera 70 mm x 2,60 m': (round(1522 * 2.6, 2), derived('OF-M-S70', 'estimado', ' × 2,60 m')),
-    'Montante 34 mm x 2,60 m': (round(1522 * 2.6, 2), derived('OF-M-M35', APPM, ' × 2,60 m')),
-    'Solera 35 mm x 2,60 m': (round(1400 * 2.6, 2), derived('OF-M-S35', 'estimado', ' × 2,60 m')),
-    'Perfil Omega x 2,60 m': (round(1376 * 2.6, 2), derived('OF-M-OME', APPM, ' × 2,60 m')),
+    # Placas de yeso (por placa)
+    'Placa Estándar 12,5 mm 1,20x2,40': (21769, RM),
+    'Placa Estándar 9,5 mm 1,20x2,40': (21214, RM),
+    'Placa RH 12,5 mm 1,20x2,40': (29924.65, ACQ),
+    'Placa RF 12,5 mm 1,20x2,40': (26434, RM),
+    'Placa Extra Resistente 12,5 mm 1,20x2,40': (28820.51, ACQ),
+    'Placa 4D 12,5 mm 1,20x2,40': (33741.71, ACQ),
+    'Placa Antihumedad 12,5 mm 1,20x2,60': (31994.88, ACQ),
+    'Placa CIEL 7 mm 1,20x2,40': (15089.95, ACQ),
+    'Placa Revoque Seco 12,5 mm 1,20x2,60': (22232.63, 'Mukdise, precio contado con IVA, octubre 2026'),
+    'Placa ACU60 12,5 mm 1,20x2,40': (34000, EST + ' (referencia: placa 4D)'),
+    'Placa Semicubiertos 12,5 mm 1,20x2,40': (33000, EST + ' (referencia: placa RH)'),
+    'Placa Aquaboard 12,5 mm 1,20x2,40': (45000, EST),
+    # Placas desmontables
+    'Placa Deco Clásica 6,4 mm 0,606x0,606': (8885, derived('OF-M-PDE', APPM, ', placa 61 x 61')),
+    'Placa Deco Clásica 6,4 mm 0,606x1,216': (17770, 'Derivado de la Deco Clásica 60 x 60 × 2; verificar'),
+    'Placa Deco Vinyl 7 mm 0,605x0,605': (12000, EST),
+    # Placas cementicias y Cedral
+    'Placa Superboard ST 6 mm 1,20x2,40': (53249, RMD),
+    'Placa Superboard ST 8 mm 1,20x2,40': (70958, RMD),
+    'Placa Superboard Premium 10 mm 1,20x2,40': (106000, EST + ' (referencia: Superboard 8 mm × 1,5)'),
+    'Siding Cedral 8 mm 0,20x3,60': (17800, MLB),
+    'Siding Cedral pre-pintado 8 mm 0,19x3,66': (25583, MLB + ' (Cedral color)'),
+    'Cedral Smart 10 mm 0,10x3,20': (15724, MLB),
+    'Cedral Panel 6 mm 1,218x2,40': (75202, MLB),
+    # Perfiles
+    'Montante 69 mm x 2,60 m': (6089, RM),
+    'Solera 70 mm x 2,60 m': (5457, RM),
+    'Montante 34 mm x 2,60 m': (4588, RM),
+    'Solera 35 mm x 2,60 m': (3972, RM),
+    'Perfil Omega x 2,60 m': (3575, RMD),
+    'Larguero 15/16" x 3,66 m': (8000, RMD),
+    'Travesaño 15/16" x 0,61 m': (1394, RMD),
+    'Perfil perimetral 15/16" x 3,05 m': (5348, RMD),
+    'Perfil PGO 22 x 3,00 m': (8113, MLB),
+    'PGC 70x40x15 esp 0,90 x 6 m': (30000, EST),
+    'PGU 70x35 esp 0,90 x 6 m': (24000, EST),
+    'Fleje metálico 50 mm': (1300, EST),
+    'Alambre N°14': (150, EST),
+    # Tornillos y fijaciones (por unidad)
     'Tornillo T1 punta aguja 8x9/16"': (24.73, APPM),
     'Tornillo T2 punta aguja 6x1"': (19.77, APPM),
-    'Cinta papel microperforada': (98.76, APPM),
-    'Masilla interior': (2894, APPM),
+    'Tornillo T1 punta mecha': (20.72, RM + ', caja x 100'),
+    'Tornillo T2 6x1" 25 mm': (27.14, ACQ + ', caja x 100'),
+    'Tornillo T3 6x1½" 38 mm': (52.20, ACQ + ', caja x 100'),
+    'Tornillo alas 8x1¼"': (60, EST),
+    'Tornillo alas con estrías 8x1¼"': (70, EST),
+    'Tornillo alas 10x1½"': (90, EST),
     'Tarugo N°8 c/tope + tornillo': (178, APPM),
+    # Masillas, adhesivos y tratamiento de juntas
+    'Cinta papel microperforada': (98.76, APPM),
+    'Masilla interior': (1714, 'Red Materiales (redmateriales.com.ar), Masilla Durlock balde 18 kg, octubre 2026'),
+    'Masilla Antihumedad 13 kg': (45348.86, ACQ),
+    'Masilla Semicubiertos': (1762, RMD + ', balde 32 kg'),
+    'Masilla/enduido exterior': (2600, EST + ' (referencia: enduido Durlock 25 kg)'),
+    'Base Coat bicomponente 25 kg': (96225, 'Promedio de Pinturería España, Punto Hogar y Bourlot, octubre 2026'),
+    'Adhesivo Revoque Seco 25 kg': (25000, EST),
+    'Cinta malla FV 5x5 50 m x 5 cm': (2535, 'Derivado de Red Materiales (cinta tramada 90 m), octubre 2026'),
+    'Malla FV 5x5 160 g 50 m x 1 m': (125000, derived('OF-M-MFV', 'estimado', ' × 50 m²')),
+    # Aislaciones, selladores y barreras
     'Aislante para muros (lana)': (6500, derived('OF-M-LV', 'lana de vidrio 50 mm', '')),
     'Aislante para techos (lana)': (8500, derived('OF-M-LVF', 'lana de vidrio 50 mm con foil', '')),
+    'Aislante EPS para EIFS': (7000, EST),
+    'Banda acústica': (600, EST),
     'Barrera de agua y viento': (2500, derived('OF-M-TYV', 'estimado', '')),
     'Sellador poliuretánico 600 ml': (14000, derived('OF-M-SEL', 'estimado', '')),
-    'Placa Deco Clásica 6,4 mm 0,606x0,606': (8885, derived('OF-M-PDE', APPM, ', placa 61 x 61')),
+    'Sellador Promaseal-A': (35000, EST),
 }
 NO_PRICE = 'Sin precio de referencia: completar con tu proveedor (durlock.com, octubre 2026)'
 
@@ -195,8 +250,8 @@ lines.append(f"""-- ============================================================
 --   · {len(ADDONS)} APU adicionales para los opcionales que se cotizan aparte (OF-DUR-9..).
 -- Mano de obra: durlero + ayudante de gremio (OF-GR-DUR y OF-GR-AYU, ya existentes),
 -- con rendimientos estimados por tipo de sistema que incluyen el encintado y masillado.
--- Precios: los insumos que ya existían en el catálogo toman ese precio (convertido a la
--- unidad de Durlock); el resto queda en $0 para completar.
+-- Precios con IVA relevados el 31/10/2026 en corralones y comercios del AMBA (la fuente
+-- de cada uno queda en resources.pricing_notes); los marcados "Estimado" deben verificarse.
 -- Sistemas sin relevar completos y no incluidos: {', '.join(str(r) for r, *_ in skipped) or 'ninguno'}.
 --
 -- Idempotente: se puede ejecutar más de una vez. No toca APU de empresas ni presupuestos.
@@ -348,3 +403,4 @@ print(f'{len(systems)} sistemas, {len(all_ins)} insumos, {len(ADDONS)} adicional
 print('con precio:', sum(1 for n in all_ins if n in PRICES), '/', len(all_ins))
 missing_price_keys = [k for k in PRICES if k not in all_ins]
 print('claves de precio sin insumo:', missing_price_keys)
+print('sin precio:', [n for n in all_ins if n not in PRICES])

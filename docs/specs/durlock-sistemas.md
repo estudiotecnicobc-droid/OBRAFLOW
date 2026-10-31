@@ -15,7 +15,7 @@ Ninguno de los dos se edita a mano.
 
 ## Catálogo (migración 065, idempotente)
 - 60 insumos `OF-DUR-M01…M60` con la unidad de Durlock (placa, perfil, tornillo, rollo, bolsa…), `commercial_unit` = unidad y `conversion_factor` = 1.
-- Precios: 17 insumos toman el precio de un recurso que ya existía, convertido a la unidad de Durlock (por ejemplo, placa estándar = OF-M-PY × 2,88 m²). Los 43 restantes quedan en $0 con la nota "Sin precio de referencia".
+- Precios con IVA relevados el 31/10/2026: Red Materiales (promedio de corralones), Corralón Aconquija, Mercado Libre y otros comercios del AMBA. La fuente de cada precio queda en `pricing_notes`. Los que no se encontraron publicados figuran como "Estimado ObraFlow" y hay que verificarlos.
 - 44 APU `OF-DUR-<ref Durlock>`, uno por sistema:
   - paredes en 06;
   - revestimientos en 14;
