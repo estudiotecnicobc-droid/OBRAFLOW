@@ -421,7 +421,7 @@ export const masterTasksService = {
     }
 
     // ── Labor y Equipos — sin dependencias de migraciones → en paralelo
-    const others: Promise<any>[] = [];
+    const others: PromiseLike<any>[] = [];
 
     if (input.labor.length > 0) {
       others.push(

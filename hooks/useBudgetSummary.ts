@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useMemo } from 'react';
-import { BudgetKSummary, PricingConfig } from '../types';
+import { BudgetKSummary, BusinessConfig, PricingConfig } from '../types';
 import {
   useBudgetKStore,
   selectBusinessConfig,
@@ -58,7 +58,7 @@ export function useBudgetSummary(
   // Sin esto, Zustand v5 recibe un selector distinto en cada render y aunque
   // el resultado sea igual, puede disparar re-renders en versiones anteriores.
   const selector = useMemo(() => selectBusinessConfig(projectId), [projectId]);
-  const config   = useBudgetKStore(selector);
+  const config   = useBudgetKStore(selector) as BusinessConfig;
 
   // ── Cálculo delegado a la función pura (sin lógica duplicada) ─────────────
   return useMemo(

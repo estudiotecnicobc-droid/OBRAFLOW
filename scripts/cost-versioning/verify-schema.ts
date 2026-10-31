@@ -89,7 +89,7 @@ async function triggerExists(triggerName: string, tableName: string): Promise<bo
 async function enumExists(enumName: string): Promise<boolean> {
   const { data } = await sb.rpc('query' as any, {
     sql: `SELECT 1 FROM pg_type WHERE typname = '${enumName}' AND typtype = 'e'`,
-  }).maybeSingle().catch(() => ({ data: null }));
+  }).maybeSingle().then(r => r, () => ({ data: null }));
   // Fallback: intentar castear un valor válido
   return data != null;
 }

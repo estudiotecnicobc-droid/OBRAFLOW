@@ -288,7 +288,7 @@ export const ReportPreviewModal: React.FC<Props> = ({
   const [observations, setObservations] = useState('');
 
   const apuGroups    = !isComputo ? buildAPUGroups(items) : [];
-  const resolvedByKey = new Map(resolved.map(r => [`${r.nombre.toLowerCase()}|${r.unit}`, r]));
+  const resolvedByKey = new Map<string, ResolvedMaterial>(resolved.map(r => [`${r.nombre.toLowerCase()}|${r.unit}`, r]));
 
   const title    = isComputo ? 'Reporte de Cómputo' : 'Reporte APU';
   const subtitle = isComputo

@@ -1161,3 +1161,38 @@ export interface DuplicateAPUCodesResult {
   }>;
   checkedAt: string;
 }
+
+// ── Billing (038/039) ─────────────────────────────────────────────────────────
+
+export type PlanId = 'starter' | 'professional' | 'business';
+export type BillingCycle = 'monthly' | 'yearly';
+export type BillingStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'unpaid' | 'paused';
+export type FeatureKey =
+  | 'presupuesto_basico'
+  | 'computo_parametrico'
+  | 'comparacion_costos'
+  | 'apu_maestros'
+  | 'reportes_centralizados'
+  | 'branding_reportes'
+  | 'sincronizacion_viva'
+  | 'max_projects'
+  | 'max_members';
+export type OrgEntitlements = Partial<Record<FeatureKey, boolean | number>>;
+
+export interface OrgSubscription {
+  id: string;
+  organizationId: string;
+  planId: PlanId;
+  status: BillingStatus;
+  trialEndsAt?: string;
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
+  cancelAtPeriodEnd: boolean;
+  canceledAt?: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  stripePriceId?: string;
+  billingEmail?: string;
+  createdAt: string;
+  updatedAt: string;
+}

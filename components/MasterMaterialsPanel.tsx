@@ -119,7 +119,7 @@ export const MasterMaterialsPanel: React.FC<Props> = ({ onNavigateToResources })
         technicalNotes: draft.technicalNotes?.trim() || undefined,
       };
       if (isAdding) {
-        await add(payload);
+        await add(payload as Parameters<typeof add>[0]);
         showMsg('success', 'Material agregado al catálogo de la empresa.');
       } else if (editingId) {
         if (draft.globalSourceId || draft.globalResourceId) payload.localOverride = true;
