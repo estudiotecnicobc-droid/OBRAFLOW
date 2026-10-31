@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { X, RefreshCw, AlertCircle, Info } from 'lucide-react';
 import { getAPUTechnicalReport } from '../../../services/apuReportService';
 import type { APUReportLine, APUTechnicalReport } from '../../../types';
+import { TechnicalSheetSection } from './TechnicalSheetSection';
 
 interface Props {
   masterTaskId:   string;
@@ -165,6 +166,10 @@ export function APUTechnicalReportDrawer({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto">
+
+          <div className="px-6 pt-4">
+            <TechnicalSheetSection masterTaskId={masterTaskId} taskCode={taskCode} />
+          </div>
 
           {/* Loading */}
           {loading && !report && (
