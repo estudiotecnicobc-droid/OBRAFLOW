@@ -5,7 +5,7 @@ Actualizar un presupuesto que todavía no fue aprobado (obra en etapa de presupu
 desde su creación, con un índice elegido por el usuario, y generar un reporte con el cálculo.
 
 ## Dónde
-Presupuesto → Ítems y presupuesto → **Comparar costos** → pestaña "Actualizar por índice".
+Presupuesto → Ítems y presupuesto → **Actualizar presupuesto** → pestaña "Actualizar por índice".
 La pestaña "Comparar precios de la base entre dos fechas" es la comparación que ya existía.
 
 ## Métodos

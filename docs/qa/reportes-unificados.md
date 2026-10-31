@@ -32,7 +32,7 @@ Probar con una obra que tenga tareas con materiales y mano de obra; por ejemplo,
 - [ ] «Explosión de insumos», «APU de la empresa» y «Presupuesto a una fecha de costos» se ven dentro de Reportes, con el botón «← Reportes» para volver.
 
 ## Botones del Presupuesto
-- [ ] Los botones del encabezado tienen la misma altura. «Comparar costos» se ve en azul cuando está activo.
+- [ ] Los botones del encabezado tienen la misma altura. «Actualizar presupuesto» se ve en azul cuando está activo.
 - [ ] El menú «Reportes ▾» se cierra al hacer clic afuera.
 - [ ] Cada opción del menú abre lo que dice.
 - [ ] «Lista de compras» del menú lleva a Reportes con el reporte ya abierto.

@@ -29,7 +29,7 @@ La entrada «Reportes» de la barra lateral (`reports_view`) abre un catálogo p
 
 ## Botones del Presupuesto
 - Todos los botones del encabezado tienen la misma altura y el mismo estilo:
-  - «Presupuesto rápido» y «Comparar costos» como secundarios, y el segundo marca cuándo está activo;
+  - «Presupuesto rápido» y «Actualizar presupuesto» como secundarios, y el segundo marca cuándo está activo;
   - «Reportes ▾» como principal.
 - «Imprimir» pasa a ser el menú «Reportes ▾». Incluye:
   - los cuatro modos de impresión;
@@ -38,9 +38,10 @@ La entrada «Reportes» de la barra lateral (`reports_view`) abre un catálogo p
   - «Ver todos los reportes».
 
 ## Otros cambios
+- Nombres más simples: en el Presupuesto, «Comparar costos» pasa a «Actualizar presupuesto»; en el Tablero, la vista «Reportes e Ingeniería» pasa a «Materiales y fichas».
 - La tarjeta «Centro de Reportes» del Tablero lleva a la pantalla nueva.
 - `piecePurchase` pasa a `utils/purchase.ts`, sin dependencia de Supabase, para poder usarlo en cálculos puros.
 
 ## Fuera de alcance
-- Las vistas «Reportes e Ingeniería» del Tablero y el «Centro de Reportes» de Base de empresa siguen existiendo sin cambios.
+- Las vistas «Materiales y fichas» del Tablero y el «Centro de Reportes» de Base de empresa siguen existiendo sin cambios.
 - Agrupar la lista de compras por proveedor.

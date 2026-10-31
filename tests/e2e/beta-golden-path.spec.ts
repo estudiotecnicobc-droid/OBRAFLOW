@@ -611,8 +611,8 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
     await navTo(page, 'Dashboard');
     await waitForAppIdle(page, 2000);
 
-    // Cambiar al tab "Reportes e Ingeniería" donde vive el widget
-    const reportesTab = page.getByRole('button', { name: 'Reportes e Ingeniería', exact: true });
+    // Cambiar al tab "Materiales y fichas" donde vive el widget
+    const reportesTab = page.getByRole('button', { name: 'Materiales y fichas', exact: true });
     if (await reportesTab.isVisible({ timeout: 5000 }).catch(() => false)) {
       await click(reportesTab);
       await waitForAppIdle(page, 1500);
@@ -733,10 +733,10 @@ test.describe('Beta Golden Path — Mampostería 45 m²', () => {
       results[label] = adminContent.includes(label);
     }
 
-    // Dashboard → Reportes e Ingeniería
+    // Dashboard → Materiales y fichas
     await navTo(page, 'Dashboard');
     await waitForAppIdle(page, 2000);
-    const reportesIngBtn = page.getByRole('button', { name: 'Reportes e Ingeniería', exact: true });
+    const reportesIngBtn = page.getByRole('button', { name: 'Materiales y fichas', exact: true });
     if (await reportesIngBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await click(reportesIngBtn);
       await waitForAppIdle(page, 1500);

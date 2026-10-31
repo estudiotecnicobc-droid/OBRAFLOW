@@ -110,7 +110,7 @@ Estas brechas no hacen fallar el test pero son observaciones relevantes:
 
 5. **ProjectWizard — selectores dependientes del diseño:** El wizard tiene 3 pasos (nombre/cliente → specs técnicas → plantilla). Si el diseño cambia los selectores pueden necesitar ajuste.
 
-6. **Lista de Materiales — requiere tab "Reportes e Ingeniería":** El widget no está en el tab "Estadísticas" (default del Dashboard). El test navega al tab correcto pero si la arquitectura de views cambia el selector falla.
+6. **Lista de Materiales — requiere tab "Materiales y fichas":** El widget no está en el tab "Estadísticas" (default del Dashboard). El test navega al tab correcto pero si la arquitectura de views cambia el selector falla.
 
 ---
 

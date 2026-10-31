@@ -1241,7 +1241,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                           aria-pressed={showComparison}
                           className={`flex items-center gap-2 h-9 px-3.5 rounded-lg text-xs font-bold border transition-colors ${showComparison ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                       >
-                          <DollarSign size={15} className={showComparison ? 'text-blue-600' : 'text-slate-500'} /> Comparar costos
+                          <DollarSign size={15} className={showComparison ? 'text-blue-600' : 'text-slate-500'} /> Actualizar presupuesto
                       </button>
                       <div className="relative" ref={reportsMenuRef}>
                           <button

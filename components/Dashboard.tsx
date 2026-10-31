@@ -1108,7 +1108,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, initialView })
                  onClick={() => setActiveView('reports')}
                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeView === 'reports' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-50'}`}
                >
-                 Reportes e Ingeniería
+                 Materiales y fichas
                </button>
            </div>
         </div>
