@@ -4,9 +4,9 @@
 Cada APU frecuente del catálogo general muestra una ficha técnica: esquema propio, descripción, datos técnicos, notas de ejecución, fuente y tareas que comparten la misma ficha.
 
 ## Fuente
-`scripts/fichas/`: 44 fichas por gremio (esquemas SVG dibujados para ObraFlow; los de construcción en seco con datos del Manual Técnico Durlock). `python3 scripts/fichas/build_migration.py` genera `supabase/migrations/066_fichas_tecnicas_apu.sql`. No editar la migración a mano.
+`scripts/fichas/`: 44 fichas por gremio (esquemas SVG dibujados para ObraFlow; los de construcción en seco con datos del Manual Técnico Durlock). `python3 scripts/fichas/build_migration.py` genera `supabase/migrations/068_fichas_tecnicas_apu.sql`. No editar la migración a mano.
 
-## Datos (migración 066, idempotente)
+## Datos (migración 068, idempotente)
 - `master_tasks.technical_sheet jsonb` (nullable).
 - La ficha se carga en 71 APU del catálogo general (`organization_id IS NULL`). Una ficha puede cubrir varios APU (p. ej. revoque grueso + fino interior); cada uno lista los demás en `relacionadas`.
 - Los consumos y la mano de obra no van en la ficha: salen del APU.

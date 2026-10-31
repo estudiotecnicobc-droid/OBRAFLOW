@@ -54,7 +54,7 @@ describe('getTechnicalSheet', () => {
     expect(await getTechnicalSheet('sin', 'X-1')).toBeNull();
   });
 
-  it('si la migración 066 no está aplicada devuelve null sin error', async () => {
+  it('si la migración 068 no está aplicada devuelve null sin error', async () => {
     missingColumn = true;
     expect(await getTechnicalSheet('global', 'OF-MAM-101')).toBeNull();
   });

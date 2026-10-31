@@ -19,7 +19,7 @@ function sheetFromJson(raw: unknown): TechnicalSheet | null {
   };
 }
 
-/** Columna ausente = migración 066 todavía no aplicada: se trata como "sin ficha". */
+/** Columna ausente = migración 068 todavía no aplicada: se trata como "sin ficha". */
 function isMissingColumn(message?: string): boolean {
   return !!message && message.includes('technical_sheet');
 }

@@ -1,4 +1,4 @@
-"""Genera supabase/migrations/066_fichas_tecnicas_apu.sql desde las fichas de scripts/fichas.
+"""Genera supabase/migrations/068_fichas_tecnicas_apu.sql desde las fichas de scripts/fichas.
 
 Uso: python3 scripts/fichas/build_migration.py
 """
@@ -12,7 +12,7 @@ sys.path.insert(0, HERE)
 import build  # noqa: E402  (arma la lista T de fichas)
 from svgkit import DEFS  # noqa: E402
 
-OUT = os.path.join(ROOT, "supabase", "migrations", "066_fichas_tecnicas_apu.sql")
+OUT = os.path.join(ROOT, "supabase", "migrations", "068_fichas_tecnicas_apu.sql")
 
 # ── Ficha → APU de la base maestra (organization_id IS NULL) ─────────────────
 MAPEO = {
@@ -180,7 +180,7 @@ def main():
 
     L = []
     L.append("""-- =============================================================================
--- Migración 066: Fichas técnicas de tareas en la base maestra ObraFlow
+-- Migración 068: Fichas técnicas de tareas en la base maestra ObraFlow
 --
 -- Generada con scripts/fichas/build_migration.py desde scripts/fichas (44 fichas,
 -- 31/10/2026). No editar a mano.
@@ -205,7 +205,7 @@ ALTER TABLE public.master_tasks
 COMMENT ON COLUMN public.master_tasks.technical_sheet IS
   'Ficha técnica: { version, ficha, gremio, titulo, esquemaSvg, pie, descripcion, '
   'datosTecnicos[{label,value}], notas[], fuente, relacionadas[{codigo,nombre}] }. '
-  'Migración 066.';
+  'Migración 068.';
 """ % len(sheets))
 
     L.append("CREATE TEMP TABLE _of_res (code text, name text, unit text, type text, cost numeric, notes text) ON COMMIT DROP;")
@@ -309,6 +309,30 @@ END $$;
 COMMIT;
 """)
     open(OUT, "w", encoding="utf-8").write("\n".join(L))
+
+    # Partes para aplicar con el MCP de Supabase (tamaño acotado por llamada)
+    parts_dir = os.path.join(HERE, "partes")
+    os.makedirs(parts_dir, exist_ok=True)
+    full = "\n".join(L)
+    p1 = full[:full.index("CREATE TEMP TABLE _of_fichas")] + "COMMIT;\n"
+    partes = [p1]
+    cur, size = [], 0
+    by_ficha = {}
+    for code, fi, rel in mapa:
+        by_ficha.setdefault(fi, []).append((code, rel))
+    for fi, sh in fichas_json:
+        vals = ", ".join(f"({q(c)}, {q(r)}::jsonb)" for c, r in by_ficha[fi])
+        stmt = (f"UPDATE public.master_tasks mt SET technical_sheet = $sheet${sh}$sheet$::jsonb || "
+                f"jsonb_build_object('relacionadas', v.rel), updated_at = now()\n"
+                f"FROM (VALUES {vals}) AS v(code, rel)\n"
+                f"WHERE mt.organization_id IS NULL AND mt.code = v.code;\n")
+        if size + len(stmt) > 40000 and cur:
+            partes.append("".join(cur)); cur, size = [], 0
+        cur.append(stmt); size += len(stmt)
+    partes.append("".join(cur))
+    for i, ptxt in enumerate(partes, 1):
+        open(os.path.join(parts_dir, f"parte_{i}.sql"), "w", encoding="utf-8").write(ptxt)
+    print("partes:", [len(x) for x in partes])
     print(f"{OUT}: {len(sheets)} fichas asignadas, {len(NUEVOS)} APU nuevos")
 
 

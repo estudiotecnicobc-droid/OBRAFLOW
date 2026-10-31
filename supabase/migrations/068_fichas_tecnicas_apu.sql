@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migración 066: Fichas técnicas de tareas en la base maestra ObraFlow
+-- Migración 068: Fichas técnicas de tareas en la base maestra ObraFlow
 --
 -- Generada con scripts/fichas/build_migration.py desde scripts/fichas (44 fichas,
 -- 31/10/2026). No editar a mano.
@@ -24,7 +24,7 @@ ALTER TABLE public.master_tasks
 COMMENT ON COLUMN public.master_tasks.technical_sheet IS
   'Ficha técnica: { version, ficha, gremio, titulo, esquemaSvg, pie, descripcion, '
   'datosTecnicos[{label,value}], notas[], fuente, relacionadas[{codigo,nombre}] }. '
-  'Migración 066.';
+  'Migración 068.';
 
 CREATE TEMP TABLE _of_res (code text, name text, unit text, type text, cost numeric, notes text) ON COMMIT DROP;
 INSERT INTO _of_res VALUES

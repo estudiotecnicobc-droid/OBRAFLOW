@@ -715,7 +715,7 @@ export interface MasterTask {
  */
 /**
  * Ficha técnica de un APU de la base maestra.
- * Guardada en master_tasks.technical_sheet (JSONB). Migración: 066_fichas_tecnicas_apu.sql
+ * Guardada en master_tasks.technical_sheet (JSONB). Migración: 068_fichas_tecnicas_apu.sql
  */
 export interface TechnicalSheet {
   version: number;

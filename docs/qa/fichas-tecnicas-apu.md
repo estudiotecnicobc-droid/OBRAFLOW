@@ -1,7 +1,7 @@
 # QA — Fichas técnicas de tareas
 
 ## Antes de probar
-- [ ] Migración 066 aplicada: avisos "4 APU nuevos" y "ficha cargada en 71 APU" (al repetirla, "4 actualizados" y 71). Sin advertencias de códigos faltantes.
+- [ ] Migración 068 aplicada: avisos "4 APU nuevos" y "ficha cargada en 71 APU" (al repetirla, "4 actualizados" y 71). Sin advertencias de códigos faltantes.
 
 ## Ficha
 - [ ] Base de tareas → OF-MAM-101 → "Ver ficha técnica": arriba aparece la ficha con esquema, descripción, datos técnicos, notas y fuente; abajo sigue el desglose de costos.
