@@ -139,6 +139,16 @@ for s in data['sistemas']:
 
 systems.sort(key=lambda x: (x['group'], x['order']))
 
+# master_tasks tiene nombre único entre los APU globales activos: los nombres repetidos
+# (por ejemplo, el mismo Cedral en interior y exterior) llevan la categoría.
+_seen = {}
+for s in systems:
+    _seen.setdefault(s['nombre'].lower(), []).append(s)
+for group in _seen.values():
+    if len(group) > 1:
+        for s in group:
+            s['name'] = f"{s['nombre']} — {s['categoria'].lower()} (Durlock)"
+
 all_ins: dict[str, str] = {}
 for s in systems:
     for n, (u, _) in s['insumos'].items():
