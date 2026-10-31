@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useMemo, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useMemo, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { Material, Task, TaskYield, TaskToolYield, Tool, Project, BudgetItem, ImportResult, LaborCategory, ProjectTemplate, Snapshot, Reception, Subcontractor, Contract, Certification, CalendarPreset, ProjectDocument, MeasurementSheet, Crew, TaskCrewYield, TaskLaborYield, QualityProtocol, QualityInspection, NonConformity, ProjectCertificate, ProjectDependency, LinkType } from '../types';
 import { INITIAL_PROJECT, INITIAL_RUBROS, INITIAL_CALENDAR_PRESETS, INITIAL_QUALITY_PROTOCOLS, RUBRO_PRESETS, hydrateWithOrg } from '../constants';
 import { useAuth } from './AuthContext';
@@ -11,6 +11,7 @@ import { materialsService } from '../services/materialsService';
 import { toolsService } from '../services/toolsService';
 import { laborCategoriesService } from '../services/laborCategoriesService';
 import { crewsService } from '../services/crewsService';
+import { loadAllYields } from '../services/yieldsLoader';
 import { generateId } from '../utils/generateId';
 
 interface MaterialStockStatus {
@@ -104,6 +105,11 @@ interface ERPContextType {
   budgetItemsLoading: boolean;
   /** true una vez que allTasks terminó de cargar para la org activa */
   tasksLoaded: boolean;
+  /** true mientras se cargan los rendimientos (yields) de las tareas */
+  yieldsLoading: boolean;
+  /** Error de la última carga de rendimientos; con error, los costos no son confiables */
+  yieldsError: string | null;
+  reloadYields: () => Promise<void>;
   addBudgetItem: (item: BudgetItem) => Promise<void>;
   removeBudgetItem: (itemId: string) => void;
   updateBudgetItem: (itemId: string, updates: Partial<BudgetItem>) => void;
@@ -178,6 +184,9 @@ export const ERPProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [budgetItemsLoading, setBudgetItemsLoading] = useState(false);
   const [tasksLoaded, setTasksLoaded] = useState(false);
   const [yields, setYields] = useState<TaskYield[]>([]);
+  const [yieldsLoading, setYieldsLoading] = useState(false);
+  const [yieldsError, setYieldsError] = useState<string | null>(null);
+  const yieldsOrgRef = useRef('');
   const [toolYields, setToolYields] = useState<TaskToolYield[]>([]);
   const [taskLaborYields, setTaskLaborYields] = useState<TaskLaborYield[]>([]);
 
@@ -239,6 +248,21 @@ export const ERPProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId]);
 
+  // Carga yields sin datos parciales; descarta la respuesta si cambió la org.
+  const applyYields = useCallback(async (forOrg: string, taskIds: string[]) => {
+    yieldsOrgRef.current = forOrg;
+    setYieldsLoading(true);
+    const { data, error } = await loadAllYields(taskIds);
+    if (yieldsOrgRef.current !== forOrg) return;
+    if (error) console.error('[ERP] Error cargando yields desde Supabase:', error);
+    setYields(data.yields);
+    setTaskLaborYields(data.laborYields);
+    setToolYields(data.toolYields);
+    setTaskCrewYields(data.crewYields);
+    setYieldsError(error);
+    setYieldsLoading(false);
+  }, []);
+
   // ─── SUPABASE: cargar resources + projects + tasks + yields cuando cambia la org ─
   useEffect(() => {
     if (!orgId) {
@@ -254,6 +278,9 @@ export const ERPProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setToolYields([]);
       setTaskLaborYields([]);
       setTaskCrewYields([]);
+      yieldsOrgRef.current = '';
+      setYieldsError(null);
+      setYieldsLoading(false);
       return;
     }
 
@@ -303,32 +330,7 @@ export const ERPProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setTasksLoaded(true); // tareas disponibles — BudgetEditor puede renderizar ítems
 
       // ── Fase 2: yields + crew yields (dependen de fetchedTasks) ──────────
-      if (fetchedTasks.length > 0) {
-        const taskIds = fetchedTasks.map(t => t.id);
-        try {
-          const [{ yields: yd, laborYields: lyd, toolYields: tyd }, crewYields] =
-            await Promise.all([
-              tasksService.listYieldsForTasks(taskIds),
-              crewsService.listCrewYieldsForTasks(taskIds),
-            ]);
-          setYields(yd);
-          setTaskLaborYields(lyd);
-          setToolYields(tyd);
-          setTaskCrewYields(crewYields);
-        } catch (err: any) {
-          console.error('[ERP] Error cargando yields desde Supabase:', err?.message ?? err);
-          // Yields quedan en [] — tareas existen pero sin insumos/MO/equipos/cuadrillas.
-          setYields([]);
-          setTaskLaborYields([]);
-          setToolYields([]);
-          setTaskCrewYields([]);
-        }
-      } else {
-        setYields([]);
-        setTaskLaborYields([]);
-        setToolYields([]);
-        setTaskCrewYields([]);
-      }
+      await applyYields(orgId, fetchedTasks.map(t => t.id));
       // NOTA: la validación de activeProjectId se hace en el useEffect de abajo,
       // fuera del async, para evitar stale closure y race conditions entre loads.
     };
@@ -1097,6 +1099,11 @@ export const ERPProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAllLaborCategories(lcs);
   };
 
+  const reloadYields = useCallback(
+    () => applyYields(orgId, allTasks.filter(t => t.organizationId === orgId).map(t => t.id)),
+    [applyYields, orgId, allTasks],
+  );
+
   return (
     <ERPContext.Provider value={{
       materials, tasks, yields, tools, toolYields, laborCategories, crews, rubros, rubroPresets, project, projects, activeProjectId,
@@ -1111,7 +1118,7 @@ export const ERPProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addLaborCategory, updateLaborCategory, removeLaborCategory,
       addCrew, updateCrew, removeCrew,
       addRubro, removeRubro, addRubroPreset, removeRubroPreset,
-      budgetItemsLoading, tasksLoaded, updateProjectSettings, addBudgetItem, removeBudgetItem, updateBudgetItem,
+      budgetItemsLoading, tasksLoaded, yieldsLoading, yieldsError, reloadYields, updateProjectSettings, addBudgetItem, removeBudgetItem, updateBudgetItem,
       addTaskYield, removeTaskYield, addTaskToolYield, removeTaskToolYield, addTaskCrewYield, removeTaskCrewYield, addTaskLaborYield, removeTaskLaborYield,
       loadTemplate, importData, createSnapshot, resetData,
       exportDatabase, importDatabase,
