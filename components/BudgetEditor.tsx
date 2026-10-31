@@ -8,8 +8,9 @@ import {
   Trash2, Plus, Search, Settings, CheckSquare, Square,
   ArrowRight, Printer, Calculator, ChevronDown, ChevronRight, ChevronUp,
   Info, RefreshCcw, DollarSign, Clock, X, Package, Hammer, Edit3, AlertCircle, PenTool, Sparkles,
-  BookOpen, LayoutGrid, Zap,
+  BookOpen, LayoutGrid, Zap, FileText, ShoppingCart, HardHat,
 } from 'lucide-react';
+import { setReportIntent, takeReportIntent, type BudgetPrintMode, type HubReportId } from '../src/features/reports/reportIntents';
 import { BusinessConfig, Task, MasterTask, LaborCategory, ProjectTemplate, MasterTaskMaterial, MasterTaskLabor, MasterTaskEquipment } from '../types';
 import { useBudgetTemplates } from '../hooks/useBudgetTemplates';
 import { BudgetCostComparisonPanel } from '../src/features/budgets/components/BudgetCostComparisonPanel';
@@ -389,6 +390,34 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   });
   const [printLogo, setPrintLogo] = useState<string | null>(null);
   const budgetPrintRef = useRef<HTMLDivElement | null>(null);
+
+  // --- MENÚ REPORTES ---
+  const [reportsMenuOpen, setReportsMenuOpen] = useState(false);
+  const reportsMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+      if (!reportsMenuOpen) return;
+      const close = (e: MouseEvent) => {
+          if (reportsMenuRef.current && !reportsMenuRef.current.contains(e.target as Node)) setReportsMenuOpen(false);
+      };
+      document.addEventListener('mousedown', close);
+      return () => document.removeEventListener('mousedown', close);
+  }, [reportsMenuOpen]);
+  const openBudgetPrint = (mode?: BudgetPrintMode) => {
+      if (mode) setPrintOptions(p => ({ ...p, printMode: mode }));
+      setShowPrintPreview(true);
+      setReportsMenuOpen(false);
+  };
+  const openHubReport = (report?: HubReportId) => {
+      if (!onNavigate) return;
+      if (report) setReportIntent({ kind: 'hub', report });
+      setReportsMenuOpen(false);
+      onNavigate('reports_view');
+  };
+  // Abierto desde Reportes → Presupuesto: vista de impresión con el modo elegido
+  useEffect(() => {
+      const intent = takeReportIntent('budget');
+      if (intent) openBudgetPrint(intent.mode);
+  }, []);
 
   const BUDGET_PRINT_STYLES = `
     /* BudgetEditor-specific overrides */
@@ -1190,32 +1219,78 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                       <div className="flex items-center rounded-lg overflow-hidden border border-slate-200 text-xs font-bold">
                           <button
                               onClick={() => setTableViewMode('tecnico')}
-                              className={`px-3 py-2 transition-colors ${tableViewMode === 'tecnico' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                              className={`h-9 px-3 transition-colors ${tableViewMode === 'tecnico' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
                           >
                               Costo Directo
                           </button>
                           <button
                               onClick={() => setTableViewMode('comercial')}
-                              className={`px-3 py-2 transition-colors ${tableViewMode === 'comercial' ? 'bg-emerald-700 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                              className={`h-9 px-3 transition-colors ${tableViewMode === 'comercial' ? 'bg-emerald-700 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
                           >
                               Precio Venta
                           </button>
                       </div>
                       <button
                           onClick={() => setQuickOpen(true)}
-                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors"
+                          className="flex items-center gap-2 h-9 px-3.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
                       >
-                          <Zap size={16} /> Presupuesto rápido
+                          <Zap size={15} className="text-orange-500" /> Presupuesto rápido
                       </button>
                       <button
                           onClick={() => setShowComparison(v => !v)}
-                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-colors ${showComparison ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                          aria-pressed={showComparison}
+                          className={`flex items-center gap-2 h-9 px-3.5 rounded-lg text-xs font-bold border transition-colors ${showComparison ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                       >
-                          <DollarSign size={16} /> Comparar costos
+                          <DollarSign size={15} className={showComparison ? 'text-blue-600' : 'text-slate-500'} /> Comparar costos
                       </button>
-                      <button onClick={() => setShowPrintPreview(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors">
-                          <Printer size={16} /> Imprimir
-                      </button>
+                      <div className="relative" ref={reportsMenuRef}>
+                          <button
+                              onClick={() => setReportsMenuOpen(v => !v)}
+                              aria-haspopup="menu"
+                              aria-expanded={reportsMenuOpen}
+                              className="flex items-center gap-2 h-9 pl-3.5 pr-2.5 rounded-lg text-xs font-bold bg-slate-900 text-white hover:bg-black transition-colors"
+                          >
+                              <Printer size={15} /> Reportes <ChevronDown size={14} className={`transition-transform ${reportsMenuOpen ? 'rotate-180' : ''}`} />
+                          </button>
+                          {reportsMenuOpen && (
+                              <div role="menu" className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-xl shadow-xl z-40 py-2 text-sm">
+                                  <p className="px-4 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Imprimir presupuesto</p>
+                                  {([
+                                      ['cliente', 'Para el cliente', 'Precio de venta, sin costos internos'],
+                                      ['tecnico', 'Técnico', 'Costo directo y precio de venta'],
+                                      ['interno', 'Interno', 'Desglose completo'],
+                                      ['resumido', 'Por rubros', 'Solo totales de cada rubro'],
+                                  ] as [BudgetPrintMode, string, string][]).map(([mode, label, desc]) => (
+                                      <button key={mode} role="menuitem" onClick={() => openBudgetPrint(mode)} className="w-full text-left px-4 py-1.5 hover:bg-slate-50 flex items-start gap-2.5">
+                                          <FileText size={15} className="text-slate-400 mt-0.5" />
+                                          <span><span className="font-semibold text-slate-800 block">{label}</span><span className="text-xs text-slate-500">{desc}</span></span>
+                                      </button>
+                                  ))}
+                                  <button role="menuitem" onClick={() => openBudgetPrint()} className="w-full text-left px-4 py-1.5 hover:bg-slate-50 text-xs text-slate-500 pl-11">
+                                      Personalizar columnas y formato…
+                                  </button>
+                                  {onNavigate && (
+                                      <>
+                                          <div className="my-2 border-t border-slate-100" />
+                                          <p className="px-4 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Obra</p>
+                                          {([
+                                              ['compras', 'Lista de compras', ShoppingCart],
+                                              ['cotizacion', 'Pedido de cotización', Package],
+                                              ['mano-obra', 'Mano de obra por oficio', HardHat],
+                                          ] as [HubReportId, string, typeof Package][]).map(([id, label, Icon]) => (
+                                              <button key={id} role="menuitem" onClick={() => openHubReport(id)} className="w-full text-left px-4 py-1.5 hover:bg-slate-50 flex items-center gap-2.5 font-semibold text-slate-800">
+                                                  <Icon size={15} className="text-slate-400" /> {label}
+                                              </button>
+                                          ))}
+                                          <div className="my-2 border-t border-slate-100" />
+                                          <button role="menuitem" onClick={() => openHubReport()} className="w-full text-left px-4 py-1.5 hover:bg-slate-50 text-blue-600 font-semibold flex items-center gap-2.5">
+                                              <ArrowRight size={15} /> Ver todos los reportes
+                                          </button>
+                                      </>
+                                  )}
+                              </div>
+                          )}
+                      </div>
                   </div>
               </div>
           </div>
