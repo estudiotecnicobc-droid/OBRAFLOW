@@ -243,6 +243,8 @@ export interface Project {
   endDate?: string; // Fecha de Fin Prevista / Límite
   status: ProjectStatus; // NEW: Status field
   createdAt?: string;
+  /** Portada: undefined = ilustración por defecto; 'preset:<clave>' o 'upload:<ruta en project-covers>'. */
+  coverImage?: string;
   items: BudgetItem[];
   
   // Global Settings for Labor & Calendar
