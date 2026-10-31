@@ -6,6 +6,7 @@ import { useERP } from '../context/ERPContext';
 import { useSave } from '../context/SaveContext';
 import { getProjectStage } from './ProjectStage';
 import { BUDGET_MODULE_TABS } from './BudgetModule';
+import { ProjectCover } from '../src/features/projects/ProjectCover';
 
 interface NavItem {
   id: string;
@@ -130,8 +131,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
       : <div className="my-2 border-t border-slate-800" />
   );
 
-  const initials = (project.name || '?').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
-
   return (
     <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
       <aside className={`${isSidebarOpen ? 'w-64' : 'w-16'} bg-slate-900 text-white flex flex-col flex-shrink-0 print:hidden transition-all duration-300 ease-in-out relative z-20 shadow-xl overflow-hidden`}>
@@ -161,8 +160,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
                 </button>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-600/80 flex items-center justify-center text-sm font-bold shrink-0" aria-hidden="true">
-                  {initials}
+                <div className="w-12 h-10 rounded-lg overflow-hidden shrink-0" aria-hidden="true">
+                  <ProjectCover project={project} size="sm" className="w-full h-full block" />
                 </div>
                 <div className="min-w-0">
                   <div className="font-bold text-white text-sm truncate leading-tight" title={project.name}>{project.name}</div>
@@ -182,9 +181,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
                 onClick={exitProject}
                 title={`${project.name} · cambiar de proyecto`}
                 aria-label={`${project.name}: cambiar de proyecto`}
-                className="w-10 h-10 rounded-lg bg-blue-600/80 hover:bg-blue-600 flex items-center justify-center text-sm font-bold"
+                className="w-10 h-10 rounded-lg overflow-hidden ring-1 ring-slate-700 hover:ring-blue-500"
               >
-                {initials}
+                <ProjectCover project={project} size="sm" className="w-full h-full block" />
               </button>
             </>
           )}

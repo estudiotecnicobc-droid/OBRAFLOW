@@ -25,6 +25,7 @@ function projectFromRow(row: Record<string, any>): Project {
     endDate: row.end_date ?? undefined,
     status: row.status ?? 'planning',
     createdAt: row.created_at ?? undefined,
+    coverImage: row.cover_image ?? undefined,
     items: [],
     businessConfig,
     // Campos técnicos
@@ -101,6 +102,7 @@ function buildUpdateRow(updates: Partial<Project>): Record<string, any> {
   if (updates.startDate !== undefined) row.start_date = normalizeDate(updates.startDate);
   if (updates.endDate !== undefined)   row.end_date   = normalizeDate(updates.endDate);
   if (updates.status !== undefined)    row.status = updates.status;
+  if (updates.coverImage !== undefined) row.cover_image = updates.coverImage || null;
   // BusinessConfig K: los 4 campos se escriben juntos o ninguno.
   if (updates.businessConfig !== undefined) {
     row.ggd_pct    = updates.businessConfig?.ggdPct    ?? null;
