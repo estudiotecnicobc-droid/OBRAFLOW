@@ -135,7 +135,7 @@ export const tasksService = {
 
   async upsertYield(y: TaskYield): Promise<void> {
     const { error } = await supabase.from('task_yields').upsert(
-      { task_id: y.taskId, material_id: y.materialId, quantity: y.quantity, waste_percent: y.wastePercent ?? null, organization_id: y.organizationId },
+      { task_id: y.taskId, material_id: y.materialId, quantity: y.quantity, waste_percent: y.wastePercent ?? 0, organization_id: y.organizationId },
       { onConflict: 'task_id,material_id' }
     );
     if (error) throw new Error(`[tasksService.upsertYield] ${error.message}`);
@@ -204,7 +204,7 @@ export const tasksService = {
       newYields.length > 0
         ? supabase.from('task_yields').insert(newYields.map(y => ({
             task_id: y.taskId, material_id: y.materialId,
-            quantity: y.quantity, waste_percent: y.wastePercent ?? null,
+            quantity: y.quantity, waste_percent: y.wastePercent ?? 0,
             organization_id: y.organizationId,
           })))
         : Promise.resolve({ error: null }),
