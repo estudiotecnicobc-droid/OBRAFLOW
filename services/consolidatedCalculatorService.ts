@@ -10,19 +10,30 @@ import type {
   RpcAPUSummary,
 } from '../types';
 
+const DISCRETE_UNITS = new Set(['u', 'un', 'unidad', 'rollo', 'bolsa', 'balde', 'barra', 'cartucho', 'lata']);
+
+/** Insumos que se compran por pieza: si no hay unidad comercial, la compra es la cantidad redondeada hacia arriba. */
+export function piecePurchase(unit: string, totalQuantity: number): number | undefined {
+  if (!DISCRETE_UNITS.has(unit.trim().toLowerCase()) || !(totalQuantity > 0)) return undefined;
+  return Math.ceil(totalQuantity - 1e-9);
+}
+
 function parseResourceLine(row: Record<string, unknown>): RpcResourceLine {
+  const unit = String(row.unit ?? '');
+  const totalQuantity = Number(row.totalQuantity ?? 0);
+  const purchaseQuantity = row.purchaseQuantity != null ? Number(row.purchaseQuantity) : piecePurchase(unit, totalQuantity);
   return {
     resourceId:      String(row.resourceId ?? ''),
     code:            String(row.code ?? ''),
     name:            String(row.name ?? ''),
-    unit:            String(row.unit ?? ''),
-    totalQuantity:   Number(row.totalQuantity ?? 0),
+    unit,
+    totalQuantity,
     unitCost:        Number(row.unitCost ?? 0),
     totalCost:        Number(row.totalCost ?? 0),
     sourceTaskNames:  Array.isArray(row.sourceTaskNames) ? row.sourceTaskNames as string[] : [],
     conversionFactor: row.conversionFactor != null ? Number(row.conversionFactor) : undefined,
     commercialUnit:   row.commercialUnit   != null ? String(row.commercialUnit)   : undefined,
-    purchaseQuantity: row.purchaseQuantity != null ? Number(row.purchaseQuantity) : undefined,
+    purchaseQuantity,
   };
 }
 

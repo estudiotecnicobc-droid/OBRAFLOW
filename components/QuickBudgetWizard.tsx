@@ -3,6 +3,7 @@ import { X, ArrowLeft, ArrowRight, Check, Zap, Loader2, Info, Search, Layers } f
 import { MasterTask } from '../types';
 import { masterTasksService } from '../services/masterTasksSupabaseService';
 import { QUICK_TEMPLATES } from '../src/features/quickBudget/templates';
+import { DURLOCK_TEMPLATE } from '../src/features/quickBudget/durlockTemplate';
 import { buildRows, defaultValues, evaluate } from '../src/features/quickBudget/engine';
 import type { QuickRow, QuickTemplate, V } from '../src/features/quickBudget/types';
 
@@ -34,6 +35,9 @@ const SOURCE_BADGE: Record<QuickSource['kind'], { label: string; cls: string; ti
   global: { label: 'Catálogo ObraFlow', cls: 'bg-blue-50 text-blue-700 border-blue-200', title: 'Se copia a tu catálogo con su análisis de precio.' },
   none: { label: 'Precio a completar', cls: 'bg-amber-50 text-amber-700 border-amber-200', title: 'Todavía no tiene análisis de precio: se agrega la tarea y la cantidad, y el precio lo completás vos.' },
 };
+
+// La plantilla de placa de yeso se reemplaza por la de sistemas Durlock.
+const TEMPLATES = QUICK_TEMPLATES.map(t => (t.id === DURLOCK_TEMPLATE.id ? DURLOCK_TEMPLATE : t));
 
 export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply, initialRubro, existing }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -182,7 +186,7 @@ export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply,
               <section>
                 <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Obras completas</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {QUICK_TEMPLATES.map(t => {
+                  {TEMPLATES.map(t => {
                     const n = t.rubros.reduce((a, r) => a + r.tasks.length, 0);
                     return (
                       <button key={t.id} onClick={() => pick([t])}

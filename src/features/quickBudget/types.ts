@@ -29,6 +29,8 @@ export interface QuickTask {
   /** Código del APU en el catálogo global. */
   code?: string;
   note?: string;
+  /** Variante según las medidas (por ejemplo, el sistema elegido): reemplaza nombre, código y textos. */
+  pick?: (v: V) => Partial<Pick<QuickTask, 'name' | 'code' | 'includes' | 'scope'>>;
 }
 
 export interface QuickTemplate {
