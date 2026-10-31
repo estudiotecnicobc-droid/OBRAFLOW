@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { selectInChunks } from './selectInChunks';
 import { Task, TaskYield, TaskLaborYield, TaskToolYield } from '../types';
 import { normalizeUnit } from '../utils/normalizeUnit';
 
@@ -115,19 +116,20 @@ export const tasksService = {
     toolYields: TaskToolYield[];
   }> {
     if (taskIds.length === 0) return { yields: [], laborYields: [], toolYields: [] };
-    const [{ data: yd, error: ye }, { data: lyd, error: lye }, { data: tyd, error: tye }] =
-      await Promise.all([
-        supabase.from('task_yields').select('*').in('task_id', taskIds),
-        supabase.from('task_labor_yields').select('*').in('task_id', taskIds),
-        supabase.from('task_tool_yields').select('*').in('task_id', taskIds),
-      ]);
-    if (ye)  console.error('[tasksService] task_yields', ye.message);
-    if (lye) console.error('[tasksService] task_labor_yields', lye.message);
-    if (tye) console.error('[tasksService] task_tool_yields', tye.message);
+    const load = (table: string, orderBy: string[]) =>
+      selectInChunks(table, 'task_id', taskIds, orderBy).catch((err: Error) => {
+        console.error('[tasksService]', err.message);
+        return [] as Record<string, any>[];
+      });
+    const [yd, lyd, tyd] = await Promise.all([
+      load('task_yields', ['task_id', 'material_id']),
+      load('task_labor_yields', ['task_id', 'labor_category_id']),
+      load('task_tool_yields', ['task_id', 'tool_id']),
+    ]);
     return {
-      yields: (yd ?? []).map(yieldFromRow),
-      laborYields: (lyd ?? []).map(laborYieldFromRow),
-      toolYields: (tyd ?? []).map(toolYieldFromRow),
+      yields: yd.map(yieldFromRow),
+      laborYields: lyd.map(laborYieldFromRow),
+      toolYields: tyd.map(toolYieldFromRow),
     };
   },
 
@@ -135,7 +137,7 @@ export const tasksService = {
 
   async upsertYield(y: TaskYield): Promise<void> {
     const { error } = await supabase.from('task_yields').upsert(
-      { task_id: y.taskId, material_id: y.materialId, quantity: y.quantity, waste_percent: y.wastePercent ?? null, organization_id: y.organizationId },
+      { task_id: y.taskId, material_id: y.materialId, quantity: y.quantity, waste_percent: y.wastePercent ?? 0, organization_id: y.organizationId },
       { onConflict: 'task_id,material_id' }
     );
     if (error) throw new Error(`[tasksService.upsertYield] ${error.message}`);
@@ -204,7 +206,7 @@ export const tasksService = {
       newYields.length > 0
         ? supabase.from('task_yields').insert(newYields.map(y => ({
             task_id: y.taskId, material_id: y.materialId,
-            quantity: y.quantity, waste_percent: y.wastePercent ?? null,
+            quantity: y.quantity, waste_percent: y.wastePercent ?? 0,
             organization_id: y.organizationId,
           })))
         : Promise.resolve({ error: null }),
