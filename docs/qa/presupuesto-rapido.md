@@ -37,3 +37,9 @@
 - [ ] "Elegir varias tareas del rubro" abre el Presupuesto rápido directo en las tareas de ese rubro (paso 3).
 - [ ] Desde 01 DEMOLICIONES abre el paso 1 con demolición total y parcial tildadas para elegir.
 - [ ] Las tareas que ya están en el presupuesto aparecen como "Ya incluida", destildadas; si se tildan a mano, se agregan igual.
+
+## Pintura ampliada (063)
+- [ ] Migración 063 ejecutada (NOTICE: "Pintura ObraFlow: 23 APU nuevos, 34 actualizados").
+- [ ] Presupuesto rápido > 34 · Pintura muestra 61 tareas en 8 grupos y tres opciones: paredes (4), cielorrasos (2) y exterior (5).
+- [ ] Obra habitada = Sí agrega protección, movimiento de muebles y el recargo sobre paredes y cielorrasos.
+- [ ] Elegir "repintado de mantenimiento" cambia la tarea de paredes; cargar m² de silleta suma el recargo de trabajo en altura.
