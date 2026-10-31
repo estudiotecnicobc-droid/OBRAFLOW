@@ -79,7 +79,7 @@ export const crewsService = {
     const { data, error } = await selectInChunks('task_crew_yields', 'task_id', taskIds, {
       orderBy: ['task_id', 'crew_id'],
     });
-    if (error) { console.error('[crewsService.listCrewYieldsForTasks]', error.message); return []; }
+    if (error) throw new Error(`[crewsService.listCrewYieldsForTasks] ${error.message}`);
     return (data ?? []).map(crewYieldFromRow);
   },
 

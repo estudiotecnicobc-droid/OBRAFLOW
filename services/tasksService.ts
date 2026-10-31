@@ -125,9 +125,8 @@ export const tasksService = {
         selectInChunks('task_labor_yields', 'task_id', taskIds),
         selectInChunks('task_tool_yields', 'task_id', taskIds),
       ]);
-    if (ye)  console.error('[tasksService] task_yields', ye.message);
-    if (lye) console.error('[tasksService] task_labor_yields', lye.message);
-    if (tye) console.error('[tasksService] task_tool_yields', tye.message);
+    const err = ye ?? lye ?? tye;
+    if (err) throw new Error(`[tasksService.listYieldsForTasks] ${err.message}`);
     return {
       yields: (yd ?? []).map(yieldFromRow),
       laborYields: (lyd ?? []).map(laborYieldFromRow),
