@@ -1555,7 +1555,10 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
           <div className="bg-slate-900 text-white p-6 border-t-4 border-blue-600 shadow-2xl z-10">
               <div className="flex flex-col md:flex-row justify-between items-end gap-6">
                   {/* ... Adjustments Summary ... */}
-                  <div className="flex gap-8 text-right">
+                  {yieldsBlocked && (
+                      <div className="text-xs font-bold text-amber-300 uppercase self-center">Totales no disponibles — sin validar</div>
+                  )}
+                  <div className={`flex gap-8 text-right ${yieldsBlocked ? 'opacity-40' : ''}`}>
                       <div>
                           <div className="text-[10px] font-bold text-slate-400 uppercase">Materiales + Eq</div>
                           <div className="text-lg font-mono font-medium text-blue-300">

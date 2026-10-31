@@ -27,3 +27,13 @@ export async function loadAllYields(
     return { data: EMPTY_YIELDS, error: err?.message ?? String(err) };
   }
 }
+
+/** Guarda de "última solicitud gana": invalida respuestas viejas (cambio de org o reintento). */
+export function createLatestGuard() {
+  let current = 0;
+  return {
+    start: () => ++current,
+    isCurrent: (token: number) => token === current,
+    invalidate: () => { current++; },
+  };
+}

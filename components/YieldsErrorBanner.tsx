@@ -9,8 +9,16 @@ export const useYieldsBlocked = (): boolean => {
 };
 
 export const YieldsErrorBanner: React.FC = () => {
-  const { yieldsError, reloadYields } = useERP();
+  const { yieldsError, yieldsLoading, reloadYields } = useERP();
   const [retrying, setRetrying] = useState(false);
+  if (!yieldsError && yieldsLoading) {
+    return (
+      <div role="status" className="flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2 mb-3 text-sm">
+        <RefreshCw size={16} className="animate-spin shrink-0" />
+        Cargando rendimientos… Los totales están sin validar y la impresión y las exportaciones se habilitan al terminar.
+      </div>
+    );
+  }
   if (!yieldsError) return null;
 
   const retry = async () => {
@@ -22,7 +30,7 @@ export const YieldsErrorBanner: React.FC = () => {
     <div role="alert" className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 mb-3">
       <AlertTriangle size={18} className="shrink-0" />
       <div className="flex-1 text-sm">
-        <strong>Error al cargar rendimientos.</strong> Los costos de materiales y mano de obra no son confiables; la impresión y las exportaciones quedan bloqueadas hasta recargarlos.
+        <strong>Error al cargar rendimientos.</strong> Los totales están sin validar: los costos de materiales y mano de obra no son confiables; la impresión y las exportaciones quedan bloqueadas hasta recargarlos.
       </div>
       <button
         onClick={retry}

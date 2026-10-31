@@ -49,3 +49,34 @@ describe('loadAllYields', () => {
     expect(data).toEqual(EMPTY_YIELDS);
   });
 });
+
+import { createLatestGuard } from '../yieldsLoader';
+
+describe('createLatestGuard (cambio de organización)', () => {
+  it('descarta la respuesta de la org anterior aunque llegue después', async () => {
+    const guard = createLatestGuard();
+    const applied: string[] = [];
+    const load = async (org: string, delay: number) => {
+      const token = guard.start();
+      await new Promise(r => setTimeout(r, delay));
+      if (guard.isCurrent(token)) applied.push(org);
+    };
+    await Promise.all([load('orgA', 30), load('orgB', 5)]);
+    expect(applied).toEqual(['orgB']);
+  });
+
+  it('invalidate() descarta una carga en curso al cambiar de org', async () => {
+    const guard = createLatestGuard();
+    const token = guard.start();
+    guard.invalidate();
+    expect(guard.isCurrent(token)).toBe(false);
+  });
+
+  it('un reintento reemplaza a la carga anterior', () => {
+    const guard = createLatestGuard();
+    const first = guard.start();
+    const retry = guard.start();
+    expect(guard.isCurrent(first)).toBe(false);
+    expect(guard.isCurrent(retry)).toBe(true);
+  });
+});

@@ -11,7 +11,7 @@ import { materialsService } from '../services/materialsService';
 import { toolsService } from '../services/toolsService';
 import { laborCategoriesService } from '../services/laborCategoriesService';
 import { crewsService } from '../services/crewsService';
-import { loadAllYields } from '../services/yieldsLoader';
+import { loadAllYields, createLatestGuard } from '../services/yieldsLoader';
 import { generateId } from '../utils/generateId';
 
 interface MaterialStockStatus {
@@ -186,7 +186,7 @@ export const ERPProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [yields, setYields] = useState<TaskYield[]>([]);
   const [yieldsLoading, setYieldsLoading] = useState(false);
   const [yieldsError, setYieldsError] = useState<string | null>(null);
-  const yieldsOrgRef = useRef('');
+  const yieldsGuard = useRef(createLatestGuard()).current;
   const [toolYields, setToolYields] = useState<TaskToolYield[]>([]);
   const [taskLaborYields, setTaskLaborYields] = useState<TaskLaborYield[]>([]);
 
@@ -249,11 +249,11 @@ export const ERPProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [orgId]);
 
   // Carga yields sin datos parciales; descarta la respuesta si cambió la org.
-  const applyYields = useCallback(async (forOrg: string, taskIds: string[]) => {
-    yieldsOrgRef.current = forOrg;
+  const applyYields = useCallback(async (taskIds: string[]) => {
+    const token = yieldsGuard.start();
     setYieldsLoading(true);
     const { data, error } = await loadAllYields(taskIds);
-    if (yieldsOrgRef.current !== forOrg) return;
+    if (!yieldsGuard.isCurrent(token)) return;
     if (error) console.error('[ERP] Error cargando yields desde Supabase:', error);
     setYields(data.yields);
     setTaskLaborYields(data.laborYields);
@@ -261,7 +261,7 @@ export const ERPProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setTaskCrewYields(data.crewYields);
     setYieldsError(error);
     setYieldsLoading(false);
-  }, []);
+  }, [yieldsGuard]);
 
   // ─── SUPABASE: cargar resources + projects + tasks + yields cuando cambia la org ─
   useEffect(() => {
@@ -278,11 +278,15 @@ export const ERPProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setToolYields([]);
       setTaskLaborYields([]);
       setTaskCrewYields([]);
-      yieldsOrgRef.current = '';
+      yieldsGuard.invalidate();
       setYieldsError(null);
       setYieldsLoading(false);
       return;
     }
+    // Invalida cualquier carga de yields de la org anterior apenas cambia la org.
+    yieldsGuard.invalidate();
+    setYieldsError(null);
+    setYieldsLoading(true);
 
     setProjectsLoaded(false);
     setTasksLoaded(false);
@@ -317,6 +321,7 @@ export const ERPProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Estado queda en [] — la app muestra vacío pero no crashea.
         // projectsLoaded queda false para evitar validación prematura de activeProjectId.
         setTasksLoaded(true); // desbloquear editor aunque no haya tareas, para no quedar en spinner eterno
+        setYieldsLoading(false);
         return;
       }
 
@@ -330,7 +335,7 @@ export const ERPProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setTasksLoaded(true); // tareas disponibles — BudgetEditor puede renderizar ítems
 
       // ── Fase 2: yields + crew yields (dependen de fetchedTasks) ──────────
-      await applyYields(orgId, fetchedTasks.map(t => t.id));
+      await applyYields(fetchedTasks.map(t => t.id));
       // NOTA: la validación de activeProjectId se hace en el useEffect de abajo,
       // fuera del async, para evitar stale closure y race conditions entre loads.
     };
@@ -1100,7 +1105,7 @@ export const ERPProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const reloadYields = useCallback(
-    () => applyYields(orgId, allTasks.filter(t => t.organizationId === orgId).map(t => t.id)),
+    () => applyYields(allTasks.filter(t => t.organizationId === orgId).map(t => t.id)),
     [applyYields, orgId, allTasks],
   );
 
