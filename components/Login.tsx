@@ -6,13 +6,14 @@ type Mode = 'signin' | 'signup' | 'forgot';
 
 interface Props {
   hasInvite?: boolean;
+  initialMode?: 'signin' | 'signup';
   onBack?: () => void;
 }
 
-export const Login: React.FC<Props> = ({ hasInvite = false, onBack }) => {
+export const Login: React.FC<Props> = ({ hasInvite = false, initialMode = 'signin', onBack }) => {
   const { signIn, signUp, sendPasswordResetEmail } = useAuth();
 
-  const [mode, setMode] = useState<Mode>('signin');
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');

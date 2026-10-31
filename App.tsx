@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout } from './components/Layout';
 import { Login } from './components/Login';
 import { LandingPage } from './components/LandingPage';
+import { LegalPage, legalDocFromPath } from './src/features/legal/LegalPage';
 import { Dashboard } from './components/Dashboard';
 import { BudgetModule } from './components/BudgetModule';
 import { getProjectStage, StageLockedNotice } from './components/ProjectStage';
@@ -51,7 +52,8 @@ const AppContent = () => {
   const { activeProjectId, project } = useERP();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [openedLocked, setOpenedLocked] = useState<string[]>([]);
-  const [showLogin, setShowLogin] = useState(false);
+  const [loginMode, setLoginMode] = useState<'signin' | 'signup' | null>(null);
+  const legalDoc = legalDocFromPath(window.location.pathname);
 
   // Leer token de invitación de la URL al montar y limpiarla inmediatamente
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
@@ -68,6 +70,11 @@ const AppContent = () => {
     if (v) window.history.replaceState({}, '', window.location.pathname);
     return v === 'success';
   });
+
+  // Páginas legales públicas (/terminos, /privacidad), con o sin sesión
+  if (legalDoc) {
+    return <LegalPage doc={legalDoc} />;
+  }
 
   // STATE 0: Password recovery (show immediately — URL hash detected or onAuthStateChange fired)
   if (isPasswordRecovery) {
@@ -89,15 +96,16 @@ const AppContent = () => {
   // STATE 1: Unauthenticated
   if (!user) {
     // Un link de invitación va directo al login (con el formulario de aceptación), sin pasar por la landing
-    if (inviteToken || showLogin) {
+    if (inviteToken || loginMode) {
       return (
         <Login
           hasInvite={!!inviteToken}
-          onBack={inviteToken ? undefined : () => setShowLogin(false)}
+          initialMode={loginMode ?? 'signin'}
+          onBack={inviteToken ? undefined : () => setLoginMode(null)}
         />
       );
     }
-    return <LandingPage onLogin={() => setShowLogin(true)} />;
+    return <LandingPage onLogin={() => setLoginMode('signin')} onSignup={() => setLoginMode('signup')} />;
   }
 
   // STATE 1.5: Pending invitation acceptance
