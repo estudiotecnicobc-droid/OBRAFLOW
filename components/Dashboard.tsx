@@ -566,7 +566,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, initialView })
     { name: 'SUBCONTRATO',  value: stats.totalFixedCost    },
   ].filter(d => d.value > 0);
 
-  const rubroChartData = Object.entries(stats.byRubro)
+  const rubroChartData = Object.entries(stats.byRubro as Record<string, number>)
     .map(([name, value]) => ({ name: name.length > 22 ? name.slice(0, 22) + '…' : name, value: Math.round(value) }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 8);
@@ -1219,7 +1219,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, initialView })
                 <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart
-                            data={Object.entries(stats.byRubro)
+                            data={Object.entries(stats.byRubro as Record<string, number>)
                                 .sort((a, b) => b[1] - a[1])
                                 .map(([name, value]) => ({ name, Costo: Math.round(value) }))}
                             layout="vertical"

@@ -285,7 +285,7 @@ function SummaryCard({
   );
 }
 
-function ItemRow({ item }: { item: ComparisonItem }) {
+function ItemRow({ item }: { item: ComparisonItem; key?: React.Key }) {
   const badge = QUALITY_BADGE[item.costQuality];
   return (
     <tr className="hover:bg-gray-50">

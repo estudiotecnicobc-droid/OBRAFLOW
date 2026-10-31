@@ -195,7 +195,7 @@ export interface ImportToCompanyCatalogResult extends ImportGlobalResourcesResul
 async function importMaterialResourcesToMasterCatalog(
   organizationId: string,
   priceStrategy: ResourcePriceStrategy,
-): Promise<{ created: number; updated: number }> {
+): Promise<{ created: number; updated: number; protected: number }> {
   const globals = await resourcesService.listGlobal();
   const materialResources = globals.filter(r => r.type === 'MATERIAL');
 
@@ -240,7 +240,7 @@ async function importMaterialResourcesToMasterCatalog(
       const shouldUpdate =
         priceStrategy === 'overwrite_all' ||
         (priceStrategy === 'zero_only' && Number(existingById.unit_price) === 0);
-      if (shouldUpdate && priceStrategy !== 'skip_prices') {
+      if (shouldUpdate) {
         await supabase
           .from('master_materials')
           .update({ unit_price: r.baseCost, last_synced_at: now })

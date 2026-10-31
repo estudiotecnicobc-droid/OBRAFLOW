@@ -553,7 +553,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   // Dependencia directa sobre grandTotals.subtotal para que al cambiar
   // las cantidades de los ítems los breakdowns se actualicen de inmediato.
   const kConfigSelector = useMemo(() => selectBusinessConfig(project.id), [project.id]);
-  const budgetBusinessConfig = useBudgetKStore(kConfigSelector);
+  const budgetBusinessConfig = useBudgetKStore(kConfigSelector) as BusinessConfig;
 
   const budgetKSummary = useMemo(
     () => computeBudgetKSummary(grandTotals.subtotal, budgetBusinessConfig),
