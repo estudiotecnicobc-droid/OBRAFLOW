@@ -77,7 +77,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto animate-in zoom-in-95">
 
         {/* Header */}
         <div className="p-5 border-b border-slate-100 flex items-start justify-between">
@@ -248,7 +248,7 @@ const RubroImportModal: React.FC<RubroImportModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto animate-in zoom-in-95">
 
         <div className="p-5 border-b border-slate-100 flex items-start justify-between">
           <div className="flex items-center gap-3">
@@ -1295,7 +1295,7 @@ export const MasterTasksPanel: React.FC = () => {
               {draft.materials.length === 0 ? (
                 <p className="text-xs text-slate-400 italic">Sin materiales. Seleccioná uno arriba.</p>
               ) : (
-                <div className="rounded-lg border border-slate-100 overflow-hidden">
+                <div className="rounded-lg border border-slate-100 overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50">
                       <tr>
@@ -1411,7 +1411,7 @@ export const MasterTasksPanel: React.FC = () => {
               {draft.labor.length === 0 ? (
                 <p className="text-xs text-slate-400 italic">Sin mano de obra asignada.</p>
               ) : (
-                <div className="rounded-lg border border-slate-100 overflow-hidden">
+                <div className="rounded-lg border border-slate-100 overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50">
                       <tr>
@@ -1502,7 +1502,7 @@ export const MasterTasksPanel: React.FC = () => {
               {draft.equipment.length === 0 ? (
                 <p className="text-xs text-slate-400 italic">Sin equipos asignados.</p>
               ) : (
-                <div className="rounded-lg border border-slate-100 overflow-hidden">
+                <div className="rounded-lg border border-slate-100 overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50">
                       <tr>

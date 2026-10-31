@@ -425,7 +425,7 @@ export const MaterialReception: React.FC = () => {
 
                 {/* LIST VIEW */}
                 {viewType === 'list' && (
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
                         <table className="w-full text-sm text-left">
                             <thead className="bg-slate-50 text-xs text-slate-500 uppercase font-bold">
                                 <tr>

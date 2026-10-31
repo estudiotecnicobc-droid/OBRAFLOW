@@ -1,0 +1,1 @@
+Optimizar la vista para celulares: botones que no se ven completos y pantallas que no se visualizan bien. Tanda 1: shell (menú como cajón en móvil, 100dvh), tablas con scroll horizontal, paneles laterales a pantalla completa, modales con alto máximo. Sin tocar ERPContext. Escritorio sin cambios.

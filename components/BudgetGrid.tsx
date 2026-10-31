@@ -245,7 +245,7 @@ export const BudgetGrid: React.FC = () => {
                 <h4 className="text-xs font-bold uppercase text-slate-500 tracking-widest">Análisis de Recursos (APU) - {task.name}</h4>
              </div>
              
-             <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm max-w-4xl">
+             <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto shadow-sm max-w-4xl">
                  <table className="w-full text-sm text-left">
                      <thead className="bg-slate-100 text-xs text-slate-500 font-semibold uppercase">
                          <tr>
@@ -440,7 +440,7 @@ export const BudgetGrid: React.FC = () => {
       </div>
 
       {/* Main Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-x-auto">
          <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 text-slate-500 uppercase text-xs font-semibold">
                {table.getHeaderGroups().map(headerGroup => (

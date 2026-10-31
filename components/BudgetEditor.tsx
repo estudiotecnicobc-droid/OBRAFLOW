@@ -1334,7 +1334,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
           {/* TABLE CONTENT */}
           {!showComparison && <div className="flex-1 overflow-auto bg-slate-50/50 p-6">
-              <div className="bg-white border border-slate-200 shadow-sm rounded-lg overflow-hidden">
+              <div className="bg-white border border-slate-200 shadow-sm rounded-lg overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                       <thead>
                           <tr className="bg-slate-100 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-200">
@@ -1590,7 +1590,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
           {configPanel.isOpen && (
               <div className="fixed inset-0 z-50 flex justify-end">
                   <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity" onClick={() => setConfigPanel({ ...configPanel, isOpen: false })}></div>
-                  <div className="w-[450px] bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 z-50">
+                  <div className="w-[450px] max-w-full bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 z-50">
                       
                       {/* Panel Header */}
                       <div className="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-center">

@@ -677,7 +677,7 @@ export const ProjectSettings: React.FC<{ initialTab?: Tab }> = ({ initialTab }) 
         {/* Crew Editor Modal */}
         {isCrewModalOpen && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90dvh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
                     <div className="bg-slate-50 p-4 border-b border-slate-100 flex justify-between items-center">
                         <h3 className="font-bold text-slate-800 flex items-center gap-2">
                             <HardHat className="text-orange-500" size={20} /> 

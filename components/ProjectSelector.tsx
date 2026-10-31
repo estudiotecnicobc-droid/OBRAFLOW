@@ -118,7 +118,7 @@ export const ProjectSelector: React.FC = () => {
         {/* Create Modal */}
         {showCreateModal && (
             <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90dvh] overflow-y-auto animate-in zoom-in-95">
                     <div className="p-6 border-b border-slate-100 bg-slate-50">
                         <h3 className="text-xl font-bold text-slate-800">Crear Nuevo Proyecto</h3>
                         <p className="text-sm text-slate-500">Ingrese los datos básicos de la obra.</p>

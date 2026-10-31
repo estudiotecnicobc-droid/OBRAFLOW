@@ -24,7 +24,7 @@ export const PassToWorksDialog: React.FC<{ onClose: () => void; onDone?: () => v
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="pass-to-works-title">
-      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[90dvh] overflow-y-auto">
         <div className="flex items-start justify-between gap-4">
           <h2 id="pass-to-works-title" className="text-xl font-bold text-slate-800">Aprobar presupuesto y pasar a obra</h2>
           <button onClick={onClose} aria-label="Cerrar" className="text-slate-400 hover:text-slate-700 p-1"><X size={18} /></button>
