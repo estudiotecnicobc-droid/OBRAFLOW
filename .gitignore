@@ -34,3 +34,6 @@ tu-erp-construccion/
 *.txt
 
 .vercel
+
+# Local-only Supabase function secrets
+supabase/.env.local

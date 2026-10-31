@@ -1,0 +1,14 @@
+project_id = "obraflow-local-staging"
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[functions.price-import-start]
+verify_jwt = true
+
+[functions.price-import-worker]
+verify_jwt = false
+
+[functions.price-mapping-suggest]
+verify_jwt = true

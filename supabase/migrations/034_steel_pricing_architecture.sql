@@ -57,6 +57,17 @@ DECLARE
   v_updated_ct  int;
 BEGIN
 
+  -- Seed/reparación histórica de una organización concreta: no crear
+  -- usuarios ni organizaciones artificiales durante un arranque local limpio.
+  -- La migración de esquema sigue siendo válida aunque esa organización no exista.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.organizations WHERE id = v_org_uuid
+  ) THEN
+    RAISE NOTICE 'Omitiendo 034_steel_pricing_architecture.sql: organización de origen no presente';
+    RETURN;
+  END IF;
+
+
   -- ── 1. Crear o actualizar "Acero ADN 420 (Genérico por Cuantía)" ─────────────
   SELECT id INTO v_gen_id
   FROM public.master_materials

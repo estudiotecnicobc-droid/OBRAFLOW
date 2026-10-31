@@ -506,7 +506,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   -- Caso normal: snapshot existente
-  SELECT
+  -- Cada rama debe agruparse para usar ORDER BY/LIMIT antes del UNION ALL.
+  (SELECT
     s.id, s.resource_id, s.effective_date, s.cost, s.currency,
     s.source_type, s.source_reference, s.pricing_rule_id, s.index_id,
     s.index_base_value, s.index_current_value, s.adjustment_factor,
@@ -516,12 +517,12 @@ AS $$
     AND s.resource_id  = p_resource_id
     AND s.effective_date <= p_date
   ORDER BY s.effective_date DESC, s.created_at DESC
-  LIMIT 1
+  LIMIT 1)
 
   UNION ALL
 
   -- Fallback: no existe snapshot, devuelve base_cost con flag is_fallback = true
-  SELECT
+  (SELECT
     NULL::uuid, r.id, NULL::date, r.base_cost, 'ARS'::char(3),
     'FALLBACK_BASE_COST'::public.snapshot_source_type,
     NULL, NULL::uuid, NULL::uuid,
@@ -535,7 +536,7 @@ AS $$
         AND s2.resource_id  = p_resource_id
         AND s2.effective_date <= p_date
     )
-  LIMIT 1
+  LIMIT 1)
 $$;
 
 -- ── 8c. generate_monthly_snapshots ───────────────────────────────────────────
