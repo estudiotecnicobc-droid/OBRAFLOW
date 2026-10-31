@@ -1,5 +1,6 @@
 
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import { takeReportIntent } from '../src/features/reports/reportIntents';
 import { useERP } from '../context/ERPContext';
 import { useProjectSchedule } from '../hooks/useProjectSchedule';
 import {
@@ -458,6 +459,11 @@ export const Planning: React.FC = () => {
   const handlePrint = () => {
       window.print();
   };
+
+  // Abierto desde Reportes → Plan de trabajos: imprime cuando la vista terminó de dibujarse
+  useEffect(() => {
+      if (takeReportIntent('planning')) window.setTimeout(() => window.print(), 900);
+  }, []);
 
   // --- HANDLERS ---
   const handleUpdate = (id: string, field: string, value: any) => {

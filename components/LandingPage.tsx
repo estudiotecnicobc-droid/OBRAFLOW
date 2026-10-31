@@ -188,7 +188,7 @@ const GanttMock = () => (
 );
 
 const IndexMock = () => (
-  <Window title="Comparar costos · Actualizar por índice">
+  <Window title="Actualizar presupuesto · Por índice">
     <div className="p-5">
       <div className="flex flex-wrap gap-1.5 mb-4">
         {['Índice CAC', 'ICC INDEC', 'Inflación', 'Dólar', 'Por componente', '% fijo'].map((m, i) => (

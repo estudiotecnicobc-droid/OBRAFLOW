@@ -1,7 +1,7 @@
 import { Material, Task, TaskYield, TaskToolYield, Tool, UnitPriceAnalysis, Holiday, TaskCrewYield, Crew, LaborCategory, TaskLaborYield } from '../types';
 
 // Helper to calculate labor cost total (with social charges)
-const calculateHourlyLaborCost = (lc: LaborCategory) => {
+export const calculateHourlyLaborCost = (lc: LaborCategory) => {
     return (lc.basicHourlyRate || 0) * (1 + ((lc.socialChargesPercent || 0) + (lc.insurancePercent || 0)) / 100);
 };
 

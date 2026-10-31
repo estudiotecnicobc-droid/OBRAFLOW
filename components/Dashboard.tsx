@@ -14,6 +14,7 @@ import {
 import { NextStepsCard } from './ProjectStage';
 import { ProjectDashboardHeader } from './ProjectDashboardHeader';
 import { ProjectWizard } from './ProjectWizard';
+import { takeReportIntent } from '../src/features/reports/reportIntents';
 
 const COLORS = ['#0ea5e9', '#22c55e', '#9333ea', '#eab308', '#f97316', '#ef4444'];
 
@@ -63,7 +64,7 @@ const OnboardingChecklist: React.FC<{
       title: 'Generá entregables',
       description: 'Descargá fichas APU, resúmenes de presupuesto y reportes de gestión.',
       actionLabel: 'Centro de Reportes',
-      tab: 'reports',
+      tab: 'reports_view',
       done: false,
     },
   ];
@@ -195,6 +196,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, initialView })
 
   // --- Print Preview State ---
   const [showPreview, setShowPreview] = useState(false);
+  // Abierto desde Reportes → Reporte ejecutivo
+  useEffect(() => { if (takeReportIntent('executive')) setShowPreview(true); }, []);
   const [printScale, setPrintScale] = useState(1);
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
   const [selectedSections, setSelectedSections] = useState({
@@ -1105,7 +1108,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, initialView })
                  onClick={() => setActiveView('reports')}
                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeView === 'reports' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-50'}`}
                >
-                 Reportes e Ingeniería
+                 Materiales y fichas
                </button>
            </div>
         </div>

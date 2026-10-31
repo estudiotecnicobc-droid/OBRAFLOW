@@ -27,6 +27,7 @@ import { InvitationAccept } from './components/InvitationAccept';
 import { BillingSuccess } from './src/features/billing/BillingSuccess';
 import { Role } from './types';
 import { SaveProvider } from './context/SaveContext';
+import { ReportsHub } from './src/features/reports/ReportsHub';
 
 // Route Protection Component (Middleware Simulation)
 const ProtectedRoute: React.FC<{ 
@@ -181,7 +182,7 @@ const AppContent = () => {
       case 'project_labor':
         return <ProtectedRoute allowedRoles={['admin']}><ProjectSettings key="project_labor" initialTab="labor" /></ProtectedRoute>;
       case 'reports_view':
-        return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker', 'client']}><Dashboard key="reports_view" onNavigate={setActiveTab} initialView="reports" /></ProtectedRoute>;
+        return <ProtectedRoute allowedRoles={['admin', 'project_manager', 'worker', 'client']}><ReportsHub key="reports_view" onNavigate={setActiveTab} /></ProtectedRoute>;
       case 'admin_indices':
       case 'admin_system':
         return <ProtectedRoute allowedRoles={['admin']}><SettingsModule activeTab={activeTab} onNavigate={setActiveTab} /></ProtectedRoute>;
