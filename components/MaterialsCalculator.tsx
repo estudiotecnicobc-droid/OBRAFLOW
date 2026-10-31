@@ -6,6 +6,7 @@ import {
 import { useMaterialsCalculator } from '../hooks/useMaterialsCalculator';
 import { useERP } from '../context/ERPContext';
 import type { MasterTask, AggregatedResourceLine, APUCalcResult } from '../types';
+import { piecePurchase } from '../services/consolidatedCalculatorService';
 
 const fmt = (n: number) =>
   n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -34,7 +35,7 @@ const AggTable: React.FC<{ rows: AggregatedResourceLine[]; label: string; showPu
             const cf = r.conversionFactor ?? 1;
             // Fórmula correcta: qty_compra = CEIL(qty_técnica / factor_conversión)
             // Ejemplo: 1200 kg / 50 (bolsa 50kg) = 24 bolsas
-            const purchaseQty = cf > 1 ? Math.ceil(r.totalQuantity / cf) : null;
+            const purchaseQty = cf > 1 ? Math.ceil(r.totalQuantity / cf) : piecePurchase(r.unit, r.totalQuantity) ?? null;
             const purchaseLabel = r.commercialUnit ?? null;
             return (
               <tr key={r.key} className="border-b border-slate-100 hover:bg-slate-50">
@@ -295,7 +296,7 @@ export const MaterialsCalculator: React.FC<Props> = ({ organizationId }) => {
       for (const r of lines) {
         const cf = r.conversionFactor ?? 1;
         const purchase = includePurchase
-          ? (cf > 1 ? `${Math.ceil(r.totalQuantity / cf)} ${r.commercialUnit ?? r.unit}` : '')
+          ? (cf > 1 ? `${Math.ceil(r.totalQuantity / cf)} ${r.commercialUnit ?? r.unit}` : `${piecePurchase(r.unit, r.totalQuantity) ?? ''}`)
           : undefined;
         const base = `"${r.name}","${r.unit}",${r.totalQuantity.toFixed(4)},`;
         const mid  = includePurchase ? `${purchase ?? ''},` : '';

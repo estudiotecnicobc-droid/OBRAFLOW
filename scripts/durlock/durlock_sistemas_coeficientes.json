@@ -1,0 +1,2392 @@
+{
+ "fuente": "durlock.com/calculador (relevado 31/10/2026, superficie de prueba 100 m2)",
+ "regla_calculo": "cantidad = ceil(m2 * coef_m2). Verificado en pared estándar con 10,40 / 20,80 / 100 m2. Excepciones: banda acústica ≈ 0,77*m2 + 6 ml; Promaseal no lineal (9 / 15 / 55 un.) -> usar con mínimo. Sellador PU 'según proyecto'.",
+ "arbol_selector": {
+  "Pared interior / seco / sin prestación": [
+   206,
+   4,
+   5
+  ],
+  "Pared interior / seco / acústica o impacto": [
+   206,
+   5,
+   9
+  ],
+  "Pared interior / seco / fuego": [
+   5,
+   6,
+   9
+  ],
+  "Pared interior / húmedo": [
+   11
+  ],
+  "Revest. interior / placa de yeso / seco": [
+   48,
+   49,
+   198
+  ],
+  "Revest. interior / placa de yeso / húmedo": [
+   50,
+   199
+  ],
+  "Revest. interior / placa de yeso / aislación térmica": [
+   198
+  ],
+  "Revest. interior / antihumedad": [
+   187
+  ],
+  "Revest. interior / decorativo / símil cemento": [
+   91,
+   103,
+   99
+  ],
+  "Revest. interior / decorativo / símil madera / Cedral junta vista": [
+   59,
+   254,
+   255
+  ],
+  "Revest. interior / decorativo / símil madera / Cedral junta a tope": [
+   57,
+   340
+  ],
+  "Revest. interior / decorativo / símil piedra, cerámico, mármol, Simplísima": [],
+  "Revest. exterior / sin juntas": [
+   64,
+   90
+  ],
+  "Revest. exterior / junta vista": [
+   63,
+   65,
+   66
+  ],
+  "Revest. exterior / símil madera / Cedral solapado": [
+   62,
+   344
+  ],
+  "Revest. exterior / símil madera / Cedral junta vista": [
+   63,
+   254,
+   255
+  ],
+  "Revest. exterior / símil madera / Cedral junta a tope": [
+   61,
+   341
+  ],
+  "Cielorraso interior / placa de yeso": [
+   21,
+   22,
+   23
+  ],
+  "Cielorraso interior / placa de yeso / acústica": [
+   251,
+   24
+  ],
+  "Cielorraso interior / placa de yeso / humedad extrema": [
+   42
+  ],
+  "Cielorraso interior / desmontables": [
+   26,
+   27,
+   337
+  ],
+  "Cielorraso interior / decorativo / cemento": [
+   39,
+   190
+  ],
+  "Cielorraso interior / decorativo / madera": [
+   41
+  ],
+  "Cielorraso exterior / sin juntas": [
+   47
+  ],
+  "Cielorraso exterior / junta vista": [
+   44,
+   97
+  ],
+  "Cielorraso exterior / madera": [
+   46
+  ]
+ },
+ "sistemas": [
+  {
+   "ref_durlock": 4,
+   "categoria": "Pared interior",
+   "nombre": "Pared divisoria Estándar (placa 12,5, montantes c/0,40)",
+   "insumos": [
+    {
+     "insumo": "Placa Estándar 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.72
+    },
+    {
+     "insumo": "Solera 70 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.3846
+    },
+    {
+     "insumo": "Montante 69 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 1.1538
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja 8x9/16\"",
+     "unidad": "un",
+     "coef_m2": 10
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja 6x1\"",
+     "unidad": "un",
+     "coef_m2": 30
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 3.3
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 1.8
+    },
+    {
+     "insumo": "Aislante para muros (lana)",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 3.5
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Sellador Promaseal-A",
+     "unidad": "un",
+     "coef_m2": 0.55
+    },
+    {
+     "insumo": "Banda acústica",
+     "unidad": "ml",
+     "coef_m2": 0.83
+    },
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 2.0
+    }
+   ]
+  },
+  {
+   "ref_durlock": 11,
+   "categoria": "Pared interior",
+   "nombre": "Pared Resistente a la Humedad",
+   "insumos": [
+    {
+     "insumo": "Placa RH 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.72
+    },
+    {
+     "insumo": "Solera 70 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.3846
+    },
+    {
+     "insumo": "Montante 69 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 1.1538
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja 8x9/16\"",
+     "unidad": "un",
+     "coef_m2": 10
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja 6x1\"",
+     "unidad": "un",
+     "coef_m2": 30
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 3.3
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 1.8
+    },
+    {
+     "insumo": "Aislante para muros (lana)",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 3.5
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Sellador Promaseal-A",
+     "unidad": "un",
+     "coef_m2": 0.55
+    },
+    {
+     "insumo": "Banda acústica",
+     "unidad": "ml",
+     "coef_m2": 0.83
+    },
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 2.0
+    }
+   ]
+  },
+  {
+   "ref_durlock": 6,
+   "categoria": "Pared interior",
+   "nombre": "Pared Resistente al Fuego",
+   "insumos": [
+    {
+     "insumo": "Placa RF 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.72
+    },
+    {
+     "insumo": "Solera 70 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.3846
+    },
+    {
+     "insumo": "Montante 69 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 1.1538
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja 8x9/16\"",
+     "unidad": "un",
+     "coef_m2": 10
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja 6x1\"",
+     "unidad": "un",
+     "coef_m2": 30
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 3.3
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 1.8
+    },
+    {
+     "insumo": "Aislante para muros (lana)",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 3.5
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Sellador Promaseal-A",
+     "unidad": "un",
+     "coef_m2": 0.55
+    },
+    {
+     "insumo": "Banda acústica",
+     "unidad": "ml",
+     "coef_m2": 0.83
+    },
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 2.0
+    }
+   ]
+  },
+  {
+   "ref_durlock": 206,
+   "categoria": "Pared interior",
+   "nombre": "Pared Acústica ACU60 (montantes c/0,60)",
+   "insumos": [
+    {
+     "insumo": "Placa ACU60 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.72
+    },
+    {
+     "insumo": "Solera 70 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.3846
+    },
+    {
+     "insumo": "Montante 69 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.7692
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja 8x9/16\"",
+     "unidad": "un",
+     "coef_m2": 5
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja 6x1\"",
+     "unidad": "un",
+     "coef_m2": 18
+    },
+    {
+     "insumo": "Banda acústica",
+     "unidad": "ml",
+     "coef_m2": 0.83
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 3.3
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 1.8
+    },
+    {
+     "insumo": "Aislante para muros (lana)",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 3.5
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 2.0
+    },
+    {
+     "insumo": "Sellador Promaseal-A",
+     "unidad": "un",
+     "coef_m2": 0.55
+    }
+   ]
+  },
+  {
+   "ref_durlock": 5,
+   "categoria": "Pared interior",
+   "nombre": "Pared Extra Resistente",
+   "insumos": [
+    {
+     "insumo": "Placa Extra Resistente 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.72
+    },
+    {
+     "insumo": "Solera 70 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.3846
+    },
+    {
+     "insumo": "Montante 69 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.7692
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja 8x9/16\"",
+     "unidad": "un",
+     "coef_m2": 5
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja 6x1\"",
+     "unidad": "un",
+     "coef_m2": 18
+    },
+    {
+     "insumo": "Sellador Promaseal-A",
+     "unidad": "un",
+     "coef_m2": 0.55
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 3.3
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 1.8
+    },
+    {
+     "insumo": "Aislante para muros (lana)",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 3.5
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Banda acústica",
+     "unidad": "ml",
+     "coef_m2": 0.83
+    },
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 2.0
+    }
+   ]
+  },
+  {
+   "ref_durlock": 9,
+   "categoria": "Pared interior",
+   "nombre": "Pared Extra Resistente doble emplacado",
+   "insumos": [
+    {
+     "insumo": "Placa Extra Resistente 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 1.43
+    },
+    {
+     "insumo": "Solera 70 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.3846
+    },
+    {
+     "insumo": "Montante 69 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.7692
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja",
+     "unidad": "un",
+     "coef_m2": 5
+    },
+    {
+     "insumo": "Tornillo T2 6x1\" 25 mm",
+     "unidad": "un",
+     "coef_m2": 9
+    },
+    {
+     "insumo": "Tornillo T3 6x1½\" 38 mm",
+     "unidad": "un",
+     "coef_m2": 18
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 3.3
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 1.8
+    },
+    {
+     "insumo": "Aislante para muros (lana)",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 3.5
+    },
+    {
+     "insumo": "Sellador Promaseal-A",
+     "unidad": "un",
+     "coef_m2": 0.55
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 2.0
+    },
+    {
+     "insumo": "Banda acústica",
+     "unidad": "ml",
+     "coef_m2": 0.83
+    }
+   ]
+  },
+  {
+   "ref_durlock": 48,
+   "categoria": "Revestimiento interior",
+   "nombre": "Revoque Seco (placa pegada)",
+   "insumos": [
+    {
+     "insumo": "Placa Revoque Seco 12,5 mm 1,20x2,60",
+     "unidad": "un",
+     "coef_m2": 0.34
+    },
+    {
+     "insumo": "Adhesivo Revoque Seco 25 kg",
+     "unidad": "bolsa",
+     "coef_m2": 0.11
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 0.9
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 1.65
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Sellador Promaseal-A",
+     "unidad": "un",
+     "coef_m2": 0.55
+    },
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 1.0
+    }
+   ]
+  },
+  {
+   "ref_durlock": 49,
+   "categoria": "Revestimiento interior",
+   "nombre": "Revestimiento Estándar sobre perfil Omega",
+   "insumos": [
+    {
+     "insumo": "Placa Estándar 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Perfil Omega x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 1.16
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja",
+     "unidad": "un",
+     "coef_m2": 15
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 1.65
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 0.9
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Sellador Promaseal-A",
+     "unidad": "un",
+     "coef_m2": 0.55
+    },
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 1.0
+    }
+   ]
+  },
+  {
+   "ref_durlock": 50,
+   "categoria": "Revestimiento interior",
+   "nombre": "Revestimiento RH sobre perfil Omega",
+   "insumos": [
+    {
+     "insumo": "Placa RH 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Perfil Omega x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 1.16
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja",
+     "unidad": "un",
+     "coef_m2": 15
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 1.65
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 0.9
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Sellador Promaseal-A",
+     "unidad": "un",
+     "coef_m2": 0.55
+    },
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 1.0
+    }
+   ]
+  },
+  {
+   "ref_durlock": 198,
+   "categoria": "Revestimiento interior",
+   "nombre": "Revestimiento Extra Resistente (perfil 35)",
+   "insumos": [
+    {
+     "insumo": "Placa Extra Resistente 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Solera 35 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.39
+    },
+    {
+     "insumo": "Montante 34 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 1.16
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja",
+     "unidad": "un",
+     "coef_m2": 10
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja",
+     "unidad": "un",
+     "coef_m2": 15
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 1.65
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 0.9
+    },
+    {
+     "insumo": "Aislante para muros (lana)",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 3.5
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Sellador Promaseal-A",
+     "unidad": "un",
+     "coef_m2": 0.55
+    },
+    {
+     "insumo": "Banda acústica",
+     "unidad": "ml",
+     "coef_m2": 0.83
+    }
+   ]
+  },
+  {
+   "ref_durlock": 199,
+   "categoria": "Revestimiento interior",
+   "nombre": "Revestimiento 4D (perfil 35)",
+   "insumos": [
+    {
+     "insumo": "Placa 4D 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Solera 35 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.39
+    },
+    {
+     "insumo": "Montante 34 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 1.16
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja",
+     "unidad": "un",
+     "coef_m2": 10
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja",
+     "unidad": "un",
+     "coef_m2": 15
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 1.65
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 0.9
+    },
+    {
+     "insumo": "Aislante para muros (lana)",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 3.5
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Sellador Promaseal-A",
+     "unidad": "un",
+     "coef_m2": 0.55
+    },
+    {
+     "insumo": "Banda acústica",
+     "unidad": "ml",
+     "coef_m2": 0.83
+    }
+   ]
+  },
+  {
+   "ref_durlock": 187,
+   "categoria": "Revestimiento interior",
+   "nombre": "Revestimiento Antihumedad",
+   "insumos": [
+    {
+     "insumo": "Placa Antihumedad 12,5 mm 1,20x2,60",
+     "unidad": "un",
+     "coef_m2": 0.34
+    },
+    {
+     "insumo": "Perfil Omega x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 1.16
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja",
+     "unidad": "un",
+     "coef_m2": 15
+    },
+    {
+     "insumo": "Masilla Antihumedad 13 kg",
+     "unidad": "balde",
+     "coef_m2": 0.11
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 1.65
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    }
+   ],
+   "opcionales": []
+  },
+  {
+   "ref_durlock": 99,
+   "categoria": "Revestimiento interior",
+   "nombre": "Superboard ST 8 mm (símil cemento)",
+   "insumos": [
+    {
+     "insumo": "Placa Superboard ST 8 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Tornillo alas con estrías 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Masilla/enduido exterior",
+     "unidad": "kg",
+     "coef_m2": 0.15
+    },
+    {
+     "insumo": "Sellador poliuretánico 600 ml (según proyecto)",
+     "unidad": "un",
+     "coef_m2": 1.6
+    },
+    {
+     "insumo": "Fleje metálico 50 mm",
+     "unidad": "ml",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    }
+   ],
+   "opcionales": []
+  },
+  {
+   "ref_durlock": 103,
+   "categoria": "Revestimiento interior",
+   "nombre": "Superboard Premium 10 mm",
+   "insumos": [
+    {
+     "insumo": "Placa Superboard Premium 10 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Tornillo alas con estrías 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Masilla/enduido exterior",
+     "unidad": "kg",
+     "coef_m2": 0.15
+    },
+    {
+     "insumo": "Sellador poliuretánico 600 ml (según proyecto)",
+     "unidad": "un",
+     "coef_m2": 1.6
+    },
+    {
+     "insumo": "Fleje metálico 50 mm",
+     "unidad": "ml",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    }
+   ],
+   "opcionales": []
+  },
+  {
+   "ref_durlock": 91,
+   "categoria": "Revestimiento interior",
+   "nombre": "Superboard Premium doble emplacado",
+   "insumos": [
+    {
+     "insumo": "Placa Superboard Premium 10 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Placa Superboard ST 8 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Tornillo alas 10x1½\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.07
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    }
+   ],
+   "opcionales": []
+  },
+  {
+   "ref_durlock": 59,
+   "categoria": "Revestimiento interior",
+   "nombre": "Cedral 20 cm junta vista",
+   "insumos": [
+    {
+     "insumo": "Siding Cedral 8 mm 0,20x3,60",
+     "unidad": "un",
+     "coef_m2": 1.39
+    },
+    {
+     "insumo": "Placa Superboard ST 6 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 30
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 0.29
+    }
+   ]
+  },
+  {
+   "ref_durlock": 57,
+   "categoria": "Revestimiento interior",
+   "nombre": "Cedral junta a tope",
+   "insumos": [
+    {
+     "insumo": "Siding Cedral 8 mm 0,20x3,60",
+     "unidad": "un",
+     "coef_m2": 1.46
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 0.29
+    }
+   ]
+  },
+  {
+   "ref_durlock": 340,
+   "categoria": "Revestimiento interior",
+   "nombre": "Cedral pre-pintado junta a tope",
+   "insumos": [
+    {
+     "insumo": "Siding Cedral pre-pintado 8 mm 0,19x3,66",
+     "unidad": "un",
+     "coef_m2": 1.5
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 0.29
+    }
+   ]
+  },
+  {
+   "ref_durlock": 254,
+   "categoria": "Revestimiento int/ext",
+   "nombre": "Cedral Smart 10 cm junta vista",
+   "insumos": [
+    {
+     "insumo": "Cedral Smart 10 mm 0,10x3,20",
+     "unidad": "un",
+     "coef_m2": 3.29
+    },
+    {
+     "insumo": "Placa Superboard ST 6 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 7
+    },
+    {
+     "insumo": "Tornillo alas 10x1½\"",
+     "unidad": "un",
+     "coef_m2": 30
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    },
+    {
+     "insumo": "Sellador poliuretánico 600 ml",
+     "unidad": "un",
+     "coef_m2": 0.2
+    },
+    {
+     "insumo": "Masilla/enduido exterior",
+     "unidad": "kg",
+     "coef_m2": 0.3
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Barrera de agua y viento",
+     "unidad": "m2",
+     "coef_m2": 0.04
+    }
+   ],
+   "nota": "Barrera 0,04 m2/m2 parece error de carga de Durlock (en el resto es 1,05)"
+  },
+  {
+   "ref_durlock": 255,
+   "categoria": "Revestimiento int/ext",
+   "nombre": "Cedral Panel texturado",
+   "insumos": [
+    {
+     "insumo": "Cedral Panel 6 mm 1,218x2,40",
+     "unidad": "un",
+     "coef_m2": 0.36
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 15
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    },
+    {
+     "insumo": "Sellador poliuretánico 600 ml",
+     "unidad": "un",
+     "coef_m2": 0.32
+    },
+    {
+     "insumo": "Masilla/enduido exterior",
+     "unidad": "kg",
+     "coef_m2": 0.3
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Barrera de agua y viento",
+     "unidad": "m2",
+     "coef_m2": 0.04
+    }
+   ],
+   "nota": "Idem barrera"
+  },
+  {
+   "ref_durlock": 64,
+   "categoria": "Revestimiento exterior",
+   "nombre": "Aquaboard exterior (base coat + malla)",
+   "insumos": [
+    {
+     "insumo": "Placa Aquaboard 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 20
+    },
+    {
+     "insumo": "Base Coat bicomponente 25 kg",
+     "unidad": "un",
+     "coef_m2": 0.2
+    },
+    {
+     "insumo": "Cinta malla FV 5x5 50 m x 5 cm",
+     "unidad": "rollo",
+     "coef_m2": 0.03
+    },
+    {
+     "insumo": "Malla FV 5x5 160 g 50 m x 1 m",
+     "unidad": "rollo",
+     "coef_m2": 0.03
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Barrera de agua y viento",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    }
+   ]
+  },
+  {
+   "ref_durlock": 65,
+   "categoria": "Revestimiento exterior",
+   "nombre": "Superboard exterior (junta vista)",
+   "insumos": [
+    {
+     "insumo": "Placa Superboard ST 8 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Tornillo alas con estrías 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Masilla/enduido exterior",
+     "unidad": "kg",
+     "coef_m2": 0.15
+    },
+    {
+     "insumo": "Sellador poliuretánico 600 ml (según proyecto)",
+     "unidad": "un",
+     "coef_m2": 1.6
+    },
+    {
+     "insumo": "Fleje metálico 50 mm",
+     "unidad": "ml",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Barrera de agua y viento",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    }
+   ]
+  },
+  {
+   "ref_durlock": 66,
+   "categoria": "Revestimiento exterior",
+   "nombre": "Superboard Premium doble emplacado",
+   "insumos": [
+    {
+     "insumo": "Placa Superboard Premium 10 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Placa Superboard ST 8 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Tornillo alas 10x1½\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Masilla/enduido exterior",
+     "unidad": "kg",
+     "coef_m2": 0.15
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Barrera de agua y viento",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    },
+    {
+     "insumo": "Sellador poliuretánico 600 ml",
+     "unidad": "un",
+     "coef_m2": 1.6
+    }
+   ]
+  },
+  {
+   "ref_durlock": 90,
+   "categoria": "Revestimiento exterior",
+   "nombre": "Superboard con aislación térmica (EIFS)",
+   "insumos": [
+    {
+     "insumo": "Placa Superboard ST 8 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Base Coat bicomponente 25 kg",
+     "unidad": "un",
+     "coef_m2": 0.2
+    },
+    {
+     "insumo": "Aislante EPS para EIFS",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    },
+    {
+     "insumo": "Malla FV 5x5 160 g 50 m x 1 m",
+     "unidad": "rollo",
+     "coef_m2": 0.03
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Barrera de agua y viento",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    }
+   ]
+  },
+  {
+   "ref_durlock": 63,
+   "categoria": "Revestimiento exterior",
+   "nombre": "Cedral 20 cm junta vista",
+   "insumos": [
+    {
+     "insumo": "Siding Cedral 8 mm 0,20x3,60",
+     "unidad": "un",
+     "coef_m2": 1.39
+    },
+    {
+     "insumo": "Placa Superboard ST 6 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Tornillo alas 10x1½\"",
+     "unidad": "un",
+     "coef_m2": 30
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    },
+    {
+     "insumo": "Sellador poliuretánico 600 ml",
+     "unidad": "un",
+     "coef_m2": 0.32
+    },
+    {
+     "insumo": "Masilla/enduido exterior",
+     "unidad": "kg",
+     "coef_m2": 0.29
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Barrera de agua y viento",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    }
+   ]
+  },
+  {
+   "ref_durlock": 61,
+   "categoria": "Revestimiento exterior",
+   "nombre": "Cedral junta a tope",
+   "insumos": [
+    {
+     "insumo": "Siding Cedral 8 mm 0,20x3,60",
+     "unidad": "un",
+     "coef_m2": 1.46
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 30
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    },
+    {
+     "insumo": "Masilla/enduido exterior",
+     "unidad": "kg",
+     "coef_m2": 0.29
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Placa Superboard ST 6 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Barrera de agua y viento",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    },
+    {
+     "insumo": "Sellador poliuretánico 600 ml",
+     "unidad": "un",
+     "coef_m2": 0.32
+    }
+   ]
+  },
+  {
+   "ref_durlock": 62,
+   "categoria": "Revestimiento exterior",
+   "nombre": "Cedral solapado horizontal",
+   "insumos": [
+    {
+     "insumo": "Siding Cedral 8 mm 0,20x3,60",
+     "unidad": "un",
+     "coef_m2": 1.57
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    },
+    {
+     "insumo": "Sellador poliuretánico 600 ml",
+     "unidad": "un",
+     "coef_m2": 0.32
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Barrera de agua y viento",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    }
+   ]
+  },
+  {
+   "ref_durlock": 341,
+   "categoria": "Revestimiento exterior",
+   "nombre": "Cedral pre-pintado junta a tope",
+   "insumos": [
+    {
+     "insumo": "Siding Cedral pre-pintado 8 mm 0,19x3,66",
+     "unidad": "un",
+     "coef_m2": 1.5
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 30
+    },
+    {
+     "insumo": "Perfil PGO 22 x 3,00 m",
+     "unidad": "un",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 8
+    },
+    {
+     "insumo": "Masilla/enduido exterior",
+     "unidad": "kg",
+     "coef_m2": 0.29
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Placa Superboard ST 6 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Barrera de agua y viento",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    },
+    {
+     "insumo": "Sellador poliuretánico 600 ml",
+     "unidad": "un",
+     "coef_m2": 0.32
+    }
+   ]
+  },
+  {
+   "ref_durlock": 344,
+   "categoria": "Revestimiento exterior",
+   "nombre": "Cedral pre-pintado solapado",
+   "insumos": [],
+   "opcionales": [],
+   "nota": "Listado no relevado completo (truncado); asumir análogo al #62 con siding pre-pintado"
+  },
+  {
+   "ref_durlock": 21,
+   "categoria": "Cielorraso interior",
+   "nombre": "Sistema CIEL 7 mm",
+   "insumos": [
+    {
+     "insumo": "Placa CIEL 7 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Solera 35 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.43
+    },
+    {
+     "insumo": "Montante 34 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.93
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja",
+     "unidad": "un",
+     "coef_m2": 8
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 1.65
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 0.9
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 3
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 1.0
+    }
+   ]
+  },
+  {
+   "ref_durlock": 22,
+   "categoria": "Cielorraso interior",
+   "nombre": "Tradicional Estándar 9,5 mm",
+   "insumos": [
+    {
+     "insumo": "Placa Estándar 9,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Solera 35 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.43
+    },
+    {
+     "insumo": "Montante 34 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 1.24
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja",
+     "unidad": "un",
+     "coef_m2": 16
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja",
+     "unidad": "un",
+     "coef_m2": 18
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 1.65
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 0.9
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 1.0
+    }
+   ]
+  },
+  {
+   "ref_durlock": 23,
+   "categoria": "Cielorraso interior",
+   "nombre": "Tradicional Estándar 12,5 mm",
+   "insumos": [
+    {
+     "insumo": "Placa Estándar 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Solera 35 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.43
+    },
+    {
+     "insumo": "Montante 34 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 1.24
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja",
+     "unidad": "un",
+     "coef_m2": 16
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja",
+     "unidad": "un",
+     "coef_m2": 18
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 1.65
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 0.9
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 1.0
+    }
+   ]
+  },
+  {
+   "ref_durlock": 24,
+   "categoria": "Cielorraso interior",
+   "nombre": "Estándar con aislación termoacústica",
+   "insumos": [
+    {
+     "insumo": "Placa Estándar 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Solera 35 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.43
+    },
+    {
+     "insumo": "Montante 34 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 1.24
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja",
+     "unidad": "un",
+     "coef_m2": 16
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja",
+     "unidad": "un",
+     "coef_m2": 18
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 1.65
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 0.9
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    },
+    {
+     "insumo": "Aislante para techos (lana)",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Banda acústica",
+     "unidad": "ml",
+     "coef_m2": 0.83
+    },
+    {
+     "insumo": "Buña Z x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.58
+    }
+   ]
+  },
+  {
+   "ref_durlock": 251,
+   "categoria": "Cielorraso interior",
+   "nombre": "Cielorraso acústico ACU60",
+   "insumos": [
+    {
+     "insumo": "Placa ACU60 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Solera 35 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.43
+    },
+    {
+     "insumo": "Montante 34 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 1.24
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja",
+     "unidad": "un",
+     "coef_m2": 16
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja",
+     "unidad": "un",
+     "coef_m2": 18
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 1.65
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 0.9
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    },
+    {
+     "insumo": "Aislante para techos (lana)",
+     "unidad": "m2",
+     "coef_m2": 1.05
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "Banda acústica",
+     "unidad": "ml",
+     "coef_m2": 0.83
+    },
+    {
+     "insumo": "Buña Z x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.58
+    }
+   ]
+  },
+  {
+   "ref_durlock": 42,
+   "categoria": "Cielorraso interior",
+   "nombre": "Aquaboard (humedad extrema)",
+   "insumos": [
+    {
+     "insumo": "Placa Aquaboard 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Solera 35 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.43
+    },
+    {
+     "insumo": "Montante 34 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 1.24
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja",
+     "unidad": "un",
+     "coef_m2": 16
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja",
+     "unidad": "un",
+     "coef_m2": 18
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 1.65
+    },
+    {
+     "insumo": "Masilla interior",
+     "unidad": "kg",
+     "coef_m2": 0.9
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Buña Z x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.41
+    }
+   ]
+  },
+  {
+   "ref_durlock": 26,
+   "categoria": "Cielorraso interior",
+   "nombre": "Desmontable Deco Clásica 60x60",
+   "insumos": [
+    {
+     "insumo": "Placa Deco Clásica 6,4 mm 0,606x0,606",
+     "unidad": "un",
+     "coef_m2": 2.92
+    },
+    {
+     "insumo": "Perfil perimetral 15/16\" x 3,05 m",
+     "unidad": "un",
+     "coef_m2": 0.27
+    },
+    {
+     "insumo": "Larguero 15/16\" x 3,66 m",
+     "unidad": "un",
+     "coef_m2": 0.44
+    },
+    {
+     "insumo": "Travesaño 15/16\" x 0,61 m",
+     "unidad": "un",
+     "coef_m2": 2.63
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    },
+    {
+     "insumo": "Alambre N°14",
+     "unidad": "ml",
+     "coef_m2": 1.3
+    }
+   ],
+   "opcionales": []
+  },
+  {
+   "ref_durlock": 27,
+   "categoria": "Cielorraso interior",
+   "nombre": "Desmontable Deco Vinyl 60x60",
+   "insumos": [
+    {
+     "insumo": "Placa Deco Vinyl 7 mm 0,605x0,605",
+     "unidad": "un",
+     "coef_m2": 2.87
+    },
+    {
+     "insumo": "Perfil perimetral 15/16\" x 3,05 m",
+     "unidad": "un",
+     "coef_m2": 0.27
+    },
+    {
+     "insumo": "Larguero 15/16\" x 3,66 m",
+     "unidad": "un",
+     "coef_m2": 0.44
+    },
+    {
+     "insumo": "Travesaño 15/16\" x 0,61 m",
+     "unidad": "un",
+     "coef_m2": 2.63
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    },
+    {
+     "insumo": "Alambre N°14",
+     "unidad": "ml",
+     "coef_m2": 1.3
+    }
+   ],
+   "opcionales": []
+  },
+  {
+   "ref_durlock": 337,
+   "categoria": "Cielorraso interior",
+   "nombre": "Desmontable Deco Clásica 60x120",
+   "insumos": [
+    {
+     "insumo": "Placa Deco Clásica 6,4 mm 0,606x1,216",
+     "unidad": "un",
+     "coef_m2": 1.46
+    },
+    {
+     "insumo": "Perfil perimetral 15/16\" x 3,05 m",
+     "unidad": "un",
+     "coef_m2": 0.27
+    },
+    {
+     "insumo": "Larguero 15/16\" x 3,66 m",
+     "unidad": "un",
+     "coef_m2": 0.44
+    },
+    {
+     "insumo": "Travesaño 15/16\" x 0,61 m",
+     "unidad": "un",
+     "coef_m2": 1.32
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    },
+    {
+     "insumo": "Alambre N°14",
+     "unidad": "ml",
+     "coef_m2": 1.3
+    }
+   ],
+   "opcionales": []
+  },
+  {
+   "ref_durlock": 39,
+   "categoria": "Cielorraso interior",
+   "nombre": "Superboard símil hormigón visto",
+   "insumos": [
+    {
+     "insumo": "Placa Superboard ST 8 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "PGU 70x35 esp 0,90 x 6 m",
+     "unidad": "un",
+     "coef_m2": 0.19
+    },
+    {
+     "insumo": "PGC 70x40x15 esp 0,90 x 6 m",
+     "unidad": "un",
+     "coef_m2": 0.54
+    },
+    {
+     "insumo": "Tornillo T1 punta mecha",
+     "unidad": "un",
+     "coef_m2": 16
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    }
+   ],
+   "opcionales": []
+  },
+  {
+   "ref_durlock": 190,
+   "categoria": "Cielorraso interior",
+   "nombre": "Superboard Premium",
+   "insumos": [
+    {
+     "insumo": "Placa Superboard Premium 10 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Tornillo alas con estrías 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Sellador poliuretánico 600 ml (según proyecto)",
+     "unidad": "un",
+     "coef_m2": 1.6
+    },
+    {
+     "insumo": "Fleje metálico 50 mm",
+     "unidad": "ml",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "PGU 70x35 esp 0,90 x 6 m",
+     "unidad": "un",
+     "coef_m2": 0.19
+    },
+    {
+     "insumo": "PGC 70x40x15 esp 0,90 x 6 m",
+     "unidad": "un",
+     "coef_m2": 0.54
+    },
+    {
+     "insumo": "Tornillo T1 punta mecha",
+     "unidad": "un",
+     "coef_m2": 16
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    },
+    {
+     "insumo": "Masilla/enduido exterior",
+     "unidad": "kg",
+     "coef_m2": 0.15
+    }
+   ],
+   "opcionales": []
+  },
+  {
+   "ref_durlock": 41,
+   "categoria": "Cielorraso interior",
+   "nombre": "Cedral junta vista",
+   "insumos": [
+    {
+     "insumo": "Siding Cedral 8 mm 0,20x3,60",
+     "unidad": "un",
+     "coef_m2": 1.39
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 30
+    },
+    {
+     "insumo": "PGU 70x35 esp 0,90 x 6 m",
+     "unidad": "un",
+     "coef_m2": 0.19
+    },
+    {
+     "insumo": "PGC 70x40x15 esp 0,90 x 6 m",
+     "unidad": "un",
+     "coef_m2": 0.54
+    },
+    {
+     "insumo": "Tornillo T1 punta mecha",
+     "unidad": "un",
+     "coef_m2": 16
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Placa Superboard ST 6 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Enduido",
+     "unidad": "l",
+     "coef_m2": 0.29
+    }
+   ]
+  },
+  {
+   "ref_durlock": 47,
+   "categoria": "Cielorraso exterior",
+   "nombre": "Semicubiertos",
+   "insumos": [
+    {
+     "insumo": "Placa Semicubiertos 12,5 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Solera 35 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.43
+    },
+    {
+     "insumo": "Montante 34 mm x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 1.24
+    },
+    {
+     "insumo": "Tornillo T1 punta aguja",
+     "unidad": "un",
+     "coef_m2": 16
+    },
+    {
+     "insumo": "Tornillo T2 punta aguja",
+     "unidad": "un",
+     "coef_m2": 18
+    },
+    {
+     "insumo": "Masilla Semicubiertos",
+     "unidad": "kg",
+     "coef_m2": 1.4
+    },
+    {
+     "insumo": "Cinta papel microperforada",
+     "unidad": "ml",
+     "coef_m2": 1.65
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Buña Z x 2,60 m",
+     "unidad": "un",
+     "coef_m2": 0.41
+    }
+   ]
+  },
+  {
+   "ref_durlock": 97,
+   "categoria": "Cielorraso exterior",
+   "nombre": "Superboard exterior",
+   "insumos": [
+    {
+     "insumo": "Placa Superboard ST 8 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Tornillo alas con estrías 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Sellador poliuretánico 600 ml (según proyecto)",
+     "unidad": "un",
+     "coef_m2": 1.6
+    },
+    {
+     "insumo": "Fleje metálico 50 mm",
+     "unidad": "ml",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "PGU 70x35 esp 0,90 x 6 m",
+     "unidad": "un",
+     "coef_m2": 0.19
+    },
+    {
+     "insumo": "PGC 70x40x15 esp 0,90 x 6 m",
+     "unidad": "un",
+     "coef_m2": 0.54
+    },
+    {
+     "insumo": "Tornillo T1 punta mecha",
+     "unidad": "un",
+     "coef_m2": 16
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    },
+    {
+     "insumo": "Masilla/enduido exterior",
+     "unidad": "kg",
+     "coef_m2": 0.15
+    }
+   ],
+   "opcionales": []
+  },
+  {
+   "ref_durlock": 44,
+   "categoria": "Cielorraso exterior",
+   "nombre": "Superboard Premium exterior",
+   "insumos": [
+    {
+     "insumo": "Placa Superboard Premium 10 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    },
+    {
+     "insumo": "Tornillo alas con estrías 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 14
+    },
+    {
+     "insumo": "Sellador poliuretánico 600 ml (según proyecto)",
+     "unidad": "un",
+     "coef_m2": 1.6
+    },
+    {
+     "insumo": "Fleje metálico 50 mm",
+     "unidad": "ml",
+     "coef_m2": 1.0
+    },
+    {
+     "insumo": "PGU 70x35 esp 0,90 x 6 m",
+     "unidad": "un",
+     "coef_m2": 0.19
+    },
+    {
+     "insumo": "PGC 70x40x15 esp 0,90 x 6 m",
+     "unidad": "un",
+     "coef_m2": 0.54
+    },
+    {
+     "insumo": "Tornillo T1 punta mecha",
+     "unidad": "un",
+     "coef_m2": 16
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    },
+    {
+     "insumo": "Masilla/enduido exterior",
+     "unidad": "kg",
+     "coef_m2": 0.15
+    }
+   ],
+   "opcionales": []
+  },
+  {
+   "ref_durlock": 46,
+   "categoria": "Cielorraso exterior",
+   "nombre": "Cedral junta vista",
+   "insumos": [
+    {
+     "insumo": "Siding Cedral 8 mm 0,20x3,60",
+     "unidad": "un",
+     "coef_m2": 1.39
+    },
+    {
+     "insumo": "Tornillo alas 8x1¼\"",
+     "unidad": "un",
+     "coef_m2": 30
+    },
+    {
+     "insumo": "PGU 70x35 esp 0,90 x 6 m",
+     "unidad": "un",
+     "coef_m2": 0.19
+    },
+    {
+     "insumo": "PGC 70x40x15 esp 0,90 x 6 m",
+     "unidad": "un",
+     "coef_m2": 0.54
+    },
+    {
+     "insumo": "Tornillo T1 punta mecha",
+     "unidad": "un",
+     "coef_m2": 16
+    },
+    {
+     "insumo": "Tarugo N°8 c/tope + tornillo",
+     "unidad": "un",
+     "coef_m2": 6
+    },
+    {
+     "insumo": "Masilla/enduido exterior",
+     "unidad": "kg",
+     "coef_m2": 0.29
+    }
+   ],
+   "opcionales": [
+    {
+     "insumo": "Placa Superboard ST 6 mm Placa 1,20x2,40",
+     "unidad": "un",
+     "coef_m2": 0.37
+    }
+   ]
+  }
+ ]
+}

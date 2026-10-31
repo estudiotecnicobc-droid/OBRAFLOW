@@ -32,7 +32,8 @@ const round2 =(x: number) => Math.round(x * 100) / 100;
 export function buildRows(t: QuickTemplate, inputs: V): QuickRow[] {
   const { values } = evaluate(t, inputs);
   return t.rubros.flatMap(({ rubro, tasks }) =>
-    tasks.map(task => {
+    tasks.map(base => {
+      const task = base.pick ? { ...base, ...base.pick(values) } : base;
       const q = typeof task.qty === 'function' ? task.qty(values) : task.qty;
       const included = typeof task.include === 'function' ? task.include(values) : task.include;
       return { rubro, task, quantity: round2(Math.max(0, Number.isFinite(q) ? q : 0)), included };
