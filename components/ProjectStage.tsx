@@ -96,7 +96,7 @@ export const NextStepsCard: React.FC<{ onNavigate?: (tab: string) => void }> = (
         <>
           <Row done label="Obra creada con sus tareas" />
           <Row label="Revisar cantidades y precios" action={linkBtn('Abrir presupuesto', 'budget')} />
-          <Row label="Revisar los análisis de precios en la grilla de costos" action={linkBtn('Grilla de costos', 'grid')} />
+          <Row label="Revisar el APU de cada ítem en el análisis de costos" action={linkBtn('Análisis de costos', 'grid')} />
           <Row
             label="Aprobar el presupuesto y pasar a obra"
             action={canApprove && (

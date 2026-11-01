@@ -20,23 +20,46 @@ import { PROJECT_TEMPLATES } from '../constants';
 import { APUBuilder } from './APUBuilder';
 import { useMasterTasks } from '../hooks/useMasterTasks';
 import { useMasterMaterials } from '../hooks/useMasterMaterials';
+import { useQuickBudgetApply } from '../hooks/useQuickBudgetApply';
 import { buildRubroImportPayloads } from '../services/importMasterRubro';
 import { buildImportPayload } from '../services/importMasterTask';
 import { QuickBudgetWizard, QuickSelection } from './QuickBudgetWizard';
-import { rubroCategory } from '../src/features/quickBudget/engine';
 import { officialRubro, isLegacyRubro } from '../src/features/budgets/rubroMap';
 import type { QuickTemplate } from '../src/features/quickBudget/types';
 import { masterTasksService } from '../services/masterTasksSupabaseService';
-import { supabase } from '../services/supabaseClient';
-import { laborCategoriesService } from '../services/laborCategoriesService';
 import { BudgetBusinessPanel } from './BudgetBusinessPanel';
 import { useBudgetKStore, selectBusinessConfig, computeBudgetKSummary } from '../store/useBudgetKStore';
 import { computeBudgetItemSaleBreakdown, BudgetItemSaleBreakdown, ItemDirectCostInput } from '../services/budgetItemBreakdown';
 import { projectsService } from '../services/projectsService';
+import { YieldsErrorBanner, useYieldsBlocked } from './YieldsErrorBanner';
+import { TaskTechnicalDetail, RubroBanner } from '../src/features/catalog-media/TaskTechnicalDetail';
+import { BudgetRubroIndex } from '../src/features/budgets/components/BudgetRubroIndex';
+import { arrangeRubros, loadIndexView, loadPinnedRubros, saveIndexView, savePinnedRubros, sortRubros } from '../src/features/budgets/rubroGroups';
+import { MeasurementDrawer } from './MeasurementDrawer';
+import { DecimalInput } from './DecimalInput';
+import { APUCompositionPanel } from './APUCompositionPanel';
+import { buildApuComposition } from '../utils/apuComposition';
+import { QuantitySourceBadge } from './QuantitySourceBadge';
+import { getQuantitySource, consumePendingHighlight } from '../utils/quantitySource';
+import { analyzeBudgetHealth, ignoreKey, type HealthIssueId, type HealthRow } from '../utils/budgetHealth';
+import { BudgetHealthBar } from './BudgetHealthBar';
 
 interface BudgetEditorProps {
   onNavigate?: (tab: string) => void;
 }
+
+/**
+ * Sombra en el borde superior del área de la tabla que aparece solo cuando hay contenido scrolleado
+ * (técnica de fondos «local» + «scroll», sin JS ni re-render al scrollear). La primera capa tapa la
+ * sombra mientras el contenido está arriba de todo; su color es el fondo del área (slate-50/50 sobre blanco).
+ */
+const SCROLL_SHADOW: React.CSSProperties = {
+  backgroundImage: 'linear-gradient(rgb(252 253 254) 40%, rgb(252 253 254 / 0)), radial-gradient(farthest-side at 50% 0, rgb(15 23 42 / 0.18), transparent)',
+  backgroundSize: '100% 28px, 100% 10px',
+  backgroundRepeat: 'no-repeat',
+  backgroundAttachment: 'local, scroll',
+  backgroundPosition: 'top, top',
+};
 
 export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   const {
@@ -51,11 +74,18 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     updateProjectSettings,
     budgetItemsLoading,
     tasksLoaded,
+    measurementSheets,
   } = useERP();
+  const yieldsBlocked = useYieldsBlocked();
 
   // --- UI STATES ---
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(2); 
-  const [selectedRubros, setSelectedRubros] = useState<Set<string>>(new Set(rubros));
+  // Rubros fijados en el índice (incluye rubros vacíos que agregó el usuario); por proyecto.
+  const [pinnedRubros, setPinnedRubros] = useState<string[]>(() => loadPinnedRubros(project.id));
+  const [activeRubro, setActiveRubro] = useState<string | undefined>(undefined);
+  // Vista del índice (código / etapas / incidencia): ordena índice y tabla.
+  const [indexPref, setIndexPref] = useState(loadIndexView);
+  useEffect(() => saveIndexView(indexPref), [indexPref]);
   const [globalAdjustment, setGlobalAdjustment] = useState<number>(0); 
   const [expandedRubros, setExpandedRubros] = useState<Set<string>>(new Set(rubros)); 
   const [managePresetsMode, setManagePresetsMode] = useState(false);
@@ -111,27 +141,6 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
   // writePayload es async: espera que la Task exista en Supabase antes de insertar
   // el BudgetItem, evitando la violación de FK que causaba pérdida de datos en recarga.
-  const writePayload = async (p: ReturnType<typeof buildImportPayload>): Promise<void> => {
-    p.materialsToCreate.forEach(m => addMaterial(m));
-    p.materialsToUpdate.forEach(({ id, cost }) => updateMaterial(id, { cost }));
-    p.laborCategoriesToUpdate.forEach(({ id, basicHourlyRate }) => updateLaborCategory(id, { basicHourlyRate }));
-    try {
-      await addTask(p.task); // espera confirmación Supabase antes de linkar el budget_item
-    } catch (err) {
-      // Task no persistió → no insertar yields ni budget_item para evitar FK inválida.
-      // La task quedó en local state (optimistic) pero desaparecerá al recargar.
-      console.error('[writePayload] Falló el insert de tarea — se cancela el payload:', err);
-      return;
-    }
-    p.taskYields.forEach(ty => addTaskYield(ty));
-    p.laborYields.forEach(ly => addTaskLaborYield(ly));
-    p.toolYields.forEach(ty => addTaskToolYield(ty));
-    try {
-      await addBudgetItem(p.budgetItem);
-    } catch (err) {
-      console.error('[writePayload] Falló el insert de budget_item — tarea importada pero sin ítem de presupuesto:', err);
-    }
-  };
 
   const handleWizardRubroImport = async () => {
     if (project.id === '__phantom__' || !wizardSelectedRubro) return;
@@ -172,6 +181,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     () => Object.fromEntries(masterMaterials.map(m => [m.id, m])),
     [masterMaterials],
   );
+  const { apply: applyQuickRows, writePayload } = useQuickBudgetApply({ masterTasks, refetchMasterTasks, masterMaterialsMap });
 
   const handleWizardTemplateImport = async () => {
     if (project.id === '__phantom__' || !wizardSelectedTemplateId) return;
@@ -207,94 +217,9 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   };
   // ── Presupuesto rápido: plantillas del sistema ──────────────────────────────
   const handleQuickApply = async (rows: QuickSelection[], template: QuickTemplate): Promise<string> => {
-    if (project.id === '__phantom__') throw new Error('Abrí una obra para cargar el presupuesto.');
-    const orgId = project.organizationId;
-
-    // 1. Copiar a la empresa los APU que solo están en el catálogo general.
-    const globals = rows.filter(r => r.source.kind === 'global');
-    const cloneFailed: string[] = [];
-    for (const g of Array.from(new Map(globals.map(r => [r.source.kind === 'global' ? r.source.task.id : '', r])).values())) {
-      if (g.source.kind !== 'global') continue;
-      const { error } = await supabase.rpc('clone_master_task_to_org', {
-        p_master_task_id: g.source.task.id,
-        p_organization_id: orgId,
-      });
-      if (error) cloneFailed.push(g.task.name);
-    }
-    const orgTasks = globals.length > 0 ? await masterTasksService.list(orgId) : masterTasks;
-    if (globals.length > 0) refetchMasterTasks();
-
-    // 2. La mano de obra de los APU copiados se vincula por nombre de categoría;
-    //    si la empresa no tiene ese oficio, se crea con el valor hora de referencia.
-    const resolveMt = (row: QuickSelection): MasterTask | undefined => {
-      if (row.source.kind === 'org') return row.source.task;
-      if (row.source.kind === 'global') {
-        const src = row.source.task;
-        return orgTasks.find(t => t.code === src.code && t.name === src.name);
-      }
-      return undefined;
-    };
-    const laborMap: Record<string, LaborCategory> = { ...laborCategoriesMap };
-    const laborByRole = new Map((Object.values(laborMap) as LaborCategory[]).map(c => [c.role.trim().toLowerCase(), c.id]));
-    for (const row of rows) {
-      for (const l of resolveMt(row)?.labor ?? []) {
-        const key = l.laborCategoryName.trim().toLowerCase();
-        if (laborMap[l.laborCategoryId] || laborByRole.has(key)) continue;
-        const lc: LaborCategory = {
-          id: crypto.randomUUID(), organizationId: orgId, role: l.laborCategoryName,
-          basicHourlyRate: l.snapshotHourlyRate ?? 0,
-          socialChargesPercent: l.socialChargesPct ?? 95, insurancePercent: l.socialChargesPct === 0 ? 0 : 5,
-          family: 'MANO DE OBRA',
-        };
-        try {
-          await laborCategoriesService.create(lc);
-          addLaborCategory(lc);
-          laborMap[lc.id] = lc;
-          laborByRole.set(key, lc.id);
-        } catch (e) {
-          console.error('[handleQuickApply] No se pudo crear la categoría de mano de obra', l.laborCategoryName, e);
-        }
-      }
-    }
-    const withLocalLabor = (mt: MasterTask): MasterTask => ({
-      ...mt,
-      labor: mt.labor.map(l => laborMap[l.laborCategoryId]
-        ? l
-        : { ...l, laborCategoryId: laborByRole.get(l.laborCategoryName.trim().toLowerCase()) ?? l.laborCategoryId }),
-    });
-
-    let runningMaterials = [...projectMaterials];
-    let withApu = 0, withoutApu = 0;
-    const skippedLabor = new Set<string>();
-    for (const row of rows) {
-      const mt = resolveMt(row);
-      const category = rubroCategory(row.rubro);
-      const base: MasterTask = mt ? withLocalLabor(mt) : {
-        id: '', organizationId: orgId, name: row.task.name, unit: row.task.unit, category,
-        description: row.task.includes, dailyYield: 1, materials: [], labor: [], equipment: [],
-        tags: [], isActive: true, createdAt: '', updatedAt: '',
-      } as MasterTask;
-      const p = buildImportPayload(
-        base, orgId, project.id, row.quantity,
-        laborMap, toolsMap, runningMaterials, masterMaterialsMap,
-      );
-      p.budgetItem.quantity = row.quantity;
-      if (!mt) p.task.masterTaskId = undefined;
-      if (!p.task.category) p.task.category = category;
-      if (!p.task.description) p.task.description = row.task.includes;
-      p.skippedLabor.forEach(n => skippedLabor.add(n));
-      runningMaterials = [...runningMaterials, ...p.materialsToCreate];
-      await writePayload(p);
-      if (mt) withApu++; else withoutApu++;
-    }
+    const { message } = await applyQuickRows(rows, template.name);
     setWizardDismissed(true);
-
-    const lines = [`${template.name}: ${rows.length} tareas agregadas.`];
-    lines.push(`${withApu} con análisis de precio.`);
-    if (withoutApu > 0) lines.push(`${withoutApu} sin análisis de precio todavía: tienen la cantidad cargada y el precio lo completás en cada tarea.`);
-    if (cloneFailed.length > 0) lines.push(`No se pudieron copiar del catálogo general: ${cloneFailed.join(', ')}.`);
-    if (skippedLabor.size > 0) lines.push(`Mano de obra que no está en tu lista de oficios: ${Array.from(skippedLabor).join(', ')}. Agregala en Personal y cuadrillas.`);
-    return lines.join('\n');
+    return message;
   };
 
   const [savedToMasterIds, setSavedToMasterIds] = useState<Set<string>>(new Set());
@@ -366,6 +291,57 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   // --- MASTER APU EDITOR STATE ---
   const [apuEditorTaskId, setApuEditorTaskId] = useState<string | null>(null);
   const [editingQuantityId, setEditingQuantityId] = useState<string | null>(null);
+  // Al bajar por la tabla los totales se achican (solo visual: scale). Histéresis + rAF + bloqueo
+  // de 200 ms tras cada cambio para que ningún recorte de scrollTop vuelva a disparar el cambio.
+  const [tableScrolled, setTableScrolled] = useState(false);
+  const scrollRaf = useRef(0);
+  const scrollLockUntil = useRef(0);
+  const tableScrollerRef = useRef<HTMLDivElement>(null);
+  const onTableScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (scrollRaf.current) return;
+    scrollRaf.current = requestAnimationFrame(() => {
+      scrollRaf.current = 0;
+      if (performance.now() < scrollLockUntil.current) return;
+      const top = el.scrollTop;
+      setTableScrolled(prev => {
+        const next = prev ? top >= 8 : top > 80;
+        if (next !== prev) scrollLockUntil.current = performance.now() + 200;
+        return next;
+      });
+    });
+  }, []);
+  useEffect(() => () => cancelAnimationFrame(scrollRaf.current), []);
+  // Alto de los paneles (índice y presupuesto) = espacio visible de <main> debajo de las pestañas,
+  // para que el final de ambos (totales, Cuadro empresario, «Agregar rubro») entre sin scrollear la página.
+  const [editorRoot, setEditorRoot] = useState<HTMLDivElement | null>(null);
+  const [panelH, setPanelH] = useState<number | null>(null);
+  useEffect(() => {
+    const root = editorRoot;
+    const scroller = root?.closest('main');
+    if (!root || !scroller) return;
+    const update = () => {
+      const top = root.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+      const padBottom = parseFloat(getComputedStyle(scroller.firstElementChild ?? scroller).paddingBottom) || 0;
+      setPanelH(Math.max(420, Math.floor(scroller.clientHeight - top - padBottom)));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(scroller);
+    return () => ro.disconnect();
+  }, [editorRoot]);
+  // Planilla de medición abierta (panel lateral) para un ítem.
+  const [measuringItemId, setMeasuringItemId] = useState<string | null>(null);
+  // Ítems recién enviados/actualizados desde el Calculador de cómputo: se resaltan unos segundos.
+  const [highlightIds, setHighlightIds] = useState<Set<string>>(() => new Set(consumePendingHighlight()));
+  useEffect(() => {
+    if (highlightIds.size === 0) return;
+    const first = document.querySelector(`[data-budget-item-id="${[...highlightIds][0]}"]`);
+    first?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setHighlightIds(new Set()), 5000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // --- PRINT PREVIEW STATE ---
   const [showPrintPreview, setShowPrintPreview] = useState(false);
@@ -428,7 +404,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
   const handlePrintBudget = () => {
     const el = budgetPrintRef.current;
-    if (!el) return;
+    if (!el || yieldsBlocked) return;
     printDocument({
       title: `${
         printOptions.printMode === 'cliente' ? 'Presupuesto' :
@@ -449,7 +425,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     const grouped: Record<string, any[]> = {};
     const categoryTotals: Record<string, { mat: number, lab: number, total: number }> = {};
 
-    Array.from(selectedRubros).filter((r: string) => !isLegacyRubro(r)).sort().forEach((r: string) => {
+    pinnedRubros.filter((r: string) => !isLegacyRubro(r)).forEach((r: string) => {
         grouped[r] = [];
         categoryTotals[r] = { mat: 0, lab: 0, total: 0 };
     });
@@ -528,7 +504,88 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     }
 
     return { grouped, categoryTotals };
-  }, [project.items, tasks, selectedRubros, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap]);
+  }, [project.items, tasks, pinnedRubros, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap]);
+
+  // ── Salud del presupuesto ────────────────────────────────────────────────
+  const healthRows = useMemo((): HealthRow[] => {
+    const out: HealthRow[] = [];
+    for (const [rubro, rows] of Object.entries(budgetData.grouped) as [string, any[]][]) {
+      for (const row of rows) {
+        const comp = buildApuComposition(
+          row.task, yieldsIndex[row.task.id] ?? [], materialsMap,
+          taskLaborYieldsIndex[row.task.id] ?? [], laborCategoriesMap,
+          toolYieldsIndex[row.task.id] ?? [], toolsMap,
+        );
+        const src = getQuantitySource(row.item, measurementSheets);
+        out.push({
+          itemId: row.item.id,
+          taskId: row.task.id,
+          rubro,
+          name: row.item.name || row.task.name,
+          unit: row.task.unit || '',
+          quantity: Number(row.item.quantity) || 0,
+          unitCost: row.unitMatEq + row.unitLab,
+          unitLabor: row.unitLab,
+          materialLines: comp.materials.length,
+          total: row.totalItem,
+          apuHasMissing: comp.hasMissing,
+          measuredQuantity: src.kind === 'medido' ? src.sheet?.totalQuantity : undefined,
+        });
+      }
+    }
+    return out;
+  }, [budgetData, yieldsIndex, materialsMap, taskLaborYieldsIndex, laborCategoriesMap, toolYieldsIndex, toolsMap, measurementSheets]);
+
+  // Avisos descartados por el usuario («no es un error»), por obra y en este navegador.
+  const ignoredKey = `obraflow_health_ignored_${project.id}`;
+  const [ignoredHealth, setIgnoredHealth] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try { setIgnoredHealth(new Set(JSON.parse(localStorage.getItem(ignoredKey) || '[]'))); }
+    catch { setIgnoredHealth(new Set()); }
+  }, [ignoredKey]);
+  const saveIgnored = (next: Set<string>) => {
+    setIgnoredHealth(next);
+    try { localStorage.setItem(ignoredKey, JSON.stringify([...next])); } catch { /* sin almacenamiento local */ }
+  };
+  const ignoreHealthIssue = (issueId: HealthIssueId, itemId: string) =>
+    saveIgnored(new Set([...ignoredHealth, ignoreKey(issueId, itemId)]));
+
+  const healthIssues = useMemo(
+    () => analyzeBudgetHealth(healthRows, { surface: project.surface, ignored: ignoredHealth }),
+    [healthRows, project.surface, ignoredHealth],
+  );
+  const healthItemNames = useMemo(
+    () => Object.fromEntries(healthRows.map(r => [r.itemId, r.name])),
+    [healthRows],
+  );
+  // Ítems descartados que siguen en el presupuesto (los de ítems borrados no cuentan).
+  const ignoredHealthCount = useMemo(() => {
+    const present = new Set(healthRows.map(r => r.itemId));
+    return [...ignoredHealth].filter(k => present.has(k.slice(k.indexOf(':') + 1))).length;
+  }, [ignoredHealth, healthRows]);
+  // Ítem que se está revisando desde la franja: se marca más fuerte que el resto.
+  const [focusItemId, setFocusItemId] = useState<string | null>(null);
+
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (highlightTimer.current) clearTimeout(highlightTimer.current); }, []);
+
+  // Despliega los rubros de los ítems, los resalta y lleva la vista al ítem `index`.
+  const revealItems = (itemIds: string[], index: number) => {
+    const ids = new Set(itemIds);
+    // Solo se despliega el rubro del ítem actual; los demás se abren al avanzar.
+    const rubrosToOpen = Object.entries(budgetData.grouped)
+      .filter(([, rows]) => (rows as any[]).some(r => r.item.id === itemIds[index]))
+      .map(([rubro]) => rubro);
+    setExpandedRubros(prev => new Set([...prev, ...rubrosToOpen]));
+    setHighlightIds(ids);
+    setFocusItemId(itemIds[index] ?? null);
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    highlightTimer.current = setTimeout(() => { setHighlightIds(new Set()); setFocusItemId(null); }, 8000);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.querySelector(`[data-budget-item-id="${itemIds[index]}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }));
+  };
 
   const grandTotals = useMemo(() => {
       let mat = 0;
@@ -617,17 +674,59 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, tasksLoaded]);
 
-  // ── Fix 2: Sincronizar selectedRubros cuando rubros crece con entradas nuevas ──
-  // Solo auto-selecciona rubros NUEVOS; respeta deselecciones manuales del usuario.
+  // ── Fix 2: expandir rubros nuevos cuando rubros crece con entradas nuevas ──
   const seenRubrosRef = useRef(new Set(rubros));
   useEffect(() => {
     const newEntries = rubros.filter(r => !seenRubrosRef.current.has(r));
     if (newEntries.length > 0) {
       newEntries.forEach(r => seenRubrosRef.current.add(r));
-      setSelectedRubros(prev => new Set([...prev, ...newEntries]));
       setExpandedRubros(prev => new Set([...prev, ...newEntries]));
     }
   }, [rubros]);
+
+  // ── Índice de rubros ──────────────────────────────────────────────────────
+  // Fijados por proyecto: se recargan al cambiar de proyecto.
+  const pinnedProjectRef = useRef(project.id);
+  useEffect(() => {
+    if (pinnedProjectRef.current === project.id) return;
+    pinnedProjectRef.current = project.id;
+    setPinnedRubros(loadPinnedRubros(project.id));
+  }, [project.id]);
+
+  // Un rubro con ítems queda fijado: si se borra su último ítem no desaparece del índice.
+  useEffect(() => {
+    const withItems = Object.keys(budgetData.grouped).filter(
+      r => r !== 'Otros' && budgetData.grouped[r].length > 0,
+    );
+    const missing = withItems.filter(r => !pinnedRubros.includes(r));
+    if (missing.length > 0) setPinnedRubros(prev => sortRubros([...prev, ...missing]));
+  }, [budgetData.grouped, pinnedRubros]);
+
+  useEffect(() => {
+    if (project.id === '__phantom__' || pinnedProjectRef.current !== project.id) return;
+    savePinnedRubros(project.id, pinnedRubros);
+  }, [pinnedRubros, project.id]);
+
+  /** Rubros visibles en tabla, índice e impresión: fijados + con ítems, por código. 'Otros' al final. */
+  const visibleRubros = useMemo(() => {
+    const withItems = Object.keys(budgetData.grouped).filter(r => budgetData.grouped[r].length > 0);
+    return sortRubros([...pinnedRubros, ...withItems]).filter(r => !isLegacyRubro(r));
+  }, [pinnedRubros, budgetData.grouped]);
+
+  const rubroIndexEntries = useMemo(() => visibleRubros.map(rubro => {
+    const rows = budgetData.grouped[rubro] || [];
+    const amount = tableViewMode === 'comercial'
+      ? rows.reduce((s: number, r: any) => s + (breakdownByItemId[r.item.id]?.salePriceTotal ?? 0), 0)
+      : budgetData.categoryTotals[rubro]?.total ?? 0;
+    return { rubro, count: rows.length, amount };
+  }), [visibleRubros, budgetData, breakdownByItemId, tableViewMode]);
+
+  /** Rubros de la tabla en el orden de la vista elegida; en «Etapas», con encabezado por etapa. */
+  const tableRubroSections = useMemo(
+    () => arrangeRubros(rubroIndexEntries, indexPref.view),
+    [rubroIndexEntries, indexPref.view],
+  );
+  const tableTotal = tableViewMode === 'comercial' ? budgetKSummary.finalSalePrice : grandTotals.subtotal;
 
   // ── Todos los rubros a mostrar en sidebar = ERPContext + categorías dinámicas ──
   const allSidebarRubros = useMemo(() => {
@@ -643,11 +742,26 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
   // --- HANDLERS ---
 
-  const toggleRubroSelection = (rubro: string) => {
-      const newSet = new Set(selectedRubros);
-      if (newSet.has(rubro)) newSet.delete(rubro);
-      else newSet.add(rubro);
-      setSelectedRubros(newSet);
+  const jumpToRubro = (rubro: string) => {
+      setActiveRubro(rubro);
+      setShowComparison(false);
+      setExpandedRubros(prev => new Set([...prev, rubro]));
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+          document.querySelector(`[data-rubro-row="${CSS.escape(rubro)}"]`)
+            ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }));
+  };
+
+  const addRubroToIndex = (rubro: string) => {
+      setPinnedRubros(prev => sortRubros([...prev, rubro]));
+      jumpToRubro(rubro);
+      handleQuickAddTask(rubro);
+  };
+
+  const removeRubroFromIndex = (rubro: string) => {
+      if ((budgetData.grouped[rubro]?.length ?? 0) > 0) return;
+      setPinnedRubros(prev => prev.filter(r => r !== rubro));
+      if (activeRubro === rubro) setActiveRubro(undefined);
   };
 
   const toggleRubroExpansion = (rubro: string) => {
@@ -657,8 +771,6 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
       setExpandedRubros(newSet);
   };
 
-  const selectAllRubros = () => setSelectedRubros(new Set(allSidebarRubros));
-  const clearRubros = () => setSelectedRubros(new Set());
 
   // ── Reordenamiento de ítems dentro de un rubro ────────────────────────────
   const handleMoveItem = (category: string, rowIndex: number, direction: 'up' | 'down') => {
@@ -1157,65 +1269,43 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
   // Render logic
   return (
-    <div className="flex h-full gap-6 font-sans relative">
+    <div
+      ref={setEditorRoot}
+      style={panelH ? ({ '--panel-h': `${panelH}px` } as React.CSSProperties) : undefined}
+      className="flex h-full gap-6 font-sans relative">
       {quickModal}
+      {measuringItemId && <MeasurementDrawer budgetItemId={measuringItemId} onClose={() => setMeasuringItemId(null)} />}
+      {yieldsBlocked && <div className="absolute top-0 inset-x-0 z-30"><YieldsErrorBanner /></div>}
       
-      {/* LEFT SIDEBAR: STAGES SELECTION */}
-      <div className="w-72 flex-shrink-0 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-sm h-full print:hidden">
-          <div className="p-4 bg-slate-900 text-white">
-              <h3 className="font-bold text-lg">Etapas de Obra</h3>
-              <p className="text-xs text-slate-400 mt-1">Seleccione los rubros activos</p>
-          </div>
-          
-          <div className="p-2 border-b border-slate-100 flex justify-between">
-              <button onClick={selectAllRubros} className="text-[10px] text-blue-600 font-bold hover:underline px-2">✓ Seleccionar todo</button>
-              <button onClick={clearRubros} className="text-[10px] text-slate-400 hover:text-slate-600 px-2">Limpiar</button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              {allSidebarRubros.map((rubro, idx) => {
-                  const isSelected = selectedRubros.has(rubro);
-                  const hasItems = budgetData.grouped[rubro]?.length > 0;
-                  
-                  return (
-                      <div 
-                        key={rubro} 
-                        onClick={() => toggleRubroSelection(rubro)}
-                        className={`
-                            group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border
-                            ${isSelected 
-                                ? 'bg-slate-700 text-white border-slate-600 shadow-md' 
-                                : 'bg-white text-slate-600 border-slate-100 hover:bg-slate-50'
-                            }
-                        `}
-                      >
-                          <div className={`
-                              w-6 h-6 flex items-center justify-center rounded font-bold text-xs
-                              ${isSelected ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-500'}
-                          `}>
-                              {idx + 1}
-                          </div>
-                          <span className="text-xs font-bold uppercase truncate flex-1">{rubro}</span>
-                          {hasItems && <div className="w-2 h-2 rounded-full bg-emerald-400"></div>}
-                      </div>
-                  );
-              })}
-          </div>
-      </div>
+      {/* LEFT SIDEBAR: ÍNDICE DE RUBROS */}
+      <BudgetRubroIndex
+        entries={rubroIndexEntries}
+        total={tableTotal}
+        amountLabel={tableViewMode === 'comercial' ? 'Precio de venta' : 'Costo directo'}
+        allRubros={allSidebarRubros}
+        activeRubro={activeRubro}
+        onJump={jumpToRubro}
+        onAdd={addRubroToIndex}
+        onRemove={removeRubroFromIndex}
+        onExpandAll={() => setExpandedRubros(new Set(visibleRubros))}
+        onCollapseAll={() => {
+          setExpandedRubros(new Set());
+          // Al plegar, el contenido se achica y el área quedaría scrolleada con el título oculto.
+          tableScrollerRef.current?.scrollTo({ top: 0 });
+        }}
+        pref={indexPref}
+        onPrefChange={setIndexPref}
+      />
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 flex flex-col h-full bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden relative print:hidden">
+      <div
+        className="flex-1 min-w-0 flex flex-col h-full md:sticky md:top-4 md:h-[var(--panel-h,calc(100dvh-2rem))] bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden relative print:hidden">
           
           {/* HEADER & STEPPER */}
-          <div className="p-6 border-b border-slate-100">
-              <div className="flex justify-between items-end mb-6">
-                  <div>
-                      <h1 className="text-2xl font-black text-slate-800 tracking-tight">Cómputo y Presupuesto Profesional</h1>
-                      <div className="text-sm text-slate-500 mt-1 flex items-center gap-2">
-                          <Clock size={14} /> Última actualización: {new Date().toLocaleDateString()}
-                      </div>
-                  </div>
-                  <div className="flex items-center gap-2">
+          {/* Barra de botones: alto constante. El título va dentro del área que scrollea. */}
+          <div className="border-b border-slate-100 px-6 py-3">
+              <div className="flex flex-wrap justify-end items-center gap-3">
+                  <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
                       <div className="flex items-center rounded-lg overflow-hidden border border-slate-200 text-xs font-bold">
                           <button
                               onClick={() => setTableViewMode('tecnico')}
@@ -1232,16 +1322,18 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                       </div>
                       <button
                           onClick={() => setQuickOpen(true)}
-                          className="flex items-center gap-2 h-9 px-3.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+                          title="Presupuesto rápido"
+                          className="flex items-center gap-2 h-9 px-2.5 2xl:px-3.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
                       >
-                          <Zap size={15} className="text-orange-500" /> Presupuesto rápido
+                          <Zap size={15} className="text-orange-500" /> <span className="hidden 2xl:inline">Presupuesto rápido</span>
                       </button>
                       <button
                           onClick={() => setShowComparison(v => !v)}
                           aria-pressed={showComparison}
-                          className={`flex items-center gap-2 h-9 px-3.5 rounded-lg text-xs font-bold border transition-colors ${showComparison ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                          title="Actualizar presupuesto"
+                          className={`flex items-center gap-2 h-9 px-2.5 2xl:px-3.5 rounded-lg text-xs font-bold border transition-colors ${showComparison ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                       >
-                          <DollarSign size={15} className={showComparison ? 'text-blue-600' : 'text-slate-500'} /> Actualizar presupuesto
+                          <DollarSign size={15} className={showComparison ? 'text-blue-600' : 'text-slate-500'} /> <span className="hidden 2xl:inline">Actualizar presupuesto</span>
                       </button>
                       <div className="relative" ref={reportsMenuRef}>
                           <button
@@ -1297,7 +1389,13 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
           {/* COMPARISON PANEL */}
           {showComparison && (
-              <div className="flex-1 overflow-auto bg-slate-50/50 p-6">
+              <div className="flex-1 min-h-0 overflow-auto bg-slate-50/50 p-6">
+                  <div className="mb-4">
+                      <h1 className="text-2xl font-black text-slate-800 tracking-tight">Cómputo y Presupuesto Profesional</h1>
+                      <div className="text-sm text-slate-500 mt-1 flex items-center gap-2">
+                          <Clock size={14} /> Última actualización: {new Date().toLocaleDateString()}
+                      </div>
+                  </div>
                   <div role="tablist" aria-label="Tipo de comparación" className="flex flex-wrap gap-1 border-b border-slate-200 mb-6">
                       {([['index', 'Actualizar por índice (CAC, ICC, inflación, dólar)'], ['dates', 'Comparar precios de la base entre dos fechas']] as const).map(([id, label]) => (
                           <button
@@ -1324,7 +1422,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
           {/* STALENESS ALERT */}
           {!showComparison && project.id && project.id !== '__phantom__' && project.organizationId && (
-              <div className="px-6 pt-3">
+              <div className="px-6 pt-3 shrink-0">
                   <BudgetStalenessAlert
                       projectId={project.id}
                       organizationId={project.organizationId}
@@ -1332,13 +1430,38 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
               </div>
           )}
 
+          {/* SALUD DEL PRESUPUESTO */}
+          {/* Mientras cargan los rendimientos los precios no son confiables: no se evalúa. */}
+          {!showComparison && !yieldsBlocked && (
+              <div className="px-6 pt-3 shrink-0">
+                  <BudgetHealthBar
+                      issues={healthIssues}
+                      itemCount={healthRows.length}
+                      itemNames={healthItemNames}
+                      ignoredCount={ignoredHealthCount}
+                      onShow={revealItems}
+                      onIgnore={ignoreHealthIssue}
+                      onResetIgnored={() => saveIgnored(new Set())}
+                  />
+              </div>
+          )}
+
           {/* TABLE CONTENT */}
-          {!showComparison && <div className="flex-1 overflow-auto bg-slate-50/50 p-6">
-              <div className="bg-white border border-slate-200 shadow-sm rounded-lg overflow-x-auto">
+          {/* La tabla scrollea dentro del panel (alto de pantalla en desktop) y el encabezado queda fijo. */}
+          {/* El título se va con el contenido; la fila de columnas es sticky en este mismo contenedor
+              (vertical y horizontal). Nada de lo que cambia al scrollear altera el alto de este contenedor. */}
+          {!showComparison && <div ref={tableScrollerRef} className="flex-1 min-h-0 overflow-auto bg-slate-50/50 p-6 pt-0" onScroll={onTableScroll} style={SCROLL_SHADOW}>
+              <div className="sticky left-6 pt-5 pb-1">
+                  <h1 className="text-2xl font-black text-slate-800 tracking-tight">Cómputo y Presupuesto Profesional</h1>
+                  <div className="text-sm text-slate-500 mt-1 flex items-center gap-2">
+                      <Clock size={14} /> Última actualización: {new Date().toLocaleDateString()}
+                  </div>
+              </div>
+              <div className="mt-4 w-max min-w-full bg-white border border-slate-200 shadow-sm rounded-lg overflow-clip">
                   <table className="w-full text-left border-collapse">
-                      <thead>
+                      <thead className="sticky top-0 z-20 shadow-[0_1px_0_0_rgb(226_232_240),0_2px_4px_-2px_rgb(15_23_42/0.15)]">
                           <tr className="bg-slate-100 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-200">
-                              <th className="p-3 w-1/3">Descripción del Ítem</th>
+                              <th className="p-3 min-w-[14rem]">Descripción del Ítem</th>
                               <th className="p-3 w-16 text-center">Unidad</th>
                               <th className="p-3 w-24 text-center">Cantidad</th>
                               {tableViewMode === 'tecnico' ? (
@@ -1359,40 +1482,46 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                           </tr>
                       </thead>
                       <tbody>
-                          {[
-                              ...Array.from(selectedRubros).filter((r: string) => !isLegacyRubro(r)),
-                              // Categorías dinámicas con ítems, aún no en selectedRubros
-                              // (estado transitorio antes de que el useEffect sincronice).
-                              ...Object.keys(budgetData.grouped).filter(cat =>
-                                cat !== 'Otros' &&
-                                !selectedRubros.has(cat) &&
-                                (budgetData.grouped[cat]?.length ?? 0) > 0,
-                              ),
-                              // 'Otros': tareas sin categoría o con categoría vacía.
-                              ...(budgetData.grouped['Otros']?.length > 0 ? ['Otros'] : []),
-                          ].map((rubro: string) => {
+                          {tableRubroSections.flatMap(section => section.entries.map((entry, entryIdx) => {
+                              const rubro = entry.rubro;
                               const items = budgetData.grouped[rubro] || [];
                               const isExpanded = expandedRubros.has(rubro);
                               const totals = budgetData.categoryTotals[rubro];
 
                               return (
                                   <React.Fragment key={rubro}>
+                                      {/* ETAPA HEADER (vista «Etapas») */}
+                                      {section.label && entryIdx === 0 && (
+                                          <tr className="bg-slate-100 border-y border-slate-300">
+                                              <td colSpan={tableViewMode === 'tecnico' ? 9 : 6} className="px-4 py-2">
+                                                  <div className="flex items-baseline justify-between text-xs">
+                                                      <span className="font-black uppercase tracking-wider text-slate-600">{section.label}</span>
+                                                      <span className="font-mono font-bold text-slate-700">
+                                                          ${section.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                          <span className="ml-2 text-slate-400 font-normal">{tableTotal > 0 ? ((section.amount / tableTotal) * 100).toFixed(1) : '0.0'}%</span>
+                                                      </span>
+                                                  </div>
+                                              </td>
+                                          </tr>
+                                      )}
                                       {/* RUBRO HEADER */}
-                                      <tr className="bg-slate-800 text-white cursor-pointer hover:bg-slate-700 transition-colors" onClick={() => toggleRubroExpansion(rubro)}>
-                                          <td colSpan={1} className="p-2 pl-4 font-bold text-sm flex items-center gap-2 uppercase tracking-wide">
-                                              {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                              {rubro}
+                                      <tr data-rubro-row={rubro} className="bg-slate-800 text-white cursor-pointer hover:bg-slate-700 transition-colors scroll-mt-12" onClick={() => toggleRubroExpansion(rubro)}>
+                                          <td colSpan={3} className="p-2 pl-4 font-bold text-sm uppercase tracking-wide">
+                                              <span className="flex items-center gap-2">
+                                                  {isExpanded ? <ChevronDown size={16} className="shrink-0" /> : <ChevronRight size={16} className="shrink-0" />}
+                                                  {rubro}
+                                              </span>
                                           </td>
                                           {tableViewMode === 'tecnico' ? (
                                               <>
-                                                  <td colSpan={6}></td>
+                                                  <td colSpan={4}></td>
                                                   <td className="p-2 text-right font-mono font-bold text-sm">
                                                       ${totals.total.toLocaleString(undefined, {minimumFractionDigits: 2})}
                                                   </td>
                                               </>
                                           ) : (
                                               <>
-                                                  <td colSpan={3}></td>
+                                                  <td colSpan={1}></td>
                                                   <td className="p-2 text-right font-mono font-bold text-sm text-emerald-300">
                                                       ${items.reduce((s, r) => s + (breakdownByItemId[r.item.id]?.salePriceTotal ?? 0), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
                                                   </td>
@@ -1418,36 +1547,51 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                               ) : (
                                                   <>
                                                     {items.map((row, rowIndex) => (
-                                                        <tr key={row.item.id} className="border-b border-slate-100 hover:bg-blue-50/30 transition-colors group">
+                                                        <tr key={row.item.id} data-budget-item-id={row.item.id} className={`border-b border-slate-100 hover:bg-blue-50/30 transition-colors group ${focusItemId === row.item.id ? 'bg-teal-100 ring-2 ring-inset ring-teal-600' : highlightIds.has(row.item.id) ? 'bg-teal-50 ring-2 ring-inset ring-teal-300' : ''}`}>
                                                             {/* Description */}
                                                             <td className="p-2 pl-8">
-                                                                <div className="font-medium text-slate-700 text-xs">{row.task.name}</div>
+                                                                <div className="font-medium text-slate-700 text-xs max-w-[24rem]">{row.task.name}</div>
                                                                 <div className="text-[9px] text-slate-400">{row.task.code}</div>
                                                             </td>
                                                             
                                                             {/* Unit */}
                                                             <td className="p-2 text-center text-xs text-slate-500 bg-slate-50/50">{row.task.unit}</td>
                                                             
-                                                            {/* Quantity Input */}
-                                                            <td className="p-2" onDoubleClick={() => setEditingQuantityId(row.item.id)}>
+                                                            {/* Quantity Input — con origen (Manual / Medido / Calculador) */}
+                                                            {(() => {
+                                                                const src = getQuantitySource(row.item, measurementSheets);
+                                                                const openSheet = () => { setEditingQuantityId(null); setMeasuringItemId(row.item.id); };
+                                                                return (
+                                                            <td className="p-2" onDoubleClick={() => src.kind === 'medido' ? openSheet() : setEditingQuantityId(row.item.id)}>
                                                                 {editingQuantityId === row.item.id ? (
-                                                                    <input 
-                                                                        type="number"
+                                                                    <DecimalInput
                                                                         autoFocus
                                                                         className="w-full text-center p-1 border border-blue-500 rounded text-sm font-bold text-slate-800 focus:outline-none shadow-sm"
                                                                         value={row.item.quantity}
-                                                                        onChange={(e) => updateBudgetItem(row.item.id, { quantity: parseFloat(e.target.value) || 0 })}
+                                                                        onValue={(n) => updateBudgetItem(row.item.id, {
+                                                                            quantity: n,
+                                                                            // Al tipear a mano deja de ser una cantidad del calculador.
+                                                                            ...(row.item.computationItemId ? { computationItemId: null } : {}),
+                                                                        })}
                                                                         onBlur={() => setEditingQuantityId(null)}
                                                                         onKeyDown={(e) => {
                                                                             if (e.key === 'Enter') setEditingQuantityId(null);
                                                                         }}
                                                                     />
                                                                 ) : (
-                                                                    <div className="text-center text-sm font-bold text-slate-700 cursor-pointer hover:text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors" title="Doble clic para editar">
-                                                                        {row.item.quantity}
+                                                                    <div className="flex flex-col items-center gap-0.5">
+                                                                        <div
+                                                                            className="text-center text-sm font-bold text-slate-700 cursor-pointer hover:text-blue-600 hover:bg-blue-50 px-2 py-0.5 rounded transition-colors"
+                                                                            title={src.kind === 'medido' ? 'Doble clic para abrir la planilla de medición' : 'Doble clic para editar'}
+                                                                        >
+                                                                            {row.item.quantity}
+                                                                        </div>
+                                                                        <QuantitySourceBadge source={src} onClick={openSheet} />
                                                                     </div>
                                                                 )}
                                                             </td>
+                                                                );
+                                                            })()}
 
                                                             {/* Material / Labor / PV Columns */}
                                                             {tableViewMode === 'tecnico' ? (
@@ -1542,33 +1686,36 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                       )}
                                   </React.Fragment>
                               );
-                          })}
+                          }))}
                       </tbody>
                   </table>
               </div>
           </div>}
 
           {/* FOOTER TOTALS */}
-          <div className="bg-slate-900 text-white p-6 border-t-4 border-blue-600 shadow-2xl z-10">
-              <div className="flex flex-col md:flex-row justify-between items-end gap-6">
-                  {/* ... Adjustments Summary ... */}
-                  <div className="flex gap-8 text-right">
+          {/* Alto fijo en desktop: el achique al scrollear es solo visual (transform), nunca cambia el layout. */}
+          <div className="bg-slate-900 text-white border-t-4 border-blue-600 shadow-2xl z-10 px-6 py-4 md:py-0 md:h-[76px] shrink-0 overflow-hidden">
+              <div className="h-full flex flex-col md:flex-row justify-between items-end md:items-center gap-x-6 gap-y-2">
+                  {yieldsBlocked && (
+                      <div className="min-w-0 truncate text-xs font-bold text-amber-300 uppercase">Totales no disponibles — sin validar</div>
+                  )}
+                  <div className={`flex flex-wrap md:flex-nowrap justify-end items-end gap-x-5 xl:gap-x-8 gap-y-2 text-right ml-auto shrink-0 whitespace-nowrap origin-right transition-transform duration-200 ${tableScrolled ? 'md:scale-[0.85]' : ''} ${yieldsBlocked ? 'opacity-40' : ''}`}>
                       <div>
                           <div className="text-[10px] font-bold text-slate-400 uppercase">Materiales + Eq</div>
-                          <div className="text-lg font-mono font-medium text-blue-300">
+                          <div className="text-sm xl:text-lg font-mono font-medium text-blue-300">
                               ${grandTotals.mat.toLocaleString(undefined, {maximumFractionDigits: 0})}
                           </div>
                       </div>
                       <div>
                           <div className="text-[10px] font-bold text-slate-400 uppercase">Mano de Obra</div>
-                          <div className="text-lg font-mono font-medium text-orange-300">
+                          <div className="text-sm xl:text-lg font-mono font-medium text-orange-300">
                               ${grandTotals.lab.toLocaleString(undefined, {maximumFractionDigits: 0})}
                           </div>
                       </div>
                       <div>
                           <div className="text-xs font-bold text-slate-300 uppercase mb-1">TOTAL GENERAL</div>
-                          <div className="text-4xl font-black text-white font-mono tracking-tight leading-none">
-                              ${grandTotals.finalTotal.toLocaleString(undefined, {maximumFractionDigits: 2})}
+                          <div className="text-xl xl:text-3xl font-black text-white font-mono tracking-tight leading-none">
+                              ${grandTotals.finalTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                           </div>
                       </div>
                   </div>
@@ -1754,9 +1901,11 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                           </div>
                                       )}
 
+                                      <RubroBanner category={panelRubro} />
+
                                       {/* Grouped list */}
                                       {(!noMasterTasksAtAll || catProjectTasks.length > 0 || anyGlobal || !!search) && (
-                                          <div className="max-h-80 overflow-y-auto border border-slate-200 rounded-lg">
+                                          <div className={`${configPanel.selectedTaskId ? 'max-h-48' : 'max-h-80'} overflow-y-auto border border-slate-200 rounded-lg transition-all`}>
                                               {/* Same-category APUs */}
                                               {sameCatMaster.length > 0 && (
                                                   <>
@@ -1849,11 +1998,17 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                           </div>
                                       )}
 
+                                      {(() => {
+                                          const sel = selectedGlobal
+                                              ?? tasks.find(t => t.id === configPanel.selectedTaskId)
+                                              ?? activeMasterTasks.find(mt => mt.id === configPanel.selectedTaskId);
+                                          return sel ? <TaskTechnicalDetail key={sel.id} task={sel} /> : null;
+                                      })()}
+
                                       {/* Feedback messages */}
                                       {selectedGlobal && (
                                           <div className="text-xs text-orange-800 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 space-y-1">
                                               <p className="font-bold">{selectedGlobal.name}</p>
-                                              {selectedGlobal.description && <p className="text-orange-700">{selectedGlobal.description}</p>}
                                               <p className="text-[11px] text-orange-600">Al agregarla se copia a los APU de tu empresa con materiales y mano de obra.</p>
                                           </div>
                                       )}
@@ -1874,17 +2029,14 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                               );
                           })()}
 
-                          {/* Task Resource Composition — visible al seleccionar una tarea */}
+                          {/* Composición del APU — visible al seleccionar una tarea */}
                           {configPanel.selectedTaskId && !selectedGlobal && (() => {
                               const selTask   = tasks.find(t => t.id === configPanel.selectedTaskId);
-                              const mats      = yieldsIndex[configPanel.selectedTaskId]          ?? [];
-                              const labors    = taskLaborYieldsIndex[configPanel.selectedTaskId] ?? [];
-                              const equips    = toolYieldsIndex[configPanel.selectedTaskId]      ?? [];
-                              const hasData   = mats.length > 0 || labors.length > 0 || equips.length > 0 || !!selTask?.fixedCost;
-                              const hasPriceWarning = hasData && (
-                                  mats.some(y => { const m = materialsMap[y.materialId]; return !m || m.cost === 0; }) ||
-                                  labors.some(ly => { const c = laborCategoriesMap[ly.laborCategoryId]; return !c || c.basicHourlyRate === 0; })
-                              );
+                              if (!selTask) return null;
+                              const mats      = yieldsIndex[selTask.id]          ?? [];
+                              const labors    = taskLaborYieldsIndex[selTask.id] ?? [];
+                              const equips    = toolYieldsIndex[selTask.id]      ?? [];
+                              const hasData   = mats.length > 0 || labors.length > 0 || equips.length > 0 || !!selTask.fixedCost || !!selTask.laborCost;
                               if (!hasData) return (
                                   <div className="pt-4 border-t border-slate-100">
                                       <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
@@ -1892,88 +2044,9 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                       </p>
                                   </div>
                               );
-                              return (
-                                  <div className="space-y-3 pt-4 border-t border-slate-100">
-                                      <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
-                                          <Calculator size={12} className="text-blue-400"/> Composición APU
-                                      </label>
-
-                                      {mats.length > 0 && (
-                                          <div>
-                                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
-                                                  <Package size={10}/> Materiales ({mats.length})
-                                              </p>
-                                              <div className="space-y-0.5">
-                                                  {mats.map((y, i) => {
-                                                      const mat = materialsMap[y.materialId];
-                                                      return (
-                                                          <div key={i} className="flex justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
-                                                              <span className="truncate">{mat?.name ?? y.materialId}</span>
-                                                              <span className="ml-2 font-mono text-slate-400 shrink-0">{y.quantity} {mat?.unit ?? ''}</span>
-                                                          </div>
-                                                      );
-                                                  })}
-                                              </div>
-                                          </div>
-                                      )}
-
-                                      {labors.length > 0 && (
-                                          <div>
-                                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
-                                                  <Hammer size={10}/> Mano de Obra ({labors.length})
-                                              </p>
-                                              <div className="space-y-0.5">
-                                                  {labors.map((ly, i) => {
-                                                      const cat = laborCategoriesMap[ly.laborCategoryId];
-                                                      return (
-                                                          <div key={i} className="flex justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
-                                                              <span className="truncate">{cat?.name ?? ly.laborCategoryId}</span>
-                                                              <span className="ml-2 font-mono text-slate-400 shrink-0">{ly.quantity} op</span>
-                                                          </div>
-                                                      );
-                                                  })}
-                                              </div>
-                                          </div>
-                                      )}
-
-                                      {equips.length > 0 && (
-                                          <div>
-                                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
-                                                  <Settings size={10}/> Equipos ({equips.length})
-                                              </p>
-                                              <div className="space-y-0.5">
-                                                  {equips.map((ty, i) => {
-                                                      const tool = toolsMap[ty.toolId];
-                                                      return (
-                                                          <div key={i} className="flex justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
-                                                              <span className="truncate">{tool?.name ?? ty.toolId}</span>
-                                                              <span className="ml-2 font-mono text-slate-400 shrink-0">{ty.hoursPerUnit} h/u</span>
-                                                          </div>
-                                                      );
-                                                  })}
-                                              </div>
-                                          </div>
-                                      )}
-
-                                      {!!selTask?.fixedCost && (
-                                          <div>
-                                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
-                                                  <DollarSign size={10}/> Otros Costos
-                                              </p>
-                                              <div className="flex justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
-                                                  <span className="truncate">{selTask.fixedCostDescription ?? 'Costo fijo'}</span>
-                                                  <span className="ml-2 font-mono text-slate-400 shrink-0">${selTask.fixedCost.toFixed(2)}</span>
-                                              </div>
-                                          </div>
-                                      )}
-
-                                      {hasPriceWarning && (
-                                          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
-                                              <AlertCircle size={13}/> Esta tarea tiene recursos sin precio definido. El costo puede ser $0.
-                                          </p>
-                                      )}
-                                  </div>
-                              );
+                              const comp = buildApuComposition(selTask, mats, materialsMap, labors, laborCategoriesMap, equips, toolsMap);
+                              const analysis = calculateUnitPrice(selTask, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap, 9, taskLaborYieldsIndex);
+                              return <APUCompositionPanel comp={comp} analysis={analysis} />;
                           })()}
 
                           {/* Presets Section */}
@@ -2041,12 +2114,10 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                           <div className="space-y-2 pt-4 border-t border-slate-100">
                               <label className="text-xs font-bold text-slate-500 uppercase">Cantidad Presupuestada</label>
                               <div className="flex items-center gap-3">
-                                  <input 
-                                      type="number" 
-                                      className="flex-1 p-3 border border-slate-300 rounded-lg text-lg font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none"
+                                  <DecimalInput
+                                      className="flex-1 min-w-0 p-3 border border-slate-300 rounded-lg text-lg font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none"
                                       value={configPanel.quantity}
-                                      onChange={(e) => setConfigPanel({ ...configPanel, quantity: parseFloat(e.target.value) || 0 })}
-                                      min="0"
+                                      onValue={(n) => setConfigPanel(prev => ({ ...prev, quantity: n }))}
                                   />
                                   <div className="w-16 h-12 flex items-center justify-center bg-slate-100 rounded-lg text-sm font-bold text-slate-500 border border-slate-200">
                                       {selectedGlobal?.unit || tasks.find(t => t.id === configPanel.selectedTaskId)?.unit || '-'}
@@ -2106,7 +2177,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                               <p className="text-xs text-slate-500">Configure qué columnas desea incluir en el reporte.</p>
                           </div>
                           <div className="flex items-center gap-3">
-                              <button onClick={handlePrintBudget} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-200">
+                              <button onClick={handlePrintBudget} disabled={yieldsBlocked} className="disabled:opacity-50 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-200">
                                   <Printer size={16} /> Imprimir Ahora
                               </button>
                               <button onClick={() => setShowPrintPreview(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-400">
@@ -2361,7 +2432,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                               </tr>
                                           </thead>
                                           <tbody>
-                                              {Array.from(selectedRubros).map((rubro) => {
+                                              {visibleRubros.map((rubro) => {
                                                   const items = budgetData.grouped[rubro] || [];
                                                   if (items.length === 0) return null;
                                                   const totals = budgetData.categoryTotals[rubro];
@@ -2430,7 +2501,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                                       </tr>
                                                   </thead>
                                                   <tbody>
-                                                      {Array.from(selectedRubros).map(rubro => {
+                                                      {visibleRubros.map(rubro => {
                                                           const rubroItems = budgetData.grouped[rubro] || [];
                                                           if (rubroItems.length === 0) return null;
                                                           const rubroDC  = budgetData.categoryTotals[rubro]?.total ?? 0;
@@ -2473,7 +2544,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                                   </tr>
                                               </thead>
                                               <tbody>
-                                                  {Array.from(selectedRubros).map((rubro) => {
+                                                  {visibleRubros.map((rubro) => {
                                                       const items = budgetData.grouped[rubro] || [];
                                                       if (items.length === 0) return null;
                                                       const rubroSaleTotal = items.reduce((sum, row) => {
