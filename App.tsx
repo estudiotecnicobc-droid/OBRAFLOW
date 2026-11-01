@@ -20,6 +20,7 @@ import { Subcontractors } from './components/Subcontractors';
 import { DocumentManager } from './components/DocumentManager';
 import { QualityControl } from './components/QualityControl';
 import { ProjectHub } from './components/ProjectHub';
+import { DemoSeeder } from './components/DemoSeeder';
 import { APUBuilder } from './components/APUBuilder';
 import { AdminPanel } from './components/AdminPanel';
 import { UpdatePassword } from './components/UpdatePassword';
@@ -201,6 +202,7 @@ const AppContent = () => {
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
       {renderContent()}
+      <DemoSeeder onDone={setActiveTab} />
     </Layout>
   );
 };
