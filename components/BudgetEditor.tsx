@@ -43,10 +43,25 @@ import { APUCompositionPanel } from './APUCompositionPanel';
 import { buildApuComposition } from '../utils/apuComposition';
 import { QuantitySourceBadge } from './QuantitySourceBadge';
 import { getQuantitySource, consumePendingHighlight } from '../utils/quantitySource';
+import { analyzeBudgetHealth, ignoreKey, type HealthIssueId, type HealthRow } from '../utils/budgetHealth';
+import { BudgetHealthBar } from './BudgetHealthBar';
 
 interface BudgetEditorProps {
   onNavigate?: (tab: string) => void;
 }
+
+/**
+ * Sombra en el borde superior del área de la tabla que aparece solo cuando hay contenido scrolleado
+ * (técnica de fondos «local» + «scroll», sin JS ni re-render al scrollear). La primera capa tapa la
+ * sombra mientras el contenido está arriba de todo; su color es el fondo del área (slate-50/50 sobre blanco).
+ */
+const SCROLL_SHADOW: React.CSSProperties = {
+  backgroundImage: 'linear-gradient(rgb(252 253 254) 40%, rgb(252 253 254 / 0)), radial-gradient(farthest-side at 50% 0, rgb(15 23 42 / 0.18), transparent)',
+  backgroundSize: '100% 28px, 100% 10px',
+  backgroundRepeat: 'no-repeat',
+  backgroundAttachment: 'local, scroll',
+  backgroundPosition: 'top, top',
+};
 
 export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   const {
@@ -388,6 +403,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   const [tableScrolled, setTableScrolled] = useState(false);
   const scrollRaf = useRef(0);
   const scrollLockUntil = useRef(0);
+  const tableScrollerRef = useRef<HTMLDivElement>(null);
   const onTableScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     if (scrollRaf.current) return;
@@ -596,6 +612,86 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
     return { grouped, categoryTotals };
   }, [project.items, tasks, pinnedRubros, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap]);
+
+  // ── Salud del presupuesto ────────────────────────────────────────────────
+  const healthRows = useMemo((): HealthRow[] => {
+    const out: HealthRow[] = [];
+    for (const [rubro, rows] of Object.entries(budgetData.grouped) as [string, any[]][]) {
+      for (const row of rows) {
+        const comp = buildApuComposition(
+          row.task, yieldsIndex[row.task.id] ?? [], materialsMap,
+          taskLaborYieldsIndex[row.task.id] ?? [], laborCategoriesMap,
+          toolYieldsIndex[row.task.id] ?? [], toolsMap,
+        );
+        const src = getQuantitySource(row.item, measurementSheets);
+        out.push({
+          itemId: row.item.id,
+          taskId: row.task.id,
+          rubro,
+          name: row.item.name || row.task.name,
+          unit: row.task.unit || '',
+          quantity: Number(row.item.quantity) || 0,
+          unitCost: row.unitMatEq + row.unitLab,
+          unitLabor: row.unitLab,
+          total: row.totalItem,
+          apuHasMissing: comp.hasMissing,
+          measuredQuantity: src.kind === 'medido' ? src.sheet?.totalQuantity : undefined,
+        });
+      }
+    }
+    return out;
+  }, [budgetData, yieldsIndex, materialsMap, taskLaborYieldsIndex, laborCategoriesMap, toolYieldsIndex, toolsMap, measurementSheets]);
+
+  // Avisos descartados por el usuario («no es un error»), por obra y en este navegador.
+  const ignoredKey = `obraflow_health_ignored_${project.id}`;
+  const [ignoredHealth, setIgnoredHealth] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try { setIgnoredHealth(new Set(JSON.parse(localStorage.getItem(ignoredKey) || '[]'))); }
+    catch { setIgnoredHealth(new Set()); }
+  }, [ignoredKey]);
+  const saveIgnored = (next: Set<string>) => {
+    setIgnoredHealth(next);
+    try { localStorage.setItem(ignoredKey, JSON.stringify([...next])); } catch { /* sin almacenamiento local */ }
+  };
+  const ignoreHealthIssue = (issueId: HealthIssueId, itemId: string) =>
+    saveIgnored(new Set([...ignoredHealth, ignoreKey(issueId, itemId)]));
+
+  const healthIssues = useMemo(
+    () => analyzeBudgetHealth(healthRows, { surface: project.surface, ignored: ignoredHealth }),
+    [healthRows, project.surface, ignoredHealth],
+  );
+  const healthItemNames = useMemo(
+    () => Object.fromEntries(healthRows.map(r => [r.itemId, r.name])),
+    [healthRows],
+  );
+  // Ítems descartados que siguen en el presupuesto (los de ítems borrados no cuentan).
+  const ignoredHealthCount = useMemo(() => {
+    const present = new Set(healthRows.map(r => r.itemId));
+    return [...ignoredHealth].filter(k => present.has(k.slice(k.indexOf(':') + 1))).length;
+  }, [ignoredHealth, healthRows]);
+  // Ítem que se está revisando desde la franja: se marca más fuerte que el resto.
+  const [focusItemId, setFocusItemId] = useState<string | null>(null);
+
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (highlightTimer.current) clearTimeout(highlightTimer.current); }, []);
+
+  // Despliega los rubros de los ítems, los resalta y lleva la vista al ítem `index`.
+  const revealItems = (itemIds: string[], index: number) => {
+    const ids = new Set(itemIds);
+    // Solo se despliega el rubro del ítem actual; los demás se abren al avanzar.
+    const rubrosToOpen = Object.entries(budgetData.grouped)
+      .filter(([, rows]) => (rows as any[]).some(r => r.item.id === itemIds[index]))
+      .map(([rubro]) => rubro);
+    setExpandedRubros(prev => new Set([...prev, ...rubrosToOpen]));
+    setHighlightIds(ids);
+    setFocusItemId(itemIds[index] ?? null);
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    highlightTimer.current = setTimeout(() => { setHighlightIds(new Set()); setFocusItemId(null); }, 8000);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.querySelector(`[data-budget-item-id="${itemIds[index]}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }));
+  };
 
   const grandTotals = useMemo(() => {
       let mat = 0;
@@ -1298,7 +1394,11 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
         onAdd={addRubroToIndex}
         onRemove={removeRubroFromIndex}
         onExpandAll={() => setExpandedRubros(new Set(visibleRubros))}
-        onCollapseAll={() => setExpandedRubros(new Set())}
+        onCollapseAll={() => {
+          setExpandedRubros(new Set());
+          // Al plegar, el contenido se achica y el área quedaría scrolleada con el título oculto.
+          tableScrollerRef.current?.scrollTo({ top: 0 });
+        }}
         pref={indexPref}
         onPrefChange={setIndexPref}
       />
@@ -1428,10 +1528,26 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
           {/* STALENESS ALERT */}
           {!showComparison && project.id && project.id !== '__phantom__' && project.organizationId && (
-              <div className="px-6 pt-3">
+              <div className="px-6 pt-3 shrink-0">
                   <BudgetStalenessAlert
                       projectId={project.id}
                       organizationId={project.organizationId}
+                  />
+              </div>
+          )}
+
+          {/* SALUD DEL PRESUPUESTO */}
+          {/* Mientras cargan los rendimientos los precios no son confiables: no se evalúa. */}
+          {!showComparison && !yieldsBlocked && (
+              <div className="px-6 pt-3 shrink-0">
+                  <BudgetHealthBar
+                      issues={healthIssues}
+                      itemCount={healthRows.length}
+                      itemNames={healthItemNames}
+                      ignoredCount={ignoredHealthCount}
+                      onShow={revealItems}
+                      onIgnore={ignoreHealthIssue}
+                      onResetIgnored={() => saveIgnored(new Set())}
                   />
               </div>
           )}
@@ -1440,7 +1556,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
           {/* La tabla scrollea dentro del panel (alto de pantalla en desktop) y el encabezado queda fijo. */}
           {/* El título se va con el contenido; la fila de columnas es sticky en este mismo contenedor
               (vertical y horizontal). Nada de lo que cambia al scrollear altera el alto de este contenedor. */}
-          {!showComparison && <div className="flex-1 min-h-0 overflow-auto bg-slate-50/50 p-6 pt-0" onScroll={onTableScroll}>
+          {!showComparison && <div ref={tableScrollerRef} className="flex-1 min-h-0 overflow-auto bg-slate-50/50 p-6 pt-0" onScroll={onTableScroll} style={SCROLL_SHADOW}>
               <div className="sticky left-6 pt-5 pb-1">
                   <h1 className="text-2xl font-black text-slate-800 tracking-tight">Cómputo y Presupuesto Profesional</h1>
                   <div className="text-sm text-slate-500 mt-1 flex items-center gap-2">
@@ -1537,7 +1653,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                               ) : (
                                                   <>
                                                     {items.map((row, rowIndex) => (
-                                                        <tr key={row.item.id} data-budget-item-id={row.item.id} className={`border-b border-slate-100 hover:bg-blue-50/30 transition-colors group ${highlightIds.has(row.item.id) ? 'bg-teal-50 ring-2 ring-inset ring-teal-300' : ''}`}>
+                                                        <tr key={row.item.id} data-budget-item-id={row.item.id} className={`border-b border-slate-100 hover:bg-blue-50/30 transition-colors group ${focusItemId === row.item.id ? 'bg-teal-100 ring-2 ring-inset ring-teal-600' : highlightIds.has(row.item.id) ? 'bg-teal-50 ring-2 ring-inset ring-teal-300' : ''}`}>
                                                             {/* Description */}
                                                             <td className="p-2 pl-8">
                                                                 <div className="font-medium text-slate-700 text-xs max-w-[24rem]">{row.task.name}</div>
