@@ -24,6 +24,7 @@ import { ReportPreviewModal, ReportMode } from './ReportPreviewModal';
 import { computationService } from '../../../services/computationService';
 import { buildComputationImportPayloads } from '../../../services/importComputationItems';
 import { setPendingHighlight } from '../../../utils/quantitySource';
+import { DecimalInput } from '../../../components/DecimalInput';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -275,8 +276,8 @@ const CreateAPUModal: React.FC<CreateAPUModalProps> = ({
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Rendimiento diario</label>
               <div className="flex rounded-lg border border-slate-200 overflow-hidden focus-within:ring-1 focus-within:ring-blue-400">
-                <input type="number" min="0.01" step="any" value={dailyYield}
-                  onChange={e => setDailyYield(e.target.value)}
+                <DecimalInput value={dailyYield}
+                  onValue={(n, raw) => setDailyYield(raw === '' ? '' : String(n))}
                   className="flex-1 px-3 py-2 text-sm focus:outline-none min-w-0"
                 />
                 <span className="px-2 text-xs text-slate-400 bg-slate-50 flex items-center border-l border-slate-200 whitespace-nowrap">
@@ -930,10 +931,9 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
               <div key={dim.id}>
                 <label className="block text-xs font-semibold text-slate-500 mb-1">{dim.label}</label>
                 <div className="flex rounded-lg border border-slate-200 overflow-hidden focus-within:ring-1 focus-within:ring-blue-400 focus-within:border-blue-400">
-                  <input
-                    type="number" min="0" step="0.05"
+                  <DecimalInput
                     value={dimValues[dim.id] ?? ''}
-                    onChange={e => setDimValues(prev => ({ ...prev, [dim.id]: e.target.value }))}
+                    onValue={(n, raw) => setDimValues(prev => ({ ...prev, [dim.id]: raw === '' ? '' : String(n) }))}
                     placeholder="0"
                     className="flex-1 px-3 py-2 text-sm bg-white focus:outline-none min-w-0"
                   />
@@ -1016,17 +1016,15 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
                                 <option>Puerta</option>
                                 <option>Otro</option>
                               </select>
-                              <input
-                                type="number" min="0.01" step="any"
+                              <DecimalInput
                                 value={o.ancho || ''}
-                                onChange={e => updateOpening(o.id, 'ancho', parseFloat(e.target.value) || 0)}
+                                onValue={n => updateOpening(o.id, 'ancho', n)}
                                 placeholder="0.00"
                                 className="px-1.5 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 text-center"
                               />
-                              <input
-                                type="number" min="0.01" step="any"
+                              <DecimalInput
                                 value={o.alto || ''}
-                                onChange={e => updateOpening(o.id, 'alto', parseFloat(e.target.value) || 0)}
+                                onValue={n => updateOpening(o.id, 'alto', n)}
                                 placeholder="0.00"
                                 className="px-1.5 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 text-center"
                               />
@@ -1117,17 +1115,15 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
                         </div>
                         {floorSectors.map(s => (
                           <div key={s.id} className="grid grid-cols-[1fr_1fr_20px] gap-1.5 items-center">
-                            <input
-                              type="number" min="0.01" step="any"
+                            <DecimalInput
                               value={s.largo || ''}
-                              onChange={e => updateFloorSector(s.id, 'largo', parseFloat(e.target.value) || 0)}
+                              onValue={n => updateFloorSector(s.id, 'largo', n)}
                               placeholder="0.00"
                               className="px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
                             />
-                            <input
-                              type="number" min="0.01" step="any"
+                            <DecimalInput
                               value={s.ancho || ''}
-                              onChange={e => updateFloorSector(s.id, 'ancho', parseFloat(e.target.value) || 0)}
+                              onValue={n => updateFloorSector(s.id, 'ancho', n)}
                               placeholder="0.00"
                               className="px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
                             />
@@ -1212,10 +1208,9 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
                       Desperdicio hormigón
                     </label>
                     <div className="flex rounded-lg border border-stone-200 overflow-hidden focus-within:ring-1 focus-within:ring-stone-400 w-28">
-                      <input
-                        type="number" min="0" max="30" step="1"
+                      <DecimalInput
                         value={beamWaste}
-                        onChange={e => setBeamWaste(Math.max(0, Math.min(30, parseFloat(e.target.value) || 0)))}
+                        onValue={n => setBeamWaste(Math.max(0, Math.min(30, n)))}
                         className="flex-1 px-3 py-1.5 text-sm bg-white focus:outline-none min-w-0"
                       />
                       <span className="px-2 text-xs text-stone-400 bg-stone-50 flex items-center border-l border-stone-200">%</span>
@@ -1228,10 +1223,9 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
                       Cuantía de acero
                     </label>
                     <div className="flex rounded-lg border border-stone-200 overflow-hidden focus-within:ring-1 focus-within:ring-stone-400 w-28">
-                      <input
-                        type="number" min="0" step="5"
+                      <DecimalInput
                         value={beamSteelRatio}
-                        onChange={e => setBeamSteelRatio(Math.max(0, parseFloat(e.target.value) || 0))}
+                        onValue={n => setBeamSteelRatio(Math.max(0, n))}
                         className="flex-1 px-3 py-1.5 text-sm bg-white focus:outline-none min-w-0"
                       />
                       <span className="px-2 text-xs text-stone-400 bg-stone-50 flex items-center border-l border-stone-200">kg/m³</span>
@@ -1804,10 +1798,9 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
 
               {/* Cantidad */}
               <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden focus-within:ring-1 focus-within:ring-blue-400 shrink-0">
-                <input
-                  type="number" min="0.001" step="any"
+                <DecimalInput
                   value={matQty}
-                  onChange={e => setMatQty(e.target.value)}
+                  onValue={(n, raw) => setMatQty(raw === '' ? '' : String(n))}
                   placeholder="Cantidad"
                   className="w-24 px-2.5 py-1.5 text-xs focus:outline-none"
                 />

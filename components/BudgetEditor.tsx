@@ -38,6 +38,7 @@ import { TaskTechnicalDetail, RubroBanner } from '../src/features/catalog-media/
 import { BudgetRubroIndex } from '../src/features/budgets/components/BudgetRubroIndex';
 import { arrangeRubros, loadIndexView, loadPinnedRubros, saveIndexView, savePinnedRubros, sortRubros } from '../src/features/budgets/rubroGroups';
 import { MeasurementDrawer } from './MeasurementDrawer';
+import { DecimalInput } from './DecimalInput';
 import { APUCompositionPanel } from './APUCompositionPanel';
 import { buildApuComposition } from '../utils/apuComposition';
 import { QuantitySourceBadge } from './QuantitySourceBadge';
@@ -1527,13 +1528,12 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                                                 return (
                                                             <td className="p-2" onDoubleClick={() => src.kind === 'medido' ? openSheet() : setEditingQuantityId(row.item.id)}>
                                                                 {editingQuantityId === row.item.id ? (
-                                                                    <input 
-                                                                        type="number"
+                                                                    <DecimalInput
                                                                         autoFocus
                                                                         className="w-full text-center p-1 border border-blue-500 rounded text-sm font-bold text-slate-800 focus:outline-none shadow-sm"
                                                                         value={row.item.quantity}
-                                                                        onChange={(e) => updateBudgetItem(row.item.id, {
-                                                                            quantity: parseFloat(e.target.value) || 0,
+                                                                        onValue={(n) => updateBudgetItem(row.item.id, {
+                                                                            quantity: n,
                                                                             // Al tipear a mano deja de ser una cantidad del calculador.
                                                                             ...(row.item.computationItemId ? { computationItemId: null } : {}),
                                                                         })}
@@ -2078,12 +2078,10 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                           <div className="space-y-2 pt-4 border-t border-slate-100">
                               <label className="text-xs font-bold text-slate-500 uppercase">Cantidad Presupuestada</label>
                               <div className="flex items-center gap-3">
-                                  <input 
-                                      type="number" 
-                                      className="flex-1 p-3 border border-slate-300 rounded-lg text-lg font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none"
+                                  <DecimalInput
+                                      className="flex-1 min-w-0 p-3 border border-slate-300 rounded-lg text-lg font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none"
                                       value={configPanel.quantity}
-                                      onChange={(e) => setConfigPanel({ ...configPanel, quantity: parseFloat(e.target.value) || 0 })}
-                                      min="0"
+                                      onValue={(n) => setConfigPanel(prev => ({ ...prev, quantity: n }))}
                                   />
                                   <div className="w-16 h-12 flex items-center justify-center bg-slate-100 rounded-lg text-sm font-bold text-slate-500 border border-slate-200">
                                       {selectedGlobal?.unit || tasks.find(t => t.id === configPanel.selectedTaskId)?.unit || '-'}
