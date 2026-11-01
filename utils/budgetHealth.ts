@@ -72,15 +72,16 @@ export function looksLikeCommaError(quantity: number, measured: number): boolean
   return [10, 100, 1000].some(f => Math.abs(ratio - f) / f < 0.01);
 }
 
-const median = (xs: number[]) => {
+/** Valor central (cantidad impar) o los dos valores centrales (cantidad par). */
+const middleValues = (xs: number[]): number[] => {
   const s = [...xs].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  return s.length % 2 ? [s[m]] : [s[m - 1], s[m]];
 };
 
 /**
  * Ítems cuyo P.U. se aparta más de `PU_OUTLIER_FACTOR` veces de los demás ítems de su rubro y unidad.
- * Se compara cada precio con la mediana de los OTROS precios distintos del grupo: así una tarea
+ * Se compara cada precio con el centro de los OTROS precios distintos del grupo: así una tarea
  * repetida (tres ítems con el mismo P.U.) cuenta una sola vez y no arrastra la referencia.
  */
 export function findUnitPriceOutliers(rows: HealthRow[]): string[] {
@@ -96,9 +97,12 @@ export function findUnitPriceOutliers(rows: HealthRow[]): string[] {
     const distinct = [...new Set(g.map(r => cents(r.unitCost)))];
     if (distinct.length < PU_OUTLIER_MIN_GROUP) continue;
     for (const r of g) {
-      const ref = median(distinct.filter(c => c !== cents(r.unitCost)));
-      const ratio = cents(r.unitCost) / ref;
-      if (ratio > PU_OUTLIER_FACTOR || ratio < 1 / PU_OUTLIER_FACTOR) out.push(r.itemId);
+      const own = cents(r.unitCost);
+      const refs = middleValues(distinct.filter(c => c !== own));
+      // Con dos valores centrales (grupos con dos niveles de precio) se compara con el más cercano:
+      // solo es atípico lo que está lejos de ambos.
+      const deviation = Math.min(...refs.map(ref => Math.max(own / ref, ref / own)));
+      if (deviation > PU_OUTLIER_FACTOR) out.push(r.itemId);
     }
   }
   return out;
@@ -161,7 +165,7 @@ export function analyzeBudgetHealth(
     id: 'pu_atipico', level: 'warning',
     itemIds: ids(r => outliers.has(r.itemId)),
     title: n => `${plural(n, 'precio unitario muy distinto', 'precios unitarios muy distintos')} de ítems similares del mismo rubro`,
-    hint: `Su P.U. se aparta más de ${PU_OUTLIER_FACTOR} veces de la mediana del rubro en la misma unidad. Revisá el análisis de precio.`,
+    hint: `Su P.U. es más de ${PU_OUTLIER_FACTOR} veces mayor o menor que el de los demás ítems del rubro en la misma unidad. Revisá el análisis de precio.`,
   });
 
   const taskCount = new Map<string, number>();

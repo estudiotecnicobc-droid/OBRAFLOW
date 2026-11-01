@@ -155,4 +155,10 @@ describe('analyzeBudgetHealth', () => {
     expect(r.sin_mano_obra.title).toBe('1 ítem sin mano de obra');
     expect(analyzeBudgetHealth([rows[0]], { ignored: new Set([ignoreKey('sin_mano_obra', 'volq')]) })).toEqual([]);
   });
+
+  it('P.U. atípico: rubro con dos niveles de precio (caso 04 de Casa Ciro)', () => {
+    const f = (itemId: string, unitCost: number) => row({ itemId, rubro: '04 Fundaciones', unit: 'm3', unitCost });
+    const rows = [f('x', 282_710), f('bases', 163_770), f('col', 2_142_336.82), f('vf', 1_681_632.6), f('y', 217_629)];
+    expect(findUnitPriceOutliers(rows).sort()).toEqual(['col', 'vf']);
+  });
 });

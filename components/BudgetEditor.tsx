@@ -50,6 +50,19 @@ interface BudgetEditorProps {
   onNavigate?: (tab: string) => void;
 }
 
+/**
+ * Sombra en el borde superior del área de la tabla que aparece solo cuando hay contenido scrolleado
+ * (técnica de fondos «local» + «scroll», sin JS ni re-render al scrollear). La primera capa tapa la
+ * sombra mientras el contenido está arriba de todo; su color es el fondo del área (slate-50/50 sobre blanco).
+ */
+const SCROLL_SHADOW: React.CSSProperties = {
+  backgroundImage: 'linear-gradient(rgb(252 253 254) 40%, rgb(252 253 254 / 0)), radial-gradient(farthest-side at 50% 0, rgb(15 23 42 / 0.18), transparent)',
+  backgroundSize: '100% 28px, 100% 10px',
+  backgroundRepeat: 'no-repeat',
+  backgroundAttachment: 'local, scroll',
+  backgroundPosition: 'top, top',
+};
+
 export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   const {
     project, tasks, rubros, rubroPresets,
@@ -1538,7 +1551,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
           {/* La tabla scrollea dentro del panel (alto de pantalla en desktop) y el encabezado queda fijo. */}
           {/* El título se va con el contenido; la fila de columnas es sticky en este mismo contenedor
               (vertical y horizontal). Nada de lo que cambia al scrollear altera el alto de este contenedor. */}
-          {!showComparison && <div className="flex-1 min-h-0 overflow-auto bg-slate-50/50 p-6 pt-0" onScroll={onTableScroll}>
+          {!showComparison && <div className="flex-1 min-h-0 overflow-auto bg-slate-50/50 p-6 pt-0" onScroll={onTableScroll} style={SCROLL_SHADOW}>
               <div className="sticky left-6 pt-5 pb-1">
                   <h1 className="text-2xl font-black text-slate-800 tracking-tight">Cómputo y Presupuesto Profesional</h1>
                   <div className="text-sm text-slate-500 mt-1 flex items-center gap-2">
