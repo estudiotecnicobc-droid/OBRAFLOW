@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { detailImage, rubroImage, type TaskLike } from './catalogMedia';
 
 interface Props {
@@ -8,21 +8,24 @@ interface Props {
 /** Detalle técnico (esquema con cotas) y qué incluye la tarea. */
 export const TaskTechnicalDetail: React.FC<Props> = ({ task }) => {
   const [zoom, setZoom] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
   const img = detailImage(task);
+  // Al elegir una tarea, el detalle queda a la vista sin desplazarse a mano.
+  useEffect(() => { ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' }); }, []);
   if (!img && !task.description) return null;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
-      {img && (
-        <button type="button" onClick={() => setZoom(true)} className="block w-full cursor-zoom-in" title="Ampliar detalle">
-          <img src={img} alt={`Detalle técnico: ${task.name ?? ''}`} className="w-full rounded border border-slate-100" loading="lazy" />
-          <span className="block text-[11px] text-slate-500 mt-1">Clic para ampliar</span>
-        </button>
-      )}
+    <div ref={ref} className="bg-white border border-slate-200 rounded-lg p-3 space-y-2 scroll-mt-4">
       {task.description && (
         <div className="text-xs text-slate-700">
           <span className="font-bold text-slate-800">Qué incluye: </span>{task.description}
         </div>
+      )}
+      {img && (
+        <button type="button" onClick={() => setZoom(true)} className="block w-full cursor-zoom-in" title="Ampliar detalle">
+          <img src={img} alt={`Detalle técnico: ${task.name ?? ''}`} className="w-full max-h-[45vh] object-contain rounded border border-slate-100" loading="lazy" />
+          <span className="block text-[11px] text-slate-500 mt-1">Clic para ampliar</span>
+        </button>
       )}
       {zoom && img && (
         <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setZoom(false)}>

@@ -1765,7 +1765,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
                                       {/* Grouped list */}
                                       {(!noMasterTasksAtAll || catProjectTasks.length > 0 || anyGlobal || !!search) && (
-                                          <div className="max-h-80 overflow-y-auto border border-slate-200 rounded-lg">
+                                          <div className={`${configPanel.selectedTaskId ? 'max-h-48' : 'max-h-80'} overflow-y-auto border border-slate-200 rounded-lg transition-all`}>
                                               {/* Same-category APUs */}
                                               {sameCatMaster.length > 0 && (
                                                   <>
