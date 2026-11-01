@@ -35,6 +35,8 @@ import { computeBudgetItemSaleBreakdown, BudgetItemSaleBreakdown, ItemDirectCost
 import { projectsService } from '../services/projectsService';
 import { YieldsErrorBanner, useYieldsBlocked } from './YieldsErrorBanner';
 import { TaskTechnicalDetail, RubroBanner } from '../src/features/catalog-media/TaskTechnicalDetail';
+import { BudgetRubroIndex } from '../src/features/budgets/components/BudgetRubroIndex';
+import { arrangeRubros, loadIndexView, loadPinnedRubros, saveIndexView, savePinnedRubros, sortRubros } from '../src/features/budgets/rubroGroups';
 
 interface BudgetEditorProps {
   onNavigate?: (tab: string) => void;
@@ -58,7 +60,12 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
   // --- UI STATES ---
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(2); 
-  const [selectedRubros, setSelectedRubros] = useState<Set<string>>(new Set(rubros));
+  // Rubros fijados en el índice (incluye rubros vacíos que agregó el usuario); por proyecto.
+  const [pinnedRubros, setPinnedRubros] = useState<string[]>(() => loadPinnedRubros(project.id));
+  const [activeRubro, setActiveRubro] = useState<string | undefined>(undefined);
+  // Vista del índice (código / etapas / incidencia): ordena índice y tabla.
+  const [indexPref, setIndexPref] = useState(loadIndexView);
+  useEffect(() => saveIndexView(indexPref), [indexPref]);
   const [globalAdjustment, setGlobalAdjustment] = useState<number>(0); 
   const [expandedRubros, setExpandedRubros] = useState<Set<string>>(new Set(rubros)); 
   const [managePresetsMode, setManagePresetsMode] = useState(false);
@@ -452,7 +459,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     const grouped: Record<string, any[]> = {};
     const categoryTotals: Record<string, { mat: number, lab: number, total: number }> = {};
 
-    Array.from(selectedRubros).filter((r: string) => !isLegacyRubro(r)).sort().forEach((r: string) => {
+    pinnedRubros.filter((r: string) => !isLegacyRubro(r)).forEach((r: string) => {
         grouped[r] = [];
         categoryTotals[r] = { mat: 0, lab: 0, total: 0 };
     });
@@ -531,7 +538,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     }
 
     return { grouped, categoryTotals };
-  }, [project.items, tasks, selectedRubros, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap]);
+  }, [project.items, tasks, pinnedRubros, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap]);
 
   const grandTotals = useMemo(() => {
       let mat = 0;
@@ -620,17 +627,59 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, tasksLoaded]);
 
-  // ── Fix 2: Sincronizar selectedRubros cuando rubros crece con entradas nuevas ──
-  // Solo auto-selecciona rubros NUEVOS; respeta deselecciones manuales del usuario.
+  // ── Fix 2: expandir rubros nuevos cuando rubros crece con entradas nuevas ──
   const seenRubrosRef = useRef(new Set(rubros));
   useEffect(() => {
     const newEntries = rubros.filter(r => !seenRubrosRef.current.has(r));
     if (newEntries.length > 0) {
       newEntries.forEach(r => seenRubrosRef.current.add(r));
-      setSelectedRubros(prev => new Set([...prev, ...newEntries]));
       setExpandedRubros(prev => new Set([...prev, ...newEntries]));
     }
   }, [rubros]);
+
+  // ── Índice de rubros ──────────────────────────────────────────────────────
+  // Fijados por proyecto: se recargan al cambiar de proyecto.
+  const pinnedProjectRef = useRef(project.id);
+  useEffect(() => {
+    if (pinnedProjectRef.current === project.id) return;
+    pinnedProjectRef.current = project.id;
+    setPinnedRubros(loadPinnedRubros(project.id));
+  }, [project.id]);
+
+  // Un rubro con ítems queda fijado: si se borra su último ítem no desaparece del índice.
+  useEffect(() => {
+    const withItems = Object.keys(budgetData.grouped).filter(
+      r => r !== 'Otros' && budgetData.grouped[r].length > 0,
+    );
+    const missing = withItems.filter(r => !pinnedRubros.includes(r));
+    if (missing.length > 0) setPinnedRubros(prev => sortRubros([...prev, ...missing]));
+  }, [budgetData.grouped, pinnedRubros]);
+
+  useEffect(() => {
+    if (project.id === '__phantom__' || pinnedProjectRef.current !== project.id) return;
+    savePinnedRubros(project.id, pinnedRubros);
+  }, [pinnedRubros, project.id]);
+
+  /** Rubros visibles en tabla, índice e impresión: fijados + con ítems, por código. 'Otros' al final. */
+  const visibleRubros = useMemo(() => {
+    const withItems = Object.keys(budgetData.grouped).filter(r => budgetData.grouped[r].length > 0);
+    return sortRubros([...pinnedRubros, ...withItems]).filter(r => !isLegacyRubro(r));
+  }, [pinnedRubros, budgetData.grouped]);
+
+  const rubroIndexEntries = useMemo(() => visibleRubros.map(rubro => {
+    const rows = budgetData.grouped[rubro] || [];
+    const amount = tableViewMode === 'comercial'
+      ? rows.reduce((s: number, r: any) => s + (breakdownByItemId[r.item.id]?.salePriceTotal ?? 0), 0)
+      : budgetData.categoryTotals[rubro]?.total ?? 0;
+    return { rubro, count: rows.length, amount };
+  }), [visibleRubros, budgetData, breakdownByItemId, tableViewMode]);
+
+  /** Rubros de la tabla en el orden de la vista elegida; en «Etapas», con encabezado por etapa. */
+  const tableRubroSections = useMemo(
+    () => arrangeRubros(rubroIndexEntries, indexPref.view),
+    [rubroIndexEntries, indexPref.view],
+  );
+  const tableTotal = tableViewMode === 'comercial' ? budgetKSummary.finalSalePrice : grandTotals.subtotal;
 
   // ── Todos los rubros a mostrar en sidebar = ERPContext + categorías dinámicas ──
   const allSidebarRubros = useMemo(() => {
@@ -646,11 +695,26 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
   // --- HANDLERS ---
 
-  const toggleRubroSelection = (rubro: string) => {
-      const newSet = new Set(selectedRubros);
-      if (newSet.has(rubro)) newSet.delete(rubro);
-      else newSet.add(rubro);
-      setSelectedRubros(newSet);
+  const jumpToRubro = (rubro: string) => {
+      setActiveRubro(rubro);
+      setShowComparison(false);
+      setExpandedRubros(prev => new Set([...prev, rubro]));
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+          document.querySelector(`[data-rubro-row="${CSS.escape(rubro)}"]`)
+            ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }));
+  };
+
+  const addRubroToIndex = (rubro: string) => {
+      setPinnedRubros(prev => sortRubros([...prev, rubro]));
+      jumpToRubro(rubro);
+      handleQuickAddTask(rubro);
+  };
+
+  const removeRubroFromIndex = (rubro: string) => {
+      if ((budgetData.grouped[rubro]?.length ?? 0) > 0) return;
+      setPinnedRubros(prev => prev.filter(r => r !== rubro));
+      if (activeRubro === rubro) setActiveRubro(undefined);
   };
 
   const toggleRubroExpansion = (rubro: string) => {
@@ -660,8 +724,6 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
       setExpandedRubros(newSet);
   };
 
-  const selectAllRubros = () => setSelectedRubros(new Set(allSidebarRubros));
-  const clearRubros = () => setSelectedRubros(new Set());
 
   // ── Reordenamiento de ítems dentro de un rubro ────────────────────────────
   const handleMoveItem = (category: string, rowIndex: number, direction: 'up' | 'down') => {
@@ -1164,48 +1226,21 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
       {quickModal}
       {yieldsBlocked && <div className="absolute top-0 inset-x-0 z-30"><YieldsErrorBanner /></div>}
       
-      {/* LEFT SIDEBAR: STAGES SELECTION */}
-      <div className="w-72 flex-shrink-0 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-sm h-full print:hidden">
-          <div className="p-4 bg-slate-900 text-white">
-              <h3 className="font-bold text-lg">Etapas de Obra</h3>
-              <p className="text-xs text-slate-400 mt-1">Seleccione los rubros activos</p>
-          </div>
-          
-          <div className="p-2 border-b border-slate-100 flex justify-between">
-              <button onClick={selectAllRubros} className="text-[10px] text-blue-600 font-bold hover:underline px-2">✓ Seleccionar todo</button>
-              <button onClick={clearRubros} className="text-[10px] text-slate-400 hover:text-slate-600 px-2">Limpiar</button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              {allSidebarRubros.map((rubro, idx) => {
-                  const isSelected = selectedRubros.has(rubro);
-                  const hasItems = budgetData.grouped[rubro]?.length > 0;
-                  
-                  return (
-                      <div 
-                        key={rubro} 
-                        onClick={() => toggleRubroSelection(rubro)}
-                        className={`
-                            group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border
-                            ${isSelected 
-                                ? 'bg-slate-700 text-white border-slate-600 shadow-md' 
-                                : 'bg-white text-slate-600 border-slate-100 hover:bg-slate-50'
-                            }
-                        `}
-                      >
-                          <div className={`
-                              w-6 h-6 flex items-center justify-center rounded font-bold text-xs
-                              ${isSelected ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-500'}
-                          `}>
-                              {idx + 1}
-                          </div>
-                          <span className="text-xs font-bold uppercase truncate flex-1">{rubro}</span>
-                          {hasItems && <div className="w-2 h-2 rounded-full bg-emerald-400"></div>}
-                      </div>
-                  );
-              })}
-          </div>
-      </div>
+      {/* LEFT SIDEBAR: ÍNDICE DE RUBROS */}
+      <BudgetRubroIndex
+        entries={rubroIndexEntries}
+        total={tableTotal}
+        amountLabel={tableViewMode === 'comercial' ? 'Precio de venta' : 'Costo directo'}
+        allRubros={allSidebarRubros}
+        activeRubro={activeRubro}
+        onJump={jumpToRubro}
+        onAdd={addRubroToIndex}
+        onRemove={removeRubroFromIndex}
+        onExpandAll={() => setExpandedRubros(new Set(visibleRubros))}
+        onCollapseAll={() => setExpandedRubros(new Set())}
+        pref={indexPref}
+        onPrefChange={setIndexPref}
+      />
 
       {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col h-full bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden relative print:hidden">
@@ -1363,26 +1398,30 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                           </tr>
                       </thead>
                       <tbody>
-                          {[
-                              ...Array.from(selectedRubros).filter((r: string) => !isLegacyRubro(r)),
-                              // Categorías dinámicas con ítems, aún no en selectedRubros
-                              // (estado transitorio antes de que el useEffect sincronice).
-                              ...Object.keys(budgetData.grouped).filter(cat =>
-                                cat !== 'Otros' &&
-                                !selectedRubros.has(cat) &&
-                                (budgetData.grouped[cat]?.length ?? 0) > 0,
-                              ),
-                              // 'Otros': tareas sin categoría o con categoría vacía.
-                              ...(budgetData.grouped['Otros']?.length > 0 ? ['Otros'] : []),
-                          ].map((rubro: string) => {
+                          {tableRubroSections.flatMap(section => section.entries.map((entry, entryIdx) => {
+                              const rubro = entry.rubro;
                               const items = budgetData.grouped[rubro] || [];
                               const isExpanded = expandedRubros.has(rubro);
                               const totals = budgetData.categoryTotals[rubro];
 
                               return (
                                   <React.Fragment key={rubro}>
+                                      {/* ETAPA HEADER (vista «Etapas») */}
+                                      {section.label && entryIdx === 0 && (
+                                          <tr className="bg-slate-100 border-y border-slate-300">
+                                              <td colSpan={tableViewMode === 'tecnico' ? 9 : 6} className="px-4 py-2">
+                                                  <div className="flex items-baseline justify-between text-xs">
+                                                      <span className="font-black uppercase tracking-wider text-slate-600">{section.label}</span>
+                                                      <span className="font-mono font-bold text-slate-700">
+                                                          ${section.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                          <span className="ml-2 text-slate-400 font-normal">{tableTotal > 0 ? ((section.amount / tableTotal) * 100).toFixed(1) : '0.0'}%</span>
+                                                      </span>
+                                                  </div>
+                                              </td>
+                                          </tr>
+                                      )}
                                       {/* RUBRO HEADER */}
-                                      <tr className="bg-slate-800 text-white cursor-pointer hover:bg-slate-700 transition-colors" onClick={() => toggleRubroExpansion(rubro)}>
+                                      <tr data-rubro-row={rubro} className="bg-slate-800 text-white cursor-pointer hover:bg-slate-700 transition-colors scroll-mt-12" onClick={() => toggleRubroExpansion(rubro)}>
                                           <td colSpan={1} className="p-2 pl-4 font-bold text-sm flex items-center gap-2 uppercase tracking-wide">
                                               {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                                               {rubro}
@@ -1546,7 +1585,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                       )}
                                   </React.Fragment>
                               );
-                          })}
+                          }))}
                       </tbody>
                   </table>
               </div>
@@ -2376,7 +2415,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                               </tr>
                                           </thead>
                                           <tbody>
-                                              {Array.from(selectedRubros).map((rubro) => {
+                                              {visibleRubros.map((rubro) => {
                                                   const items = budgetData.grouped[rubro] || [];
                                                   if (items.length === 0) return null;
                                                   const totals = budgetData.categoryTotals[rubro];
@@ -2445,7 +2484,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                                       </tr>
                                                   </thead>
                                                   <tbody>
-                                                      {Array.from(selectedRubros).map(rubro => {
+                                                      {visibleRubros.map(rubro => {
                                                           const rubroItems = budgetData.grouped[rubro] || [];
                                                           if (rubroItems.length === 0) return null;
                                                           const rubroDC  = budgetData.categoryTotals[rubro]?.total ?? 0;
@@ -2488,7 +2527,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                                   </tr>
                                               </thead>
                                               <tbody>
-                                                  {Array.from(selectedRubros).map((rubro) => {
+                                                  {visibleRubros.map((rubro) => {
                                                       const items = budgetData.grouped[rubro] || [];
                                                       if (items.length === 0) return null;
                                                       const rubroSaleTotal = items.reduce((sum, row) => {
