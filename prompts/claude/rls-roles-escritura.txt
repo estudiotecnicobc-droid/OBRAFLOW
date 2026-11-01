@@ -1,0 +1,1 @@
+Permisos de escritura por rol: viewer de solo lectura, invitaciones sin owner. Tests 03_roles.sql en CI y migración 073 (pendiente de OK).
