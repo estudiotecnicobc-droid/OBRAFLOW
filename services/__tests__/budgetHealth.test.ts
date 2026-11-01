@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeBudgetHealth, findUnitPriceOutliers, ignoreKey, looksLikeCommaError, normalizeUnit, type HealthRow } from '../../utils/budgetHealth';
+import { analyzeBudgetHealth, findUnitPriceOutliers, ignoreKey, isGlobalUnit, looksLikeCommaError, normalizeUnit, type HealthRow } from '../../utils/budgetHealth';
 
 const row = (over: Partial<HealthRow> & { itemId: string }): HealthRow => ({
   name: 'Tarea', unit: 'm2', quantity: 10, unitCost: 1000, total: 10000, apuHasMissing: false, ...over,
@@ -161,5 +161,26 @@ describe('analyzeBudgetHealth', () => {
     const f = (itemId: string, unitCost: number) => row({ itemId, rubro: '04 Fundaciones', unit: 'm3', unitCost });
     const rows = [f('x', 282_710), f('bases', 163_770), f('col', 2_142_336.82), f('vf', 1_681_632.6), f('y', 217_629)];
     expect(findUnitPriceOutliers(rows).sort()).toEqual(['col', 'vf']);
+  });
+
+  it('P.U. atípico: no compara unidades ni globales (caso de la obra de ejemplo)', () => {
+    const u = (itemId: string, unit: string, unitCost: number) => row({ itemId, rubro: '26 Instalación eléctrica', unit, unitCost });
+    const rows = [
+      u('pilar', 'un', 844_220.92), u('tablero', 'un', 364_200), u('cajas', 'un', 9_000),
+      u('bocas', 'u', 40_000), u('tomas', 'u', 38_000),
+      u('tramite', 'gl', 250_000), u('prueba', 'gl', 60_000), u('foto', 'gl', 150_000), u('final', 'gl', 900_000),
+    ];
+    expect(findUnitPriceOutliers(rows)).toEqual([]);
+  });
+
+  it('sin mano de obra: los globales no cuentan (EPP, trámites)', () => {
+    expect(isGlobalUnit('gl')).toBe(true);
+    expect(isGlobalUnit('Gl.')).toBe(true);
+    expect(isGlobalUnit('m2')).toBe(false);
+    const r = byId([
+      row({ itemId: 'epp', unit: 'gl', unitLabor: 0, materialLines: 2 }),
+      row({ itemId: 'base', unit: 'm3', unitLabor: 0, materialLines: 3 }),
+    ]);
+    expect(r.sin_mano_obra.itemIds).toEqual(['base']);
   });
 });

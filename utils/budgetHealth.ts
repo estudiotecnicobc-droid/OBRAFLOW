@@ -69,6 +69,12 @@ export function normalizeUnit(unit: string): 'm2' | 'm3' | 'ml' | null {
   return null;
 }
 
+/** «gl», «global», «gl.»: montos globales (trámites, honorarios, provisiones), sin cuadrilla propia. */
+export function isGlobalUnit(unit: string): boolean {
+  const u = (unit || '').toLowerCase().replace(/[.\s]/g, '');
+  return u === 'gl' || u === 'global';
+}
+
 /** La cantidad es la de la planilla multiplicada por 10, 100 o 1000 (típico de «2,5» leído como 25). */
 export function looksLikeCommaError(quantity: number, measured: number): boolean {
   if (!(measured > 0) || !(quantity > 0)) return false;
@@ -91,8 +97,11 @@ const middleValues = (xs: number[]): number[] => {
 export function findUnitPriceOutliers(rows: HealthRow[]): string[] {
   const groups = new Map<string, HealthRow[]>();
   for (const r of rows) {
-    if (!(r.unitCost > 0) || !r.rubro) continue;
-    const key = `${r.rubro}|${normalizeUnit(r.unit) ?? (r.unit || '').toLowerCase().trim()}`;
+    // Solo unidades de medida (m², m³, ml): con unidades o globales los ítems de un mismo rubro no son
+    // comparables (un pilar de acometida contra una caja de pase, un trámite contra un registro fotográfico).
+    const unit = normalizeUnit(r.unit);
+    if (!(r.unitCost > 0) || !r.rubro || !unit) continue;
+    const key = `${r.rubro}|${unit}`;
     groups.set(key, [...(groups.get(key) ?? []), r]);
   }
   const cents = (x: number) => Math.round(x * 100);
@@ -169,7 +178,7 @@ export function analyzeBudgetHealth(
     id: 'pu_atipico', level: 'warning',
     itemIds: ids(r => outliers.has(r.itemId)),
     title: n => `${plural(n, 'precio unitario muy distinto', 'precios unitarios muy distintos')} de ítems similares del mismo rubro`,
-    hint: `Su P.U. es más de ${PU_OUTLIER_FACTOR} veces mayor o menor que el de los demás ítems del rubro en la misma unidad. Revisá el análisis de precio.`,
+    hint: `Su P.U. es más de ${PU_OUTLIER_FACTOR} veces mayor o menor que el de los demás ítems del rubro en la misma unidad (m², m³ o ml). Revisá el análisis de precio.`,
   });
 
   const taskCount = new Map<string, number>();
@@ -186,7 +195,7 @@ export function analyzeBudgetHealth(
     // Con un solo recurso suele ser una provisión, un trámite o un subcontrato (volquete, planos, mesada):
     // no lleva cuadrilla propia. Con dos o más materiales (hormigón, acero, ladrillos) sí debería.
     itemIds: ids(r => r.quantity > 0 && r.unitCost > 0 && r.unitLabor !== undefined && !(r.unitLabor > 0)
-      && (r.materialLines ?? 0) >= MIN_MATERIALS_FOR_LABOR),
+      && (r.materialLines ?? 0) >= MIN_MATERIALS_FOR_LABOR && !isGlobalUnit(r.unit)),
     title: n => `${plural(n, 'ítem', 'ítems')} sin mano de obra`,
     hint: 'Lleva varios materiales pero ninguna cuadrilla. Cargá la mano de obra en su análisis; si la hace un subcontratista, ignoralo.',
   });
