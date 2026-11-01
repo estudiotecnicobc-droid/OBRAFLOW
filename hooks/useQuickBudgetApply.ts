@@ -7,6 +7,9 @@ import { rubroCategory } from '../src/features/quickBudget/engine';
 import type { QuickSelection } from '../components/QuickBudgetWizard';
 import type { LaborCategory, MasterMaterial, MasterTask } from '../types';
 
+/** Copias simultáneas del Catálogo ObraFlow a la empresa. */
+const CLONE_CONCURRENCY = 6;
+
 export interface QuickApplyResult {
   /** Resumen para mostrar al usuario. */
   message: string;
@@ -68,15 +71,18 @@ export function useQuickBudgetApply({ masterTasks, refetchMasterTasks, masterMat
     const globals = rows.filter(r => r.source.kind === 'global');
     const cloneFailed: string[] = [];
     const uniqueGlobals = Array.from(new Map(globals.map(r => [r.source.kind === 'global' ? r.source.task.id : '', r])).values());
+    // En lotes paralelos: la copia es idempotente y bloquea por (empresa, tarea).
     let cloned = 0;
-    for (const g of uniqueGlobals) {
-      onProgress?.(++cloned, uniqueGlobals.length, 'catalog');
-      if (g.source.kind !== 'global') continue;
-      const { error } = await supabase.rpc('clone_master_task_to_org', {
-        p_master_task_id: g.source.task.id,
-        p_organization_id: orgId,
-      });
-      if (error) cloneFailed.push(g.task.name);
+    for (let i = 0; i < uniqueGlobals.length; i += CLONE_CONCURRENCY) {
+      await Promise.all(uniqueGlobals.slice(i, i + CLONE_CONCURRENCY).map(async g => {
+        if (g.source.kind !== 'global') return;
+        const { error } = await supabase.rpc('clone_master_task_to_org', {
+          p_master_task_id: g.source.task.id,
+          p_organization_id: orgId,
+        });
+        if (error) cloneFailed.push(g.task.name);
+        onProgress?.(++cloned, uniqueGlobals.length, 'catalog');
+      }));
     }
     const orgTasks = globals.length > 0 ? await masterTasksService.list(orgId) : masterTasks;
     if (globals.length > 0) refetchMasterTasks();

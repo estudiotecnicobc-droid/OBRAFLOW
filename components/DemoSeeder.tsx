@@ -120,7 +120,7 @@ export const DemoSeeder: React.FC<{ onDone: (tab: string) => void }> = ({ onDone
             <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
               <div className="h-full bg-blue-600 transition-all" style={{ width: `${phase === 'sheets' ? 100 : pct}%` }} />
             </div>
-            <p className="text-xs text-slate-500">Las cantidades salen del cómputo paramétrico de ObraFlow. Tarda alrededor de un minuto; no cierres la pestaña.</p>
+            <p className="text-xs text-slate-500">Las cantidades salen del cómputo paramétrico de ObraFlow. Tarda uno o dos minutos; no cierres la pestaña.</p>
           </div>
         )}
       </div>
