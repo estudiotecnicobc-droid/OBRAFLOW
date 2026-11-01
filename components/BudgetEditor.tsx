@@ -403,6 +403,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   const [tableScrolled, setTableScrolled] = useState(false);
   const scrollRaf = useRef(0);
   const scrollLockUntil = useRef(0);
+  const tableScrollerRef = useRef<HTMLDivElement>(null);
   const onTableScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     if (scrollRaf.current) return;
@@ -1393,7 +1394,11 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
         onAdd={addRubroToIndex}
         onRemove={removeRubroFromIndex}
         onExpandAll={() => setExpandedRubros(new Set(visibleRubros))}
-        onCollapseAll={() => setExpandedRubros(new Set())}
+        onCollapseAll={() => {
+          setExpandedRubros(new Set());
+          // Al plegar, el contenido se achica y el área quedaría scrolleada con el título oculto.
+          tableScrollerRef.current?.scrollTo({ top: 0 });
+        }}
         pref={indexPref}
         onPrefChange={setIndexPref}
       />
@@ -1551,7 +1556,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
           {/* La tabla scrollea dentro del panel (alto de pantalla en desktop) y el encabezado queda fijo. */}
           {/* El título se va con el contenido; la fila de columnas es sticky en este mismo contenedor
               (vertical y horizontal). Nada de lo que cambia al scrollear altera el alto de este contenedor. */}
-          {!showComparison && <div className="flex-1 min-h-0 overflow-auto bg-slate-50/50 p-6 pt-0" onScroll={onTableScroll} style={SCROLL_SHADOW}>
+          {!showComparison && <div ref={tableScrollerRef} className="flex-1 min-h-0 overflow-auto bg-slate-50/50 p-6 pt-0" onScroll={onTableScroll} style={SCROLL_SHADOW}>
               <div className="sticky left-6 pt-5 pb-1">
                   <h1 className="text-2xl font-black text-slate-800 tracking-tight">Cómputo y Presupuesto Profesional</h1>
                   <div className="text-sm text-slate-500 mt-1 flex items-center gap-2">
