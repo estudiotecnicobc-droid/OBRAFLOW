@@ -33,6 +33,7 @@ import { BudgetBusinessPanel } from './BudgetBusinessPanel';
 import { useBudgetKStore, selectBusinessConfig, computeBudgetKSummary } from '../store/useBudgetKStore';
 import { computeBudgetItemSaleBreakdown, BudgetItemSaleBreakdown, ItemDirectCostInput } from '../services/budgetItemBreakdown';
 import { projectsService } from '../services/projectsService';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 interface BudgetEditorProps {
   onNavigate?: (tab: string) => void;
@@ -56,6 +57,8 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   // --- UI STATES ---
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(2); 
   const [selectedRubros, setSelectedRubros] = useState<Set<string>>(new Set(rubros));
+  const isMobile = useIsMobile();
+  const [stagesOpen, setStagesOpen] = useState(false);
   const [globalAdjustment, setGlobalAdjustment] = useState<number>(0); 
   const [expandedRubros, setExpandedRubros] = useState<Set<string>>(new Set(rubros)); 
   const [managePresetsMode, setManagePresetsMode] = useState(false);
@@ -1157,16 +1160,25 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
   // Render logic
   return (
-    <div className="flex h-full gap-6 font-sans relative">
+    <div className="flex flex-col md:flex-row md:h-full gap-3 md:gap-6 font-sans relative">
       {quickModal}
       
       {/* LEFT SIDEBAR: STAGES SELECTION */}
-      <div className="w-72 flex-shrink-0 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-sm h-full print:hidden">
-          <div className="p-4 bg-slate-900 text-white">
-              <h3 className="font-bold text-lg">Etapas de Obra</h3>
-              <p className="text-xs text-slate-400 mt-1">Seleccione los rubros activos</p>
+      <div className={`w-full md:w-72 flex-shrink-0 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-sm md:h-full print:hidden ${isMobile && stagesOpen ? 'max-h-[60dvh]' : ''}`}>
+          <div
+            className={`p-3 md:p-4 bg-slate-900 text-white ${isMobile ? 'cursor-pointer flex items-center justify-between gap-2' : ''}`}
+            onClick={isMobile ? () => setStagesOpen(o => !o) : undefined}
+            role={isMobile ? 'button' : undefined}
+            aria-expanded={isMobile ? stagesOpen : undefined}
+          >
+              <div>
+                  <h3 className="font-bold text-base md:text-lg">Etapas de Obra</h3>
+                  <p className="text-xs text-slate-400 mt-1">{isMobile ? `${selectedRubros.size} rubros activos · tocar para ${stagesOpen ? 'cerrar' : 'elegir'}` : 'Seleccione los rubros activos'}</p>
+              </div>
+              {isMobile && <ChevronDown size={18} className={`shrink-0 transition-transform ${stagesOpen ? 'rotate-180' : ''}`} />}
           </div>
           
+          {(!isMobile || stagesOpen) && <>
           <div className="p-2 border-b border-slate-100 flex justify-between">
               <button onClick={selectAllRubros} className="text-[10px] text-blue-600 font-bold hover:underline px-2">✓ Seleccionar todo</button>
               <button onClick={clearRubros} className="text-[10px] text-slate-400 hover:text-slate-600 px-2">Limpiar</button>
@@ -1201,21 +1213,22 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                   );
               })}
           </div>
+          </>}
       </div>
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 flex flex-col h-full bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden relative print:hidden">
+      <div className="flex-1 min-w-0 flex flex-col min-h-[70dvh] md:min-h-0 md:h-full bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden relative print:hidden">
           
           {/* HEADER & STEPPER */}
-          <div className="p-6 border-b border-slate-100">
-              <div className="flex justify-between items-end mb-6">
+          <div className="p-3 md:p-6 border-b border-slate-100">
+              <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-3 mb-3 md:mb-6">
                   <div>
-                      <h1 className="text-2xl font-black text-slate-800 tracking-tight">Cómputo y Presupuesto Profesional</h1>
+                      <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">Cómputo y Presupuesto Profesional</h1>
                       <div className="text-sm text-slate-500 mt-1 flex items-center gap-2">
                           <Clock size={14} /> Última actualización: {new Date().toLocaleDateString()}
                       </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                       <div className="flex items-center rounded-lg overflow-hidden border border-slate-200 text-xs font-bold">
                           <button
                               onClick={() => setTableViewMode('tecnico')}
@@ -1253,7 +1266,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                               <Printer size={15} /> Reportes <ChevronDown size={14} className={`transition-transform ${reportsMenuOpen ? 'rotate-180' : ''}`} />
                           </button>
                           {reportsMenuOpen && (
-                              <div role="menu" className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-xl shadow-xl z-40 py-2 text-sm">
+                              <div role="menu" className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-1.5rem)] bg-white border border-slate-200 rounded-xl shadow-xl z-40 py-2 text-sm">
                                   <p className="px-4 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Imprimir presupuesto</p>
                                   {([
                                       ['cliente', 'Para el cliente', 'Precio de venta, sin costos internos'],
@@ -1297,7 +1310,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
           {/* COMPARISON PANEL */}
           {showComparison && (
-              <div className="flex-1 overflow-auto bg-slate-50/50 p-6">
+              <div className="flex-1 overflow-auto bg-slate-50/50 p-3 md:p-6">
                   <div role="tablist" aria-label="Tipo de comparación" className="flex flex-wrap gap-1 border-b border-slate-200 mb-6">
                       {([['index', 'Actualizar por índice (CAC, ICC, inflación, dólar)'], ['dates', 'Comparar precios de la base entre dos fechas']] as const).map(([id, label]) => (
                           <button
@@ -1324,7 +1337,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
           {/* STALENESS ALERT */}
           {!showComparison && project.id && project.id !== '__phantom__' && project.organizationId && (
-              <div className="px-6 pt-3">
+              <div className="px-3 md:px-6 pt-3">
                   <BudgetStalenessAlert
                       projectId={project.id}
                       organizationId={project.organizationId}
@@ -1333,7 +1346,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
           )}
 
           {/* TABLE CONTENT */}
-          {!showComparison && <div className="flex-1 overflow-auto bg-slate-50/50 p-6">
+          {!showComparison && <div className="flex-1 overflow-auto bg-slate-50/50 p-2 md:p-6">
               <div className="bg-white border border-slate-200 shadow-sm rounded-lg overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                       <thead>

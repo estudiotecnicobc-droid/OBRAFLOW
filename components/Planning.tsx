@@ -16,6 +16,7 @@ import { comparePlanVsReal } from '../services/planVsReal';
 import { APUBuilder } from './APUBuilder';
 import { ResizableSplitPane } from './ResizableSplitPane';
 import { AutoPlanModal } from './AutoPlanModal';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 export const Planning: React.FC = () => {
   const {
@@ -30,7 +31,10 @@ export const Planning: React.FC = () => {
   // El Gantt dejó de ser una pestaña aparte (Etapa B): ahora es un panel que se abre al
   // lado de la tabla de Planificación, con scroll vertical compartido.
   const [viewMode, setViewMode] = useState<'table' | 'control'>('table');
-  const [showGanttPanel, setShowGanttPanel] = useState(true);
+  // En celular el Gantt arranca oculto: la tabla sola ya ocupa el ancho de la pantalla.
+  const [showGanttPanel, setShowGanttPanel] = useState(() => !(typeof window !== 'undefined' && window.matchMedia?.('(max-width: 767px)').matches));
+  const isMobile = useIsMobile();
+  const mobilePaneMax = isMobile && typeof window !== 'undefined' ? Math.max(160, Math.round(window.innerWidth * 0.55)) : undefined;
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
   // Modo lectura por defecto: nadie cambia cantidad/avance/precedencia sin querer. "Editar"
@@ -1011,7 +1015,7 @@ export const Planning: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col h-full space-y-6 animate-in fade-in duration-500">
+    <div className="flex flex-col md:h-full space-y-3 md:space-y-6 animate-in fade-in duration-500">
       
       {/* Header */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -1074,10 +1078,10 @@ export const Planning: React.FC = () => {
       {showAutoPlan && <AutoPlanModal onClose={() => setShowAutoPlan(false)} />}
 
       {/* Main Content */}
-      <div className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
+      <div className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[80dvh] md:h-auto">
           
-          <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50 print:hidden flex-wrap gap-3">
-              <div className="flex gap-2">
+          <div className="flex items-center justify-between p-3 md:p-4 border-b border-slate-200 bg-slate-50 print:hidden flex-wrap gap-3">
+              <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setViewMode('table')}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${viewMode === 'table' ? 'bg-white text-blue-600 shadow' : 'text-slate-500 hover:bg-slate-200'}`}
@@ -1281,6 +1285,8 @@ export const Planning: React.FC = () => {
                   <ResizableSplitPane
                       storageKey="planning-table-gantt"
                       initialLeftWidth={760}
+                      minLeftWidth={isMobile ? 140 : undefined}
+                      maxLeftWidth={mobilePaneMax}
                       left={
                           <div className="h-full overflow-auto" ref={tableScrollRef} onScroll={handleTableScroll}>
                               {renderBudgetTable()}
@@ -1302,6 +1308,8 @@ export const Planning: React.FC = () => {
                       <ResizableSplitPane
                           storageKey="planning-gantt-sidebar"
                           initialLeftWidth={450}
+                          minLeftWidth={isMobile ? 140 : undefined}
+                          maxLeftWidth={mobilePaneMax}
                           left={
                               <div className="h-full bg-white overflow-y-auto flex flex-col print:hidden" ref={sidebarRef} onScroll={handleSidebarScroll}>
                           <div style={{ height: HEADER_HEIGHT }} className="bg-slate-100 border-b border-slate-200 flex items-center px-4 text-[11px] font-bold text-slate-600 uppercase sticky top-0 z-10 tracking-wide">

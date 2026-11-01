@@ -20,7 +20,7 @@ export const BudgetModule: React.FC<{ activeTab: string; onNavigate: (tab: strin
   const organizationId = activeOrganizationId ?? user?.organizationId ?? '';
   return (
   <div className="space-y-4">
-    <div role="tablist" aria-label="Secciones del presupuesto" className="flex flex-wrap gap-1 border-b border-slate-200 print:hidden">
+    <div role="tablist" aria-label="Secciones del presupuesto" className="flex flex-nowrap md:flex-wrap gap-1 border-b border-slate-200 overflow-x-auto print:hidden">
       {TABS.map(t => {
         const selected = activeTab === t.id;
         return (
@@ -29,7 +29,7 @@ export const BudgetModule: React.FC<{ activeTab: string; onNavigate: (tab: strin
             role="tab"
             aria-selected={selected}
             onClick={() => onNavigate(t.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-[3px] -mb-px transition-colors ${
+            className={`flex shrink-0 whitespace-nowrap items-center gap-2 px-3 md:px-4 py-3 text-sm font-semibold border-b-[3px] -mb-px transition-colors ${
               selected ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >

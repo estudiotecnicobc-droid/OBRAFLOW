@@ -1,0 +1,1 @@
+Tanda 2 vista móvil: Presupuesto (etapas desplegables, pestañas en una fila, Cómputos lista/detalle, encabezado de Grilla) y Planificación (alto útil, Gantt oculto por defecto en móvil).

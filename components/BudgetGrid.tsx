@@ -394,7 +394,7 @@ export const BudgetGrid: React.FC = () => {
       `}</style>
 
       {/* Header Panel */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
          <div>
             <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <TableIcon className="text-blue-600" /> Presupuesto Jerárquico
@@ -403,8 +403,8 @@ export const BudgetGrid: React.FC = () => {
          </div>
          
          {/* KPI & Actions */}
-         <div className="flex items-center gap-2">
-             <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-lg border border-slate-200 mr-2">
+         <div className="flex flex-wrap items-center gap-2">
+             <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-lg border border-slate-200 md:mr-2">
                  <div className="px-4 border-r border-slate-200">
                      <p className="text-[10px] uppercase font-bold text-slate-400">Total Presupuesto</p>
                      <p className="text-xl font-mono font-bold text-slate-800">${totalProjectCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>

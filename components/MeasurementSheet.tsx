@@ -8,6 +8,7 @@ import {
   ArrowUpRight, Calculator, FileText, Settings, X 
 } from 'lucide-react';
 import { MeasurementSheet, MeasurementLine, BudgetItem } from '../types';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 export const MeasurementSheetComponent: React.FC = () => {
   const { project, tasks, measurementSheets, saveMeasurementSheet, syncMeasurementToBudget, updateBudgetItem } = useERP();
@@ -15,6 +16,7 @@ export const MeasurementSheetComponent: React.FC = () => {
   const { registerSave, unregisterSave } = useSave();
 
   const [selectedBudgetItemId, setSelectedBudgetItemId] = useState<string>('');
+  const isMobile = useIsMobile();
   const [currentSheet, setCurrentSheet] = useState<MeasurementSheet | null>(null);
   
   // Find task associated with the selected budget item
@@ -126,10 +128,10 @@ export const MeasurementSheetComponent: React.FC = () => {
   }, [currentSheet, saveCurrentSheet, registerSave, unregisterSave]);
 
   return (
-    <div className="flex h-full gap-6 animate-in fade-in duration-500">
+    <div className="flex md:h-full gap-6 animate-in fade-in duration-500">
       
       {/* Sidebar: Item Selector */}
-      <div className="w-80 flex-shrink-0 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-sm">
+      <div className={`w-full md:w-80 flex-shrink-0 bg-white ${isMobile && selectedBudgetItemId ? 'hidden' : ''} border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-sm`}>
           <div className="p-4 bg-slate-50 border-b border-slate-200">
               <h3 className="font-bold text-slate-700 flex items-center gap-2">
                   <Ruler className="text-blue-600" size={18}/> Ítems de Obra
@@ -174,7 +176,7 @@ export const MeasurementSheetComponent: React.FC = () => {
       </div>
 
       {/* Main Editor */}
-      <div className="flex-1 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-sm">
+      <div className={`flex-1 min-w-0 bg-white border border-slate-200 rounded-xl flex-col overflow-hidden shadow-sm ${isMobile && !selectedBudgetItemId ? 'hidden' : 'flex'}`}>
           {!selectedBudgetItemId ? (
               <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
                   <Calculator size={48} className="mb-4 opacity-50" />
@@ -182,19 +184,24 @@ export const MeasurementSheetComponent: React.FC = () => {
               </div>
           ) : (
               <>
-                  <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                      <div>
-                          <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                  <div className="p-3 md:p-4 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+                      <div className="min-w-0">
+                          {isMobile && (
+                              <button onClick={() => setSelectedBudgetItemId('')} className="mb-2 text-xs font-bold text-blue-600 flex items-center gap-1">
+                                  ← Ítems de obra
+                              </button>
+                          )}
+                          <h2 className="font-bold text-base md:text-lg text-slate-800 flex items-center gap-2">
                               {selectedTask?.name} 
                               <span className="text-xs bg-white border px-2 py-0.5 rounded text-slate-500 font-normal">{selectedTask?.unit}</span>
                           </h2>
-                          <div className="text-xs text-slate-500 mt-1 flex items-center gap-4">
+                          <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
                               <span>ID: {selectedBudgetItemId.substring(0,8)}</span>
                               <span>Última mod: {currentSheet?.lastUpdated ? new Date(currentSheet.lastUpdated).toLocaleString() : 'N/A'} por {currentSheet?.updatedBy}</span>
                           </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                          <div className="bg-white px-3 py-1.5 rounded border border-slate-200 text-right mr-4">
+                      <div className="flex items-center gap-2 flex-wrap">
+                          <div className="bg-white px-3 py-1.5 rounded border border-slate-200 text-right md:mr-4">
                               <div className="text-[10px] uppercase font-bold text-slate-400">Total Cómputo</div>
                               <div className={`font-mono text-lg font-bold ${currentSheet && selectedItem && Math.abs(currentSheet.totalQuantity - selectedItem.quantity) > 0.01 ? 'text-amber-600' : 'text-emerald-600'}`}>
                                   {currentSheet?.totalQuantity.toFixed(2)}
