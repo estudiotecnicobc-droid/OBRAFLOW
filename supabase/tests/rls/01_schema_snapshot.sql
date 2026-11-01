@@ -1,4 +1,4 @@
--- Copia del esquema public de producción (Obra Flow) al 31/10/2026, solo lo necesario para probar RLS:
+-- Copia del esquema public de producción (Obra Flow) al 31/10/2026 (incluye 072), solo lo necesario para probar RLS:
 -- tipos, tablas (columnas, PK/UNIQUE), funciones usadas por las políticas, RLS y políticas.
 -- Se regenera con scripts/db/snapshot_rls.sql (consultas de solo lectura).
 \set ON_ERROR_STOP 1
@@ -99,8 +99,6 @@ create policy budget_templates_update_member on public.budget_templates as PERMI
 create policy budget_versions_delete on public.budget_versions as PERMISSIVE for DELETE to authenticated using (is_org_member_with_role(organization_id, ARRAY['owner'::text, 'admin'::text]));
 create policy budget_versions_insert on public.budget_versions as PERMISSIVE for INSERT to authenticated with check (is_org_member_with_role(organization_id, ARRAY['owner'::text, 'admin'::text, 'editor'::text]));
 create policy budget_versions_select on public.budget_versions as PERMISSIVE for SELECT to authenticated using (is_org_member(organization_id));
-create policy catalog_task_yields_select on public.catalog_task_yields as PERMISSIVE for SELECT to authenticated using (true);
-create policy catalogs_select on public.catalogs as PERMISSIVE for SELECT to authenticated using (true);
 create policy citems_delete on public.computation_items as PERMISSIVE for DELETE to authenticated using (is_org_member_with_role(organization_id, ARRAY['owner'::text, 'admin'::text, 'editor'::text]));
 create policy citems_insert on public.computation_items as PERMISSIVE for INSERT to authenticated with check (is_org_member_with_role(organization_id, ARRAY['owner'::text, 'admin'::text, 'editor'::text]));
 create policy citems_select on public.computation_items as PERMISSIVE for SELECT to authenticated using (is_org_member(organization_id));
@@ -200,13 +198,8 @@ create policy resource_pricing_rules_delete on public.resource_pricing_rules as 
 create policy resource_pricing_rules_insert on public.resource_pricing_rules as PERMISSIVE for INSERT to authenticated with check (is_org_member_with_role(tenant_id, ARRAY['owner'::text, 'admin'::text, 'editor'::text]));
 create policy resource_pricing_rules_select on public.resource_pricing_rules as PERMISSIVE for SELECT to authenticated using (is_org_member(tenant_id));
 create policy resource_pricing_rules_update on public.resource_pricing_rules as PERMISSIVE for UPDATE to authenticated using (is_org_member_with_role(tenant_id, ARRAY['owner'::text, 'admin'::text, 'editor'::text])) with check (is_org_member_with_role(tenant_id, ARRAY['owner'::text, 'admin'::text, 'editor'::text]));
-create policy resources_select on public.resources as PERMISSIVE for SELECT to authenticated using (true);
 create policy webhook_events_service on public.stripe_webhook_events as PERMISSIVE for ALL to public using ((auth.role() = 'service_role'::text));
 create policy billing_plans_select_all on public.subscription_plans as PERMISSIVE for SELECT to public using (true);
-create policy task_crew_yields_delete on public.task_crew_yields as PERMISSIVE for DELETE to authenticated using (true);
-create policy task_crew_yields_insert on public.task_crew_yields as PERMISSIVE for INSERT to authenticated with check (true);
-create policy task_crew_yields_select on public.task_crew_yields as PERMISSIVE for SELECT to authenticated using (true);
-create policy task_crew_yields_update on public.task_crew_yields as PERMISSIVE for UPDATE to authenticated using (true);
 create policy task_labor_yields_delete on public.task_labor_yields as PERMISSIVE for DELETE to public using ((task_id IN ( SELECT t.id FROM (tasks t JOIN organization_members om ON ((om.organization_id = t.organization_id))) WHERE (om.user_id = auth.uid()))));
 create policy task_labor_yields_delete_member on public.task_labor_yields as PERMISSIVE for DELETE to public using (is_org_member(organization_id));
 create policy task_labor_yields_insert on public.task_labor_yields as PERMISSIVE for INSERT to public with check ((task_id IN ( SELECT t.id FROM (tasks t JOIN organization_members om ON ((om.organization_id = t.organization_id))) WHERE (om.user_id = auth.uid()))));
@@ -243,3 +236,30 @@ create policy tools_delete on public.tools as PERMISSIVE for DELETE to authentic
 create policy tools_insert on public.tools as PERMISSIVE for INSERT to authenticated with check ((EXISTS ( SELECT 1 FROM organization_members WHERE ((organization_members.user_id = auth.uid()) AND ((organization_members.organization_id)::text = tools.organization_id) AND (organization_members.role = ANY (ARRAY['owner'::text, 'admin'::text, 'editor'::text]))))));
 create policy tools_select on public.tools as PERMISSIVE for SELECT to authenticated using ((EXISTS ( SELECT 1 FROM organization_members WHERE ((organization_members.user_id = auth.uid()) AND ((organization_members.organization_id)::text = tools.organization_id)))));
 create policy tools_update on public.tools as PERMISSIVE for UPDATE to authenticated using ((EXISTS ( SELECT 1 FROM organization_members WHERE ((organization_members.user_id = auth.uid()) AND ((organization_members.organization_id)::text = tools.organization_id) AND (organization_members.role = ANY (ARRAY['owner'::text, 'admin'::text, 'editor'::text])))))) with check ((EXISTS ( SELECT 1 FROM organization_members WHERE ((organization_members.user_id = auth.uid()) AND ((organization_members.organization_id)::text = tools.organization_id) AND (organization_members.role = ANY (ARRAY['owner'::text, 'admin'::text, 'editor'::text]))))));
+-- 072
+create policy task_crew_yields_select_member on public.task_crew_yields for select to authenticated
+  using (exists (select 1 from public.tasks t
+                 where t.id::text = task_crew_yields.task_id and public.is_org_member(t.organization_id)));
+create policy task_crew_yields_insert_member on public.task_crew_yields for insert to authenticated
+  with check (exists (select 1 from public.tasks t
+                      join public.crews c on c.organization_id = t.organization_id::text
+                      where t.id::text = task_crew_yields.task_id and c.id = task_crew_yields.crew_id
+                        and public.is_org_member(t.organization_id)));
+create policy task_crew_yields_update_member on public.task_crew_yields for update to authenticated
+  using (exists (select 1 from public.tasks t
+                 where t.id::text = task_crew_yields.task_id and public.is_org_member(t.organization_id)))
+  with check (exists (select 1 from public.tasks t
+                      join public.crews c on c.organization_id = t.organization_id::text
+                      where t.id::text = task_crew_yields.task_id and c.id = task_crew_yields.crew_id
+                        and public.is_org_member(t.organization_id)));
+create policy task_crew_yields_delete_member on public.task_crew_yields for delete to authenticated
+  using (exists (select 1 from public.tasks t
+                 where t.id::text = task_crew_yields.task_id and public.is_org_member(t.organization_id)));
+create policy resources_select on public.resources for select to authenticated
+  using (organization_id is null or public.is_org_member(organization_id));
+create policy catalogs_select on public.catalogs for select to authenticated
+  using (organization_id is null or public.is_org_member(organization_id));
+create policy catalog_task_yields_select on public.catalog_task_yields for select to authenticated
+  using (exists (select 1 from public.master_tasks mt
+                 where mt.id = catalog_task_yields.master_task_id
+                   and (mt.organization_id is null or public.is_org_member(mt.organization_id))));

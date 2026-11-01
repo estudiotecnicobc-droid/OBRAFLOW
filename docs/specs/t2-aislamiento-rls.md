@@ -22,7 +22,7 @@ Detectar automáticamente, en cada PR, cualquier política que permita a un usua
 | catalogs | 4 catálogos privados visibles a todos | 072 |
 | catalog_task_yields | rendimientos de APU privados visibles a todos | 072 |
 
-La migración 072 está en el repo **sin aplicar**. Validada localmente: 210/210 comprobaciones ok sin fugas conocidas. Al aplicarla en producción: regenerar el snapshot y vaciar `_t.conocidos`.
+La migración 072 se aplicó en producción el 31/10/2026 (versión 20261031231000) con OK de Arq. Gonzalo Blanco. Snapshot actualizado y `_t.conocidos` vacía: 210/210. Rollback: `docs/db/rollback-072.sql`.
 
 ## Limitaciones
 Prueba políticas, no RPCs `SECURITY DEFINER` ni Storage. No usa FKs ni triggers de producción.

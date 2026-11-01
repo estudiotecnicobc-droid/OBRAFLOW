@@ -92,16 +92,8 @@ insert into _t.casos (tabla, vals, pred, col, ataque, control) values
  ('stripe_webhook_events',  '{"type":"x","payload":"{}"}',                               'true', 'id', '{"type":"x","payload":"{}"}', false),
  ('v_org_uuid',             '{"organization_id":"B"}',                                   'true', 'organization_id', '{"organization_id":"B"}', false);
 
--- Fugas conocidas en producción (31/10/2026), pendientes de migración correctiva.
+-- Fugas conocidas pendientes de corrección (vacía desde la 072).
 create table _t.conocidos (tabla text, accion text, nota text, primary key (tabla, accion));
-insert into _t.conocidos values
- ('task_crew_yields',    'select', 'políticas using(true): sin columna de empresa'),
- ('task_crew_yields',    'update', 'políticas using(true)'),
- ('task_crew_yields',    'delete', 'políticas using(true)'),
- ('task_crew_yields',    'insert', 'políticas with check(true)'),
- ('resources',           'select', 'resources_select using(true): recursos privados de empresa visibles a todos'),
- ('catalogs',            'select', 'catalogs_select using(true): catálogos privados visibles a todos'),
- ('catalog_task_yields', 'select', 'catalog_task_yields_select using(true): rendimientos de APU privados visibles a todos');
 
 -- Reemplaza las claves simbólicas (B, ub, pB, …) por los UUID reales.
 create function _t.resolve(p jsonb) returns jsonb language sql as $$
