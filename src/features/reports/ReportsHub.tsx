@@ -9,6 +9,7 @@ import { printDocument } from '../../../utils/printDocument';
 import { APUSummaryReport } from './APUSummaryReport';
 import { BudgetBreakdownReport } from './BudgetBreakdownReport';
 import { ConsolidatedProjectReport } from './ConsolidatedProjectReport';
+import { YieldsErrorBanner, useYieldsBlocked } from '../../../components/YieldsErrorBanner';
 import { buildApuSheets, buildLaborBreakdown, buildPurchaseList, type ReportSource } from './reportData';
 import {
   ApuSheetsDoc, LaborDoc, PurchaseListDoc, QuoteRequestDoc, type DocContext,
@@ -101,6 +102,7 @@ export const ReportsHub: React.FC<{ onNavigate: (tab: string) => void }> = ({ on
   const organizationId = activeOrganizationId ?? user?.organizationId ?? '';
   const role = (user?.role ?? 'worker') as Role;
   const [open, setOpen] = useState<HubReportId | null>(null);
+  const yieldsBlocked = useYieldsBlocked();
   useEffect(() => {
     const intent = takeReportIntent('hub');
     if (intent) setOpen(intent.report);
@@ -119,6 +121,7 @@ export const ReportsHub: React.FC<{ onNavigate: (tab: string) => void }> = ({ on
 
   return (
     <div className="space-y-8 pb-10">
+      <YieldsErrorBanner />
       <div>
         <h1 className="text-2xl font-black text-slate-800 tracking-tight">Reportes</h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -142,7 +145,7 @@ export const ReportsHub: React.FC<{ onNavigate: (tab: string) => void }> = ({ on
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
               {cards.map(card => {
                 const Icon = card.icon;
-                const disabled = card.needsItems && !hasItems;
+                const disabled = card.needsItems && (!hasItems || yieldsBlocked);
                 return (
                   <button
                     key={card.title}
@@ -180,6 +183,7 @@ const ReportViewer: React.FC<{ report: HubReportId; organizationId: string; onBa
   const erp = useERP();
   const sheetRef = useRef<HTMLDivElement>(null);
   const { project } = erp;
+  const yieldsBlocked = useYieldsBlocked();
 
   const src: ReportSource = useMemo(() => ({
     items: project.items,
@@ -224,7 +228,8 @@ const ReportViewer: React.FC<{ report: HubReportId; organizationId: string; onBa
           <ArrowLeft size={16} /> Reportes
         </button>
         <h1 className="text-xl font-black text-slate-800 tracking-tight">{TITLES[report]}</h1>
-        {printable && !empty && (
+        <div className="basis-full"><YieldsErrorBanner /></div>
+        {printable && !empty && !yieldsBlocked && (
           <div className="ml-auto flex items-center gap-2">
             <button onClick={excel} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50">
               <FileSpreadsheet size={16} /> Excel

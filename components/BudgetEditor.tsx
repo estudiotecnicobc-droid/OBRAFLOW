@@ -33,6 +33,7 @@ import { BudgetBusinessPanel } from './BudgetBusinessPanel';
 import { useBudgetKStore, selectBusinessConfig, computeBudgetKSummary } from '../store/useBudgetKStore';
 import { computeBudgetItemSaleBreakdown, BudgetItemSaleBreakdown, ItemDirectCostInput } from '../services/budgetItemBreakdown';
 import { projectsService } from '../services/projectsService';
+import { YieldsErrorBanner, useYieldsBlocked } from './YieldsErrorBanner';
 
 interface BudgetEditorProps {
   onNavigate?: (tab: string) => void;
@@ -52,6 +53,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     budgetItemsLoading,
     tasksLoaded,
   } = useERP();
+  const yieldsBlocked = useYieldsBlocked();
 
   // --- UI STATES ---
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(2); 
@@ -428,7 +430,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
   const handlePrintBudget = () => {
     const el = budgetPrintRef.current;
-    if (!el) return;
+    if (!el || yieldsBlocked) return;
     printDocument({
       title: `${
         printOptions.printMode === 'cliente' ? 'Presupuesto' :
@@ -1159,6 +1161,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   return (
     <div className="flex h-full gap-6 font-sans relative">
       {quickModal}
+      {yieldsBlocked && <div className="absolute top-0 inset-x-0 z-30"><YieldsErrorBanner /></div>}
       
       {/* LEFT SIDEBAR: STAGES SELECTION */}
       <div className="w-72 flex-shrink-0 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-sm h-full print:hidden">
@@ -1552,7 +1555,10 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
           <div className="bg-slate-900 text-white p-6 border-t-4 border-blue-600 shadow-2xl z-10">
               <div className="flex flex-col md:flex-row justify-between items-end gap-6">
                   {/* ... Adjustments Summary ... */}
-                  <div className="flex gap-8 text-right">
+                  {yieldsBlocked && (
+                      <div className="text-xs font-bold text-amber-300 uppercase self-center">Totales no disponibles — sin validar</div>
+                  )}
+                  <div className={`flex gap-8 text-right ${yieldsBlocked ? 'opacity-40' : ''}`}>
                       <div>
                           <div className="text-[10px] font-bold text-slate-400 uppercase">Materiales + Eq</div>
                           <div className="text-lg font-mono font-medium text-blue-300">
@@ -2106,7 +2112,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                               <p className="text-xs text-slate-500">Configure qué columnas desea incluir en el reporte.</p>
                           </div>
                           <div className="flex items-center gap-3">
-                              <button onClick={handlePrintBudget} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-200">
+                              <button onClick={handlePrintBudget} disabled={yieldsBlocked} className="disabled:opacity-50 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-200">
                                   <Printer size={16} /> Imprimir Ahora
                               </button>
                               <button onClick={() => setShowPrintPreview(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-400">
