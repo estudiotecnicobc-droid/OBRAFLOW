@@ -4,6 +4,8 @@ import { calculateUnitPrice } from '../services/calculationService';
 import { MeasurementDrawer } from './MeasurementDrawer';
 import { QuantitySourceBadge } from './QuantitySourceBadge';
 import { getQuantitySource } from '../utils/quantitySource';
+import { officialRubro } from '../src/features/budgets/rubroMap';
+import { sortRubros } from '../src/features/budgets/rubroGroups';
 import { 
   useReactTable, 
   getCoreRowModel, 
@@ -36,7 +38,7 @@ interface GridRow {
 // --- Component ---
 export const BudgetGrid: React.FC = () => {
   const { 
-    project, tasks, materials, rubros,
+    project, tasks, materials,
     addTaskYield, updateMaterial, snapshots, createSnapshot,
     addTaskToolYield, updateTool, updateTask,
     // Indexes
@@ -55,26 +57,25 @@ export const BudgetGrid: React.FC = () => {
   // 1. Data Transformation: Flat List -> Hierarchical (Rubro -> Task)
   const data = useMemo(() => {
     const groups: Record<string, GridRow[]> = {};
-    
-    // Initialize groups for all rubros to ensure order
-    rubros.forEach(r => groups[r] = []);
-    groups['Sin Categoría'] = [];
 
     project.items.forEach(item => {
       const task = tasks.find(t => t.id === item.taskId);
       if (!task) return;
 
       const analysis = calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap, 9, taskLaborYieldsIndex);
-      const category = task.category && rubros.includes(task.category) ? task.category : 'Sin Categoría';
-      
+      // Mismo rubro que «Ítems y presupuesto» (normaliza familias de APU, tildes y mayúsculas).
+      const category = officialRubro(task.category, task.name);
+      // Misma fórmula que «Ítems y presupuesto»: suma de componentes ya redondeados (evita diferencias de $0,01).
+      const unitPrice = analysis.materialCost + analysis.toolCost + analysis.fixedCost + analysis.laborCost;
+
       const gridRow: GridRow = {
         id: item.id,
         type: 'task',
         name: task.name,
         unit: task.unit,
         quantity: item.quantity,
-        unitPrice: analysis.totalUnitCost,
-        totalPrice: analysis.totalUnitCost * item.quantity,
+        unitPrice,
+        totalPrice: unitPrice * item.quantity,
         originalItem: { ...item, taskData: task },
       };
 
@@ -85,7 +86,7 @@ export const BudgetGrid: React.FC = () => {
     // Flatten to: Rubro Header -> Task Rows
     // In TanStack Table, we can use subRows for true tree structure.
     const result: GridRow[] = [];
-    Object.keys(groups).forEach(rubro => {
+    sortRubros(Object.keys(groups)).forEach(rubro => {
       if (groups[rubro].length > 0) {
         const rubroTotal = groups[rubro].reduce((sum, row) => sum + row.totalPrice, 0);
         result.push({
@@ -102,7 +103,7 @@ export const BudgetGrid: React.FC = () => {
     });
 
     return result;
-  }, [project.items, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, rubros, taskCrewYieldsIndex, crewsMap, laborCategoriesMap]);
+  }, [project.items, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap]);
 
   // 2. Total Project Cost Calculation
   const totalProjectCost = useMemo(() => 
@@ -132,9 +133,9 @@ export const BudgetGrid: React.FC = () => {
             <span className={isRubro ? 'font-bold text-slate-800 uppercase text-xs tracking-wider' : 'font-medium text-slate-700 text-sm'}>
               {getValue() as string}
             </span>
-            {!isRubro && row.original.type === 'task' && (
+            {!isRubro && row.original.type === 'task' && row.original.originalItem.taskData.code && (
                 <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 rounded border border-slate-200">
-                    {row.original.originalItem.taskData.code || row.original.originalItem.taskData.id.substring(0,4)}
+                    {row.original.originalItem.taskData.code}
                 </span>
             )}
           </div>

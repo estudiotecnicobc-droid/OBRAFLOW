@@ -10,6 +10,7 @@ const strip = (s: string) =>
 /** Categorías de APU (familias) que no son rubros y su rubro oficial. */
 const FAMILY: Record<string, string> = {
   'cielorrasos': '13', 'cubiertas': '16', 'estructura de hormigon armado': '05', 'estructura ha': '05',
+  'estructura h.a.': '05', 'estructura h°a°': '05',
   'fundaciones': '04', 'hormigones': '92', 'mamposteria': '06', 'morteros': '91', 'mezclas': '91',
   'movimiento de suelos': '03', 'pinturas': '34', 'pintura': '34', 'revestimientos': '14', 'revoques': '08',
   'demoliciones': '01', 'zocalos': '12', 'carpetas': '10', 'contrapisos': '09', 'pisos': '11',
