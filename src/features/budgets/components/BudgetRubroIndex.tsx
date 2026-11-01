@@ -2,9 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart3, Check, ChevronsDownUp, ChevronsUpDown, Layers, ListOrdered, ListTree, Plus, Rows3, Search, X,
 } from 'lucide-react';
-import {
-  groupRubros, loadIndexView, rubroCode, rubroLabel, saveIndexView, type RubroIndexView,
-} from '../rubroGroups';
+import { arrangeRubros, groupRubros, rubroCode, rubroLabel, type RubroIndexView } from '../rubroGroups';
+
+export interface RubroIndexPref {
+  view: RubroIndexView;
+  compact: boolean;
+}
 
 export interface RubroIndexEntry {
   rubro: string;
@@ -23,6 +26,8 @@ interface Props {
   onRemove: (rubro: string) => void;
   onExpandAll: () => void;
   onCollapseAll: () => void;
+  pref: RubroIndexPref;
+  onPrefChange: (pref: RubroIndexPref) => void;
 }
 
 const compactFmt = new Intl.NumberFormat('es-AR', { notation: 'compact', maximumFractionDigits: 1 });
@@ -34,20 +39,17 @@ const codeText = (rubro: string) => {
 };
 
 const VIEWS: { id: RubroIndexView; label: string; icon: React.ElementType; hint: string }[] = [
-  { id: 'codigo', label: 'Código', icon: ListOrdered, hint: 'Ordenar por código de rubro' },
-  { id: 'etapas', label: 'Etapas', icon: Layers, hint: 'Agrupar por etapa de obra, con subtotal' },
-  { id: 'incidencia', label: 'Incidencia', icon: BarChart3, hint: 'Ordenar de mayor a menor monto' },
+  { id: 'codigo', label: 'Código', icon: ListOrdered, hint: 'Índice y tabla por código de rubro' },
+  { id: 'etapas', label: 'Etapas', icon: Layers, hint: 'Índice y tabla agrupados por etapa de obra, con subtotal' },
+  { id: 'incidencia', label: 'Incidencia', icon: BarChart3, hint: 'Índice y tabla de mayor a menor monto' },
 ];
 
 export const BudgetRubroIndex: React.FC<Props> = ({
-  entries, total, amountLabel, allRubros, activeRubro, onJump, onAdd, onRemove, onExpandAll, onCollapseAll,
+  entries, total, amountLabel, allRubros, activeRubro, onJump, onAdd, onRemove, onExpandAll, onCollapseAll, pref, onPrefChange,
 }) => {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [pref, setPref] = useState(loadIndexView);
   const searchRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => saveIndexView(pref), [pref]);
 
   useEffect(() => {
     if (pickerOpen) searchRef.current?.focus();
@@ -56,20 +58,7 @@ export const BudgetRubroIndex: React.FC<Props> = ({
 
   const inIndex = useMemo(() => new Set(entries.map(e => e.rubro)), [entries]);
 
-  const sections = useMemo(() => {
-    if (pref.view === 'incidencia') {
-      const sorted = [...entries].sort((a, b) => b.amount - a.amount || a.rubro.localeCompare(b.rubro));
-      return [{ label: '', amount: total, entries: sorted }];
-    }
-    if (pref.view === 'etapas') {
-      const byRubro = new Map<string, RubroIndexEntry>(entries.map(e => [e.rubro, e]));
-      return groupRubros(entries.map(e => e.rubro), true).map(g => {
-        const groupEntries = g.rubros.map(r => byRubro.get(r)!);
-        return { label: g.label, amount: groupEntries.reduce((s, e) => s + e.amount, 0), entries: groupEntries };
-      });
-    }
-    return [{ label: '', amount: total, entries }];
-  }, [entries, pref.view, total]);
+  const sections = useMemo(() => arrangeRubros(entries, pref.view), [entries, pref.view]);
 
   const pickerGroups = useMemo(() => {
     const q = norm(query.trim());
@@ -152,7 +141,7 @@ export const BudgetRubroIndex: React.FC<Props> = ({
                   role="radio"
                   aria-checked={on}
                   title={v.hint}
-                  onClick={() => setPref(p => ({ ...p, view: v.id }))}
+                  onClick={() => onPrefChange({ ...pref, view: v.id })}
                   className={`flex-1 flex items-center justify-center gap-1 h-7 rounded-md text-[11px] font-bold transition-colors ${on ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   <v.icon size={12} /> {v.label}
@@ -163,7 +152,7 @@ export const BudgetRubroIndex: React.FC<Props> = ({
         </div>
         <div className="flex items-center justify-between">
           <button
-            onClick={() => setPref(p => ({ ...p, compact: !p.compact }))}
+            onClick={() => onPrefChange({ ...pref, compact: !pref.compact })}
             aria-pressed={pref.compact}
             title="Lista compacta: una línea por rubro"
             className={`flex items-center gap-1 px-2 h-7 rounded-md text-[11px] font-bold transition-colors ${pref.compact ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-100'}`}

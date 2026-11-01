@@ -36,7 +36,7 @@ import { projectsService } from '../services/projectsService';
 import { YieldsErrorBanner, useYieldsBlocked } from './YieldsErrorBanner';
 import { TaskTechnicalDetail, RubroBanner } from '../src/features/catalog-media/TaskTechnicalDetail';
 import { BudgetRubroIndex } from '../src/features/budgets/components/BudgetRubroIndex';
-import { loadPinnedRubros, savePinnedRubros, sortRubros } from '../src/features/budgets/rubroGroups';
+import { arrangeRubros, loadIndexView, loadPinnedRubros, saveIndexView, savePinnedRubros, sortRubros } from '../src/features/budgets/rubroGroups';
 
 interface BudgetEditorProps {
   onNavigate?: (tab: string) => void;
@@ -63,6 +63,9 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   // Rubros fijados en el índice (incluye rubros vacíos que agregó el usuario); por proyecto.
   const [pinnedRubros, setPinnedRubros] = useState<string[]>(() => loadPinnedRubros(project.id));
   const [activeRubro, setActiveRubro] = useState<string | undefined>(undefined);
+  // Vista del índice (código / etapas / incidencia): ordena índice y tabla.
+  const [indexPref, setIndexPref] = useState(loadIndexView);
+  useEffect(() => saveIndexView(indexPref), [indexPref]);
   const [globalAdjustment, setGlobalAdjustment] = useState<number>(0); 
   const [expandedRubros, setExpandedRubros] = useState<Set<string>>(new Set(rubros)); 
   const [managePresetsMode, setManagePresetsMode] = useState(false);
@@ -671,6 +674,13 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     return { rubro, count: rows.length, amount };
   }), [visibleRubros, budgetData, breakdownByItemId, tableViewMode]);
 
+  /** Rubros de la tabla en el orden de la vista elegida; en «Etapas», con encabezado por etapa. */
+  const tableRubroSections = useMemo(
+    () => arrangeRubros(rubroIndexEntries, indexPref.view),
+    [rubroIndexEntries, indexPref.view],
+  );
+  const tableTotal = tableViewMode === 'comercial' ? budgetKSummary.finalSalePrice : grandTotals.subtotal;
+
   // ── Todos los rubros a mostrar en sidebar = ERPContext + categorías dinámicas ──
   const allSidebarRubros = useMemo(() => {
     const extra = new Set<string>();
@@ -1219,7 +1229,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
       {/* LEFT SIDEBAR: ÍNDICE DE RUBROS */}
       <BudgetRubroIndex
         entries={rubroIndexEntries}
-        total={tableViewMode === 'comercial' ? budgetKSummary.finalSalePrice : grandTotals.subtotal}
+        total={tableTotal}
         amountLabel={tableViewMode === 'comercial' ? 'Precio de venta' : 'Costo directo'}
         allRubros={allSidebarRubros}
         activeRubro={activeRubro}
@@ -1228,6 +1238,8 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
         onRemove={removeRubroFromIndex}
         onExpandAll={() => setExpandedRubros(new Set(visibleRubros))}
         onCollapseAll={() => setExpandedRubros(new Set())}
+        pref={indexPref}
+        onPrefChange={setIndexPref}
       />
 
       {/* MAIN CONTENT */}
@@ -1386,13 +1398,28 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                           </tr>
                       </thead>
                       <tbody>
-                          {visibleRubros.map((rubro: string) => {
+                          {tableRubroSections.flatMap(section => section.entries.map((entry, entryIdx) => {
+                              const rubro = entry.rubro;
                               const items = budgetData.grouped[rubro] || [];
                               const isExpanded = expandedRubros.has(rubro);
                               const totals = budgetData.categoryTotals[rubro];
 
                               return (
                                   <React.Fragment key={rubro}>
+                                      {/* ETAPA HEADER (vista «Etapas») */}
+                                      {section.label && entryIdx === 0 && (
+                                          <tr className="bg-slate-100 border-y border-slate-300">
+                                              <td colSpan={tableViewMode === 'tecnico' ? 9 : 6} className="px-4 py-2">
+                                                  <div className="flex items-baseline justify-between text-xs">
+                                                      <span className="font-black uppercase tracking-wider text-slate-600">{section.label}</span>
+                                                      <span className="font-mono font-bold text-slate-700">
+                                                          ${section.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                          <span className="ml-2 text-slate-400 font-normal">{tableTotal > 0 ? ((section.amount / tableTotal) * 100).toFixed(1) : '0.0'}%</span>
+                                                      </span>
+                                                  </div>
+                                              </td>
+                                          </tr>
+                                      )}
                                       {/* RUBRO HEADER */}
                                       <tr data-rubro-row={rubro} className="bg-slate-800 text-white cursor-pointer hover:bg-slate-700 transition-colors scroll-mt-12" onClick={() => toggleRubroExpansion(rubro)}>
                                           <td colSpan={1} className="p-2 pl-4 font-bold text-sm flex items-center gap-2 uppercase tracking-wide">
@@ -1558,7 +1585,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                       )}
                                   </React.Fragment>
                               );
-                          })}
+                          }))}
                       </tbody>
                   </table>
               </div>

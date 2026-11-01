@@ -12,7 +12,10 @@ El panel «Etapas de obra» listaba los 44 rubros (incluidos los auxiliares 90�
 
 ## Iteración 2
 - El índice queda fijo (sticky) al desplazarse por la tabla.
-- Barra superior: vistas «Código», «Etapas» (agrupado con subtotal y % por etapa) e «Incidencia» (mayor a menor monto); modo «Compacta»; expandir/contraer todos los rubros de la tabla. Preferencia de vista en localStorage (`obraflow:budget-index-view`). La tabla y la impresión siguen ordenadas por código.
+- Barra superior: vistas «Código», «Etapas» (agrupado con subtotal y % por etapa) e «Incidencia» (mayor a menor monto); modo «Compacta»; expandir/contraer todos los rubros de la tabla. Preferencia de vista en localStorage (`obraflow:budget-index-view`).
+
+## Iteración 3
+- La tabla sigue la vista del índice (`arrangeRubros`, compartido): por código, por incidencia o agrupada por etapa con una fila de encabezado (subtotal y %). La impresión sigue por código.
 
 ## Archivos
 - `src/features/budgets/rubroGroups.ts` (grupos, orden, persistencia)

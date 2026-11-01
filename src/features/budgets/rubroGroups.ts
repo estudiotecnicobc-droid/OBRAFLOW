@@ -58,6 +58,36 @@ export function groupRubros(rubros: Iterable<string>, includeAll = false): Rubro
 }
 
 export type RubroIndexView = 'codigo' | 'etapas' | 'incidencia';
+
+export interface RubroSection<T> {
+  label: string;
+  amount: number;
+  entries: T[];
+}
+
+/**
+ * Ordena rubros según la vista: por código, agrupados por etapa (con subtotal)
+ * o por monto descendente. Comparte el orden entre índice y tabla.
+ */
+export function arrangeRubros<T extends { rubro: string; amount: number }>(
+  entries: T[], view: RubroIndexView,
+): RubroSection<T>[] {
+  const total = entries.reduce((s, e) => s + e.amount, 0);
+  const byRubro = new Map<string, T>(entries.map(e => [e.rubro, e]));
+  const byCode = sortRubros(entries.map(e => e.rubro));
+  if (view === 'incidencia') {
+    const pos = new Map(byCode.map((r, i) => [r, i]));
+    const sorted = [...entries].sort((a, b) => b.amount - a.amount || pos.get(a.rubro)! - pos.get(b.rubro)!);
+    return [{ label: '', amount: total, entries: sorted }];
+  }
+  if (view === 'etapas') {
+    return groupRubros(byCode, true).map(g => {
+      const groupEntries = g.rubros.map(r => byRubro.get(r)!);
+      return { label: g.label, amount: groupEntries.reduce((s, e) => s + e.amount, 0), entries: groupEntries };
+    });
+  }
+  return [{ label: '', amount: total, entries: byCode.map(r => byRubro.get(r)!) }];
+}
 const VIEW_KEY = 'obraflow:budget-index-view';
 
 export function loadIndexView(): { view: RubroIndexView; compact: boolean } {

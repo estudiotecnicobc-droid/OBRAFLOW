@@ -13,3 +13,5 @@
 - [ ] Bajar hasta las últimas tareas del presupuesto: el índice queda fijo a la vista.
 - [ ] Vistas «Código», «Etapas» (grupos con subtotal y %) e «Incidencia» (mayor a menor); «Compacta» deja una línea por rubro. La elección se recuerda al recargar.
 - [ ] Botones expandir/contraer: abren o cierran todos los rubros de la tabla.
+- [ ] Vista «Etapas»: la tabla muestra una fila por etapa (subtotal y %) y sus rubros debajo. «Incidencia»: la tabla queda de mayor a menor. «Código»: vuelve al orden normal.
+- [ ] Con cualquier vista, imprimir: el presupuesto impreso sale por código.
