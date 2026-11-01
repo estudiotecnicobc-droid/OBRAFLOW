@@ -43,7 +43,7 @@ import { APUCompositionPanel } from './APUCompositionPanel';
 import { buildApuComposition } from '../utils/apuComposition';
 import { QuantitySourceBadge } from './QuantitySourceBadge';
 import { getQuantitySource, consumePendingHighlight } from '../utils/quantitySource';
-import { analyzeBudgetHealth, type HealthRow } from '../utils/budgetHealth';
+import { analyzeBudgetHealth, ignoreKey, type HealthIssueId, type HealthRow } from '../utils/budgetHealth';
 import { BudgetHealthBar } from './BudgetHealthBar';
 
 interface BudgetEditorProps {
@@ -628,10 +628,35 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     return out;
   }, [budgetData, yieldsIndex, materialsMap, taskLaborYieldsIndex, laborCategoriesMap, toolYieldsIndex, toolsMap, measurementSheets]);
 
+  // Avisos descartados por el usuario («no es un error»), por obra y en este navegador.
+  const ignoredKey = `obraflow_health_ignored_${project.id}`;
+  const [ignoredHealth, setIgnoredHealth] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try { setIgnoredHealth(new Set(JSON.parse(localStorage.getItem(ignoredKey) || '[]'))); }
+    catch { setIgnoredHealth(new Set()); }
+  }, [ignoredKey]);
+  const saveIgnored = (next: Set<string>) => {
+    setIgnoredHealth(next);
+    try { localStorage.setItem(ignoredKey, JSON.stringify([...next])); } catch { /* sin almacenamiento local */ }
+  };
+  const ignoreHealthIssue = (issueId: HealthIssueId, itemId: string) =>
+    saveIgnored(new Set([...ignoredHealth, ignoreKey(issueId, itemId)]));
+
   const healthIssues = useMemo(
-    () => analyzeBudgetHealth(healthRows, { surface: project.surface }),
-    [healthRows, project.surface],
+    () => analyzeBudgetHealth(healthRows, { surface: project.surface, ignored: ignoredHealth }),
+    [healthRows, project.surface, ignoredHealth],
   );
+  const healthItemNames = useMemo(
+    () => Object.fromEntries(healthRows.map(r => [r.itemId, r.name])),
+    [healthRows],
+  );
+  // Ítems descartados que siguen en el presupuesto (los de ítems borrados no cuentan).
+  const ignoredHealthCount = useMemo(() => {
+    const present = new Set(healthRows.map(r => r.itemId));
+    return [...ignoredHealth].filter(k => present.has(k.slice(k.indexOf(':') + 1))).length;
+  }, [ignoredHealth, healthRows]);
+  // Ítem que se está revisando desde la franja: se marca más fuerte que el resto.
+  const [focusItemId, setFocusItemId] = useState<string | null>(null);
 
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (highlightTimer.current) clearTimeout(highlightTimer.current); }, []);
@@ -639,13 +664,15 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   // Despliega los rubros de los ítems, los resalta y lleva la vista al ítem `index`.
   const revealItems = (itemIds: string[], index: number) => {
     const ids = new Set(itemIds);
+    // Solo se despliega el rubro del ítem actual; los demás se abren al avanzar.
     const rubrosToOpen = Object.entries(budgetData.grouped)
-      .filter(([, rows]) => (rows as any[]).some(r => ids.has(r.item.id)))
+      .filter(([, rows]) => (rows as any[]).some(r => r.item.id === itemIds[index]))
       .map(([rubro]) => rubro);
     setExpandedRubros(prev => new Set([...prev, ...rubrosToOpen]));
     setHighlightIds(ids);
+    setFocusItemId(itemIds[index] ?? null);
     if (highlightTimer.current) clearTimeout(highlightTimer.current);
-    highlightTimer.current = setTimeout(() => setHighlightIds(new Set()), 8000);
+    highlightTimer.current = setTimeout(() => { setHighlightIds(new Set()); setFocusItemId(null); }, 8000);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       document.querySelector(`[data-budget-item-id="${itemIds[index]}"]`)
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1483,7 +1510,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
           {/* STALENESS ALERT */}
           {!showComparison && project.id && project.id !== '__phantom__' && project.organizationId && (
-              <div className="px-6 pt-3">
+              <div className="px-6 pt-3 shrink-0">
                   <BudgetStalenessAlert
                       projectId={project.id}
                       organizationId={project.organizationId}
@@ -1494,8 +1521,16 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
           {/* SALUD DEL PRESUPUESTO */}
           {/* Mientras cargan los rendimientos los precios no son confiables: no se evalúa. */}
           {!showComparison && !yieldsBlocked && (
-              <div className="px-6 pt-3">
-                  <BudgetHealthBar issues={healthIssues} itemCount={healthRows.length} onShow={revealItems} />
+              <div className="px-6 pt-3 shrink-0">
+                  <BudgetHealthBar
+                      issues={healthIssues}
+                      itemCount={healthRows.length}
+                      itemNames={healthItemNames}
+                      ignoredCount={ignoredHealthCount}
+                      onShow={revealItems}
+                      onIgnore={ignoreHealthIssue}
+                      onResetIgnored={() => saveIgnored(new Set())}
+                  />
               </div>
           )}
 
@@ -1600,7 +1635,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                               ) : (
                                                   <>
                                                     {items.map((row, rowIndex) => (
-                                                        <tr key={row.item.id} data-budget-item-id={row.item.id} className={`border-b border-slate-100 hover:bg-blue-50/30 transition-colors group ${highlightIds.has(row.item.id) ? 'bg-teal-50 ring-2 ring-inset ring-teal-300' : ''}`}>
+                                                        <tr key={row.item.id} data-budget-item-id={row.item.id} className={`border-b border-slate-100 hover:bg-blue-50/30 transition-colors group ${focusItemId === row.item.id ? 'bg-teal-100 ring-2 ring-inset ring-teal-600' : highlightIds.has(row.item.id) ? 'bg-teal-50 ring-2 ring-inset ring-teal-300' : ''}`}>
                                                             {/* Description */}
                                                             <td className="p-2 pl-8">
                                                                 <div className="font-medium text-slate-700 text-xs max-w-[24rem]">{row.task.name}</div>

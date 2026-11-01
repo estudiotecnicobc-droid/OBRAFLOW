@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeBudgetHealth, findUnitPriceOutliers, looksLikeCommaError, normalizeUnit, type HealthRow } from '../../utils/budgetHealth';
+import { analyzeBudgetHealth, findUnitPriceOutliers, ignoreKey, looksLikeCommaError, normalizeUnit, type HealthRow } from '../../utils/budgetHealth';
 
 const row = (over: Partial<HealthRow> & { itemId: string }): HealthRow => ({
   name: 'Tarea', unit: 'm2', quantity: 10, unitCost: 1000, total: 10000, apuHasMissing: false, ...over,
@@ -137,5 +137,22 @@ describe('analyzeBudgetHealth', () => {
       row({ itemId: 'd', unitLabor: 0, unitCost: 0, total: 0 }),
     ]);
     expect(r.sin_mano_obra.itemIds).toEqual(['a']);
+  });
+
+  it('P.U. atípico: tarea repetida no arrastra la referencia (caso 03 de Casa Ciro)', () => {
+    const exc = (itemId: string, unitCost: number) => row({ itemId, rubro: '03 Movimiento de suelos', unit: 'm3', unitCost });
+    const rows = [
+      exc('cielo1', 201_636), exc('cielo2', 201_636), exc('cielo3', 201_636),
+      exc('pozos', 15_702.25), exc('zanjas', 19_903), exc('otra', 66_534),
+    ];
+    expect(findUnitPriceOutliers(rows)).toEqual(['cielo1', 'cielo2', 'cielo3']);
+  });
+
+  it('avisos descartados por ítem', () => {
+    const rows = [row({ itemId: 'volq', unitLabor: 0 }), row({ itemId: 'muro', unitLabor: 0 })];
+    const r = Object.fromEntries(analyzeBudgetHealth(rows, { ignored: new Set([ignoreKey('sin_mano_obra', 'volq')]) }).map(i => [i.id, i]));
+    expect(r.sin_mano_obra.itemIds).toEqual(['muro']);
+    expect(r.sin_mano_obra.title).toBe('1 ítem sin mano de obra');
+    expect(analyzeBudgetHealth([rows[0]], { ignored: new Set([ignoreKey('sin_mano_obra', 'volq')]) })).toEqual([]);
   });
 });

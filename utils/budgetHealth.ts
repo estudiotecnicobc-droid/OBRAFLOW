@@ -52,7 +52,7 @@ export const CONCENTRATION_MIN_ITEMS = 5;
 /** Cantidad máxima razonable por m² de superficie de la obra, según la unidad del ítem. */
 /** Un P.U. que se aparta más de este factor de la mediana de su grupo (mismo rubro y unidad) es atípico. */
 export const PU_OUTLIER_FACTOR = 5;
-/** Mínimo de ítems en el grupo para calcular una mediana confiable. */
+/** Mínimo de precios distintos en el grupo para comparar. */
 export const PU_OUTLIER_MIN_GROUP = 4;
 export const MAX_QTY_PER_SURFACE: Record<'m2' | 'm3' | 'ml', number> = { m2: 12, m3: 3, ml: 25 };
 
@@ -78,7 +78,11 @@ const median = (xs: number[]) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
-/** Ítems cuyo P.U. se aparta más de `PU_OUTLIER_FACTOR` veces de la mediana de su rubro y unidad. */
+/**
+ * Ítems cuyo P.U. se aparta más de `PU_OUTLIER_FACTOR` veces de los demás ítems de su rubro y unidad.
+ * Se compara cada precio con la mediana de los OTROS precios distintos del grupo: así una tarea
+ * repetida (tres ítems con el mismo P.U.) cuenta una sola vez y no arrastra la referencia.
+ */
 export function findUnitPriceOutliers(rows: HealthRow[]): string[] {
   const groups = new Map<string, HealthRow[]>();
   for (const r of rows) {
@@ -86,12 +90,14 @@ export function findUnitPriceOutliers(rows: HealthRow[]): string[] {
     const key = `${r.rubro}|${normalizeUnit(r.unit) ?? (r.unit || '').toLowerCase().trim()}`;
     groups.set(key, [...(groups.get(key) ?? []), r]);
   }
+  const cents = (x: number) => Math.round(x * 100);
   const out: string[] = [];
   for (const g of groups.values()) {
-    if (g.length < PU_OUTLIER_MIN_GROUP) continue;
-    const med = median(g.map(r => r.unitCost));
+    const distinct = [...new Set(g.map(r => cents(r.unitCost)))];
+    if (distinct.length < PU_OUTLIER_MIN_GROUP) continue;
     for (const r of g) {
-      const ratio = r.unitCost / med;
+      const ref = median(distinct.filter(c => c !== cents(r.unitCost)));
+      const ratio = cents(r.unitCost) / ref;
       if (ratio > PU_OUTLIER_FACTOR || ratio < 1 / PU_OUTLIER_FACTOR) out.push(r.itemId);
     }
   }
@@ -100,11 +106,18 @@ export function findUnitPriceOutliers(rows: HealthRow[]): string[] {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-export function analyzeBudgetHealth(rows: HealthRow[], opts: { surface?: number } = {}): HealthIssue[] {
+/** Clave de un aviso descartado por el usuario para un ítem. */
+export const ignoreKey = (issueId: HealthIssueId, itemId: string) => `${issueId}:${itemId}`;
+
+export function analyzeBudgetHealth(
+  rows: HealthRow[],
+  opts: { surface?: number; ignored?: ReadonlySet<string> } = {},
+): HealthIssue[] {
   const ids = (pred: (r: HealthRow) => boolean) => rows.filter(pred).map(r => r.itemId);
   const issues: HealthIssue[] = [];
   const push = (issue: Omit<HealthIssue, 'title'> & { title: (n: number) => string }) => {
-    if (issue.itemIds.length) issues.push({ ...issue, title: issue.title(issue.itemIds.length) });
+    const itemIds = opts.ignored ? issue.itemIds.filter(id => !opts.ignored!.has(ignoreKey(issue.id, id))) : issue.itemIds;
+    if (itemIds.length) issues.push({ ...issue, itemIds, title: issue.title(itemIds.length) });
   };
 
   const isOutOfSync = (r: HealthRow) =>
