@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200"><rect width="320" height="200" rx="14" fill="#eef2f7"/>
-<rect x="50" y="34" width="220" height="12" fill="#9aa5b1"/>
-<g stroke="#1f2933" stroke-width="3"><line x1="110" y1="46" x2="110" y2="86"/><line x1="210" y1="46" x2="210" y2="86"/></g>
-<rect x="50" y="86" width="220" height="5" fill="#1f2933"/><rect x="50" y="91" width="220" height="9" fill="#ffffff" stroke="#334e68" stroke-width="1.5"/>
-<g fill="#f5c76b"><circle cx="110" cy="104" r="4"/><circle cx="210" cy="104" r="4"/></g>
-<path d="M50 100 V150 M270 100 V150" stroke="#9aa5b1" stroke-width="3"/>
-<text x="160" y="172" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#3e4c59">Cielorrasos</text></svg>
