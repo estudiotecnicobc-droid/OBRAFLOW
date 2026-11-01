@@ -52,6 +52,11 @@ export interface ComputationImportResult {
   noAPUPayloads: NoAPUPayload[];
   /** Nombres omitidos por ya existir en el presupuesto. */
   skippedNames:  string[];
+  /**
+   * Ítems que ya existen en el presupuesto: cantidad total del cómputo por tarea
+   * (sumada si el cómputo trae varias líneas de la misma tarea), para actualizar en vez de omitir.
+   */
+  existingUpdates: { nameKey: string; quantity: number; computationItemId?: string }[];
 }
 
 // ── Función principal ─────────────────────────────────────────────────────────
@@ -112,6 +117,7 @@ export function buildComputationImportPayloads(
   const payloads:      ImportMasterTaskPayload[] = [];
   const noAPUPayloads: NoAPUPayload[]            = [];
   const skippedNames:  string[]                  = [];
+  const existingByName = new Map<string, { nameKey: string; quantity: number; computationItemId?: string }>();
 
   for (const item of items) {
     const nameKey = item.taskNombre.trim().toLowerCase();
@@ -119,6 +125,12 @@ export function buildComputationImportPayloads(
     // Dedup: ya existe en el presupuesto → omitir
     if (existingBudgetTaskNames.has(nameKey)) {
       skippedNames.push(item.taskNombre);
+      const prev = existingByName.get(nameKey);
+      existingByName.set(nameKey, {
+        nameKey,
+        quantity: (prev?.quantity ?? 0) + item.quantity,
+        computationItemId: prev?.computationItemId ?? computationItemIdMap[item.itemId],
+      });
       continue;
     }
 
@@ -184,5 +196,5 @@ export function buildComputationImportPayloads(
     }
   }
 
-  return { payloads, noAPUPayloads, skippedNames };
+  return { payloads, noAPUPayloads, skippedNames, existingUpdates: [...existingByName.values()] };
 }

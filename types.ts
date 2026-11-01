@@ -327,7 +327,7 @@ export interface BudgetItem {
   sortOrder?: number;
 
   /** Vínculo opcional al computation_item de origen (Calculadora Chandías). Solo trazabilidad. */
-  computationItemId?: string;
+  computationItemId?: string | null;
 }
 
 // ─── Sincronización Viva ───────────────────────────────────────────────────────
