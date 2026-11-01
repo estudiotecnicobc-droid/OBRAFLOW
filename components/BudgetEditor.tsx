@@ -383,8 +383,26 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   // --- MASTER APU EDITOR STATE ---
   const [apuEditorTaskId, setApuEditorTaskId] = useState<string | null>(null);
   const [editingQuantityId, setEditingQuantityId] = useState<string | null>(null);
-  // Al bajar por la tabla se compactan la barra superior y los totales para dejar más filas a la vista.
+  // Al bajar por la tabla los totales se achican (solo visual: scale). Histéresis + rAF + bloqueo
+  // de 200 ms tras cada cambio para que ningún recorte de scrollTop vuelva a disparar el cambio.
   const [tableScrolled, setTableScrolled] = useState(false);
+  const scrollRaf = useRef(0);
+  const scrollLockUntil = useRef(0);
+  const onTableScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (scrollRaf.current) return;
+    scrollRaf.current = requestAnimationFrame(() => {
+      scrollRaf.current = 0;
+      if (performance.now() < scrollLockUntil.current) return;
+      const top = el.scrollTop;
+      setTableScrolled(prev => {
+        const next = prev ? top >= 8 : top > 80;
+        if (next !== prev) scrollLockUntil.current = performance.now() + 200;
+        return next;
+      });
+    });
+  }, []);
+  useEffect(() => () => cancelAnimationFrame(scrollRaf.current), []);
   // Alto de los paneles (índice y presupuesto) = espacio visible de <main> debajo de las pestañas,
   // para que el final de ambos (totales, Cuadro empresario, «Agregar rubro») entre sin scrollear la página.
   const [editorRoot, setEditorRoot] = useState<HTMLDivElement | null>(null);
@@ -1290,14 +1308,9 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
         className="flex-1 min-w-0 flex flex-col h-full md:sticky md:top-4 md:h-[var(--panel-h,calc(100dvh-2rem))] bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden relative print:hidden">
           
           {/* HEADER & STEPPER */}
-          <div className={`border-b border-slate-100 transition-[padding] ${tableScrolled ? 'px-6 py-2' : 'p-6'}`}>
-              <div className="flex flex-wrap justify-between items-end gap-3">
-                  <div className={tableScrolled ? 'hidden' : ''}>
-                      <h1 className="text-2xl font-black text-slate-800 tracking-tight">Cómputo y Presupuesto Profesional</h1>
-                      <div className="text-sm text-slate-500 mt-1 flex items-center gap-2">
-                          <Clock size={14} /> Última actualización: {new Date().toLocaleDateString()}
-                      </div>
-                  </div>
+          {/* Barra de botones: alto constante. El título va dentro del área que scrollea. */}
+          <div className="border-b border-slate-100 px-6 py-3">
+              <div className="flex flex-wrap justify-end items-center gap-3">
                   <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
                       <div className="flex items-center rounded-lg overflow-hidden border border-slate-200 text-xs font-bold">
                           <button
@@ -1383,6 +1396,12 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
           {/* COMPARISON PANEL */}
           {showComparison && (
               <div className="flex-1 min-h-0 overflow-auto bg-slate-50/50 p-6">
+                  <div className="mb-4">
+                      <h1 className="text-2xl font-black text-slate-800 tracking-tight">Cómputo y Presupuesto Profesional</h1>
+                      <div className="text-sm text-slate-500 mt-1 flex items-center gap-2">
+                          <Clock size={14} /> Última actualización: {new Date().toLocaleDateString()}
+                      </div>
+                  </div>
                   <div role="tablist" aria-label="Tipo de comparación" className="flex flex-wrap gap-1 border-b border-slate-200 mb-6">
                       {([['index', 'Actualizar por índice (CAC, ICC, inflación, dólar)'], ['dates', 'Comparar precios de la base entre dos fechas']] as const).map(([id, label]) => (
                           <button
@@ -1419,9 +1438,16 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
           {/* TABLE CONTENT */}
           {/* La tabla scrollea dentro del panel (alto de pantalla en desktop) y el encabezado queda fijo. */}
-          {!showComparison && <div className="flex-1 min-h-0 overflow-auto bg-slate-50/50 p-6 pt-0"
-              onScroll={e => { const s = e.currentTarget.scrollTop > 24; if (s !== tableScrolled) setTableScrolled(s); }}>
-              <div className="mt-6 w-max min-w-full bg-white border border-slate-200 shadow-sm rounded-lg overflow-clip">
+          {/* El título se va con el contenido; la fila de columnas es sticky en este mismo contenedor
+              (vertical y horizontal). Nada de lo que cambia al scrollear altera el alto de este contenedor. */}
+          {!showComparison && <div className="flex-1 min-h-0 overflow-auto bg-slate-50/50 p-6 pt-0" onScroll={onTableScroll}>
+              <div className="sticky left-6 pt-5 pb-1">
+                  <h1 className="text-2xl font-black text-slate-800 tracking-tight">Cómputo y Presupuesto Profesional</h1>
+                  <div className="text-sm text-slate-500 mt-1 flex items-center gap-2">
+                      <Clock size={14} /> Última actualización: {new Date().toLocaleDateString()}
+                  </div>
+              </div>
+              <div className="mt-4 w-max min-w-full bg-white border border-slate-200 shadow-sm rounded-lg overflow-clip">
                   <table className="w-full text-left border-collapse">
                       <thead className="sticky top-0 z-20 shadow-[0_1px_0_0_rgb(226_232_240),0_2px_4px_-2px_rgb(15_23_42/0.15)]">
                           <tr className="bg-slate-100 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-200">
@@ -1657,13 +1683,13 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
           </div>}
 
           {/* FOOTER TOTALS */}
-          <div className={`bg-slate-900 text-white border-t-4 border-blue-600 shadow-2xl z-10 transition-[padding] ${tableScrolled ? 'px-6 py-2' : 'p-6'}`}>
-              <div className="flex flex-col md:flex-row md:flex-wrap justify-between items-end gap-x-6 gap-y-2">
-                  {/* ... Adjustments Summary ... */}
+          {/* Alto fijo en desktop: el achique al scrollear es solo visual (transform), nunca cambia el layout. */}
+          <div className="bg-slate-900 text-white border-t-4 border-blue-600 shadow-2xl z-10 px-6 py-4 md:py-0 md:h-[76px] shrink-0 overflow-hidden">
+              <div className="h-full flex flex-col md:flex-row justify-between items-end md:items-center gap-x-6 gap-y-2">
                   {yieldsBlocked && (
-                      <div className="text-xs font-bold text-amber-300 uppercase self-center">Totales no disponibles — sin validar</div>
+                      <div className="min-w-0 truncate text-xs font-bold text-amber-300 uppercase">Totales no disponibles — sin validar</div>
                   )}
-                  <div className={`flex flex-wrap justify-end items-end gap-x-5 xl:gap-x-8 gap-y-2 text-right ml-auto ${yieldsBlocked ? 'opacity-40' : ''}`}>
+                  <div className={`flex flex-wrap md:flex-nowrap justify-end items-end gap-x-5 xl:gap-x-8 gap-y-2 text-right ml-auto shrink-0 whitespace-nowrap origin-right transition-transform duration-200 ${tableScrolled ? 'md:scale-[0.85]' : ''} ${yieldsBlocked ? 'opacity-40' : ''}`}>
                       <div>
                           <div className="text-[10px] font-bold text-slate-400 uppercase">Materiales + Eq</div>
                           <div className="text-sm xl:text-lg font-mono font-medium text-blue-300">
@@ -1678,8 +1704,8 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                       </div>
                       <div>
                           <div className="text-xs font-bold text-slate-300 uppercase mb-1">TOTAL GENERAL</div>
-                          <div className={`${tableScrolled ? 'text-xl xl:text-2xl' : 'text-2xl xl:text-4xl'} font-black text-white font-mono tracking-tight leading-none`}>
-                              ${grandTotals.finalTotal.toLocaleString(undefined, {maximumFractionDigits: 2})}
+                          <div className="text-xl xl:text-3xl font-black text-white font-mono tracking-tight leading-none">
+                              ${grandTotals.finalTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                           </div>
                       </div>
                   </div>
