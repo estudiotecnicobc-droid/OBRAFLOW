@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useERP } from '../context/ERPContext';
+import { DemoProjectActions } from './DemoProjectActions';
 import { useSave } from '../context/SaveContext';
 import { generateId } from '../utils/generateId';
 import { Building, MapPin, User, Calendar, Save, CreditCard, Briefcase, CheckCircle, Ruler, Component, Layers, ArrowDownCircle, BookOpen, Clock, CalendarX, Plus, Trash2, FolderOpen, Bookmark, DollarSign, Users, HardHat, UserPlus, Download, Upload, Edit, X } from 'lucide-react';
@@ -311,6 +312,8 @@ export const ProjectSettings: React.FC<{ initialTab?: Tab }> = ({ initialTab }) 
                 </button>
             </div>
         </div>
+
+        <DemoProjectActions />
 
         {/* Tab Navigation */}
         <div className="flex space-x-1 bg-slate-100 p-1 rounded-xl">
