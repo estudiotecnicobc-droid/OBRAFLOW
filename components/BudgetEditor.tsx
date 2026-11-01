@@ -37,6 +37,9 @@ import { YieldsErrorBanner, useYieldsBlocked } from './YieldsErrorBanner';
 import { TaskTechnicalDetail, RubroBanner } from '../src/features/catalog-media/TaskTechnicalDetail';
 import { BudgetRubroIndex } from '../src/features/budgets/components/BudgetRubroIndex';
 import { arrangeRubros, loadIndexView, loadPinnedRubros, saveIndexView, savePinnedRubros, sortRubros } from '../src/features/budgets/rubroGroups';
+import { MeasurementDrawer } from './MeasurementDrawer';
+import { QuantitySourceBadge } from './QuantitySourceBadge';
+import { getQuantitySource, consumePendingHighlight } from '../utils/quantitySource';
 
 interface BudgetEditorProps {
   onNavigate?: (tab: string) => void;
@@ -55,6 +58,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     updateProjectSettings,
     budgetItemsLoading,
     tasksLoaded,
+    measurementSheets,
   } = useERP();
   const yieldsBlocked = useYieldsBlocked();
 
@@ -376,6 +380,18 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   // --- MASTER APU EDITOR STATE ---
   const [apuEditorTaskId, setApuEditorTaskId] = useState<string | null>(null);
   const [editingQuantityId, setEditingQuantityId] = useState<string | null>(null);
+  // Planilla de medición abierta (panel lateral) para un ítem.
+  const [measuringItemId, setMeasuringItemId] = useState<string | null>(null);
+  // Ítems recién enviados/actualizados desde el Calculador de cómputo: se resaltan unos segundos.
+  const [highlightIds, setHighlightIds] = useState<Set<string>>(() => new Set(consumePendingHighlight()));
+  useEffect(() => {
+    if (highlightIds.size === 0) return;
+    const first = document.querySelector(`[data-budget-item-id="${[...highlightIds][0]}"]`);
+    first?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setHighlightIds(new Set()), 5000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // --- PRINT PREVIEW STATE ---
   const [showPrintPreview, setShowPrintPreview] = useState(false);
@@ -1224,6 +1240,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   return (
     <div className="flex h-full gap-6 font-sans relative">
       {quickModal}
+      {measuringItemId && <MeasurementDrawer budgetItemId={measuringItemId} onClose={() => setMeasuringItemId(null)} />}
       {yieldsBlocked && <div className="absolute top-0 inset-x-0 z-30"><YieldsErrorBanner /></div>}
       
       {/* LEFT SIDEBAR: ÍNDICE DE RUBROS */}
@@ -1461,7 +1478,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                               ) : (
                                                   <>
                                                     {items.map((row, rowIndex) => (
-                                                        <tr key={row.item.id} className="border-b border-slate-100 hover:bg-blue-50/30 transition-colors group">
+                                                        <tr key={row.item.id} data-budget-item-id={row.item.id} className={`border-b border-slate-100 hover:bg-blue-50/30 transition-colors group ${highlightIds.has(row.item.id) ? 'bg-teal-50 ring-2 ring-inset ring-teal-300' : ''}`}>
                                                             {/* Description */}
                                                             <td className="p-2 pl-8">
                                                                 <div className="font-medium text-slate-700 text-xs">{row.task.name}</div>
@@ -1471,26 +1488,42 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                                             {/* Unit */}
                                                             <td className="p-2 text-center text-xs text-slate-500 bg-slate-50/50">{row.task.unit}</td>
                                                             
-                                                            {/* Quantity Input */}
-                                                            <td className="p-2" onDoubleClick={() => setEditingQuantityId(row.item.id)}>
+                                                            {/* Quantity Input — con origen (Manual / Medido / Calculador) */}
+                                                            {(() => {
+                                                                const src = getQuantitySource(row.item, measurementSheets);
+                                                                const openSheet = () => { setEditingQuantityId(null); setMeasuringItemId(row.item.id); };
+                                                                return (
+                                                            <td className="p-2" onDoubleClick={() => src.kind === 'medido' ? openSheet() : setEditingQuantityId(row.item.id)}>
                                                                 {editingQuantityId === row.item.id ? (
                                                                     <input 
                                                                         type="number"
                                                                         autoFocus
                                                                         className="w-full text-center p-1 border border-blue-500 rounded text-sm font-bold text-slate-800 focus:outline-none shadow-sm"
                                                                         value={row.item.quantity}
-                                                                        onChange={(e) => updateBudgetItem(row.item.id, { quantity: parseFloat(e.target.value) || 0 })}
+                                                                        onChange={(e) => updateBudgetItem(row.item.id, {
+                                                                            quantity: parseFloat(e.target.value) || 0,
+                                                                            // Al tipear a mano deja de ser una cantidad del calculador.
+                                                                            ...(row.item.computationItemId ? { computationItemId: null } : {}),
+                                                                        })}
                                                                         onBlur={() => setEditingQuantityId(null)}
                                                                         onKeyDown={(e) => {
                                                                             if (e.key === 'Enter') setEditingQuantityId(null);
                                                                         }}
                                                                     />
                                                                 ) : (
-                                                                    <div className="text-center text-sm font-bold text-slate-700 cursor-pointer hover:text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors" title="Doble clic para editar">
-                                                                        {row.item.quantity}
+                                                                    <div className="flex flex-col items-center gap-0.5">
+                                                                        <div
+                                                                            className="text-center text-sm font-bold text-slate-700 cursor-pointer hover:text-blue-600 hover:bg-blue-50 px-2 py-0.5 rounded transition-colors"
+                                                                            title={src.kind === 'medido' ? 'Doble clic para abrir la planilla de medición' : 'Doble clic para editar'}
+                                                                        >
+                                                                            {row.item.quantity}
+                                                                        </div>
+                                                                        <QuantitySourceBadge source={src} onClick={openSheet} />
                                                                     </div>
                                                                 )}
                                                             </td>
+                                                                );
+                                                            })()}
 
                                                             {/* Material / Labor / PV Columns */}
                                                             {tableViewMode === 'tecnico' ? (
