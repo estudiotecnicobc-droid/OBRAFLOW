@@ -180,7 +180,7 @@ export const MeasurementDrawer: React.FC<Props> = ({ budgetItemId, onClose }) =>
                     </td>
                     {(['length', 'width', 'height', 'count'] as const).map(f => (
                       <td key={f} className="p-1">
-                        <DecimalInput className={inputCls} value={l[f]} onValue={n => updateLine(l.id, f, n)} />
+                        <DecimalInput className={inputCls} step={f === 'count' ? 1 : 0.1} value={l[f]} onValue={n => updateLine(l.id, f, n)} />
                       </td>
                     ))}
                     <td className="p-1 bg-slate-50">

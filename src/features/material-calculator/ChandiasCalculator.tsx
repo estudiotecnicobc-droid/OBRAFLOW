@@ -276,7 +276,7 @@ const CreateAPUModal: React.FC<CreateAPUModalProps> = ({
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Rendimiento diario</label>
               <div className="flex rounded-lg border border-slate-200 overflow-hidden focus-within:ring-1 focus-within:ring-blue-400">
-                <DecimalInput value={dailyYield}
+                <DecimalInput step={1} value={dailyYield}
                   onValue={(n, raw) => setDailyYield(raw === '' ? '' : String(n))}
                   className="flex-1 px-3 py-2 text-sm focus:outline-none min-w-0"
                 />
@@ -931,11 +931,11 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
               <div key={dim.id}>
                 <label className="block text-xs font-semibold text-slate-500 mb-1">{dim.label}</label>
                 <div className="flex rounded-lg border border-slate-200 overflow-hidden focus-within:ring-1 focus-within:ring-blue-400 focus-within:border-blue-400">
-                  <DecimalInput
+                  <DecimalInput step={0.05}
                     value={dimValues[dim.id] ?? ''}
                     onValue={(n, raw) => setDimValues(prev => ({ ...prev, [dim.id]: raw === '' ? '' : String(n) }))}
                     placeholder="0"
-                    className="flex-1 px-3 py-2 text-sm bg-white focus:outline-none min-w-0"
+                    className="flex-1 pl-2 py-2 text-sm bg-white focus:outline-none min-w-0"
                   />
                   <span className="px-2.5 text-xs text-slate-400 bg-slate-50 flex items-center border-l border-slate-200 whitespace-nowrap">
                     {dim.unit}
@@ -1016,13 +1016,13 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
                                 <option>Puerta</option>
                                 <option>Otro</option>
                               </select>
-                              <DecimalInput
+                              <DecimalInput step={0.05}
                                 value={o.ancho || ''}
                                 onValue={n => updateOpening(o.id, 'ancho', n)}
                                 placeholder="0.00"
                                 className="px-1.5 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 text-center"
                               />
-                              <DecimalInput
+                              <DecimalInput step={0.05}
                                 value={o.alto || ''}
                                 onValue={n => updateOpening(o.id, 'alto', n)}
                                 placeholder="0.00"
@@ -1115,13 +1115,13 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
                         </div>
                         {floorSectors.map(s => (
                           <div key={s.id} className="grid grid-cols-[1fr_1fr_20px] gap-1.5 items-center">
-                            <DecimalInput
+                            <DecimalInput step={0.05}
                               value={s.largo || ''}
                               onValue={n => updateFloorSector(s.id, 'largo', n)}
                               placeholder="0.00"
                               className="px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
                             />
-                            <DecimalInput
+                            <DecimalInput step={0.05}
                               value={s.ancho || ''}
                               onValue={n => updateFloorSector(s.id, 'ancho', n)}
                               placeholder="0.00"
@@ -1208,7 +1208,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
                       Desperdicio hormigón
                     </label>
                     <div className="flex rounded-lg border border-stone-200 overflow-hidden focus-within:ring-1 focus-within:ring-stone-400 w-28">
-                      <DecimalInput
+                      <DecimalInput step={1} max={30}
                         value={beamWaste}
                         onValue={n => setBeamWaste(Math.max(0, Math.min(30, n)))}
                         className="flex-1 px-3 py-1.5 text-sm bg-white focus:outline-none min-w-0"
@@ -1223,7 +1223,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
                       Cuantía de acero
                     </label>
                     <div className="flex rounded-lg border border-stone-200 overflow-hidden focus-within:ring-1 focus-within:ring-stone-400 w-28">
-                      <DecimalInput
+                      <DecimalInput step={5}
                         value={beamSteelRatio}
                         onValue={n => setBeamSteelRatio(Math.max(0, n))}
                         className="flex-1 px-3 py-1.5 text-sm bg-white focus:outline-none min-w-0"
