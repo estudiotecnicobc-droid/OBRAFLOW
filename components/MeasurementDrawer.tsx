@@ -5,16 +5,13 @@ import { useERP } from '../context/ERPContext';
 import { useAuth } from '../context/AuthContext';
 import { generateId } from '../utils/generateId';
 import type { MeasurementLine, MeasurementSheet } from '../types';
+import { DecimalInput } from './DecimalInput';
 
 interface Props {
   budgetItemId: string;
   onClose: () => void;
 }
 
-const num = (v: string) => {
-  const n = parseFloat(v.replace(',', '.'));
-  return Number.isFinite(n) ? n : 0;
-};
 const lineTotal = (l: MeasurementLine) => Number((l.length * l.width * l.height * l.count).toFixed(2));
 const sumLines = (lines: MeasurementLine[]) => Number(lines.reduce((a, l) => a + (l.subtotal || 0), 0).toFixed(2));
 const fmt = (n: number) => n.toLocaleString('es-AR', { maximumFractionDigits: 2 });
@@ -98,12 +95,12 @@ export const MeasurementDrawer: React.FC<Props> = ({ budgetItemId, onClose }) =>
     setLines([...sheet.lines, l]);
   };
 
-  const updateLine = (id: string, field: keyof MeasurementLine, raw: string) => {
+  const updateLine = (id: string, field: keyof MeasurementLine, val: string | number) => {
     if (!sheet) return;
     setLines(sheet.lines.map(l => {
       if (l.id !== id) return l;
-      if (field === 'description') return { ...l, description: raw };
-      const u = { ...l, [field]: num(raw) };
+      if (field === 'description') return { ...l, description: String(val) };
+      const u = { ...l, [field]: Number(val) || 0 };
       return field === 'subtotal' ? u : { ...u, subtotal: lineTotal(u) };
     }));
   };
@@ -183,12 +180,12 @@ export const MeasurementDrawer: React.FC<Props> = ({ budgetItemId, onClose }) =>
                     </td>
                     {(['length', 'width', 'height', 'count'] as const).map(f => (
                       <td key={f} className="p-1">
-                        <input type="number" className={inputCls} value={l[f]} onChange={e => updateLine(l.id, f, e.target.value)} />
+                        <DecimalInput className={inputCls} step={f === 'count' ? 1 : 0.1} value={l[f]} onValue={n => updateLine(l.id, f, n)} />
                       </td>
                     ))}
                     <td className="p-1 bg-slate-50">
-                      <input type="number" className={`${baseInput} font-mono text-right font-bold text-blue-700`} title="Podés escribir el subtotal directamente"
-                        value={l.subtotal} onChange={e => updateLine(l.id, 'subtotal', e.target.value)} />
+                      <DecimalInput className={`${baseInput} font-mono text-right font-bold text-blue-700`} title="Podés escribir el subtotal directamente"
+                        value={l.subtotal} onValue={n => updateLine(l.id, 'subtotal', n)} />
                     </td>
                     <td className="p-1 text-center">
                       <button onClick={() => setLines(sheet.lines.filter(x => x.id !== l.id))}
