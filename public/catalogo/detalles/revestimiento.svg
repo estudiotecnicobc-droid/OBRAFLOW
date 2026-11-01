@@ -1,38 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" font-family="Helvetica, Arial, sans-serif">
-  <defs>
-    <pattern id="lad" width="24" height="12" patternUnits="userSpaceOnUse"><rect width="24" height="12" fill="#f7d9c4"/><path d="M0 0H24M0 6H24M6 0V6M18 6V12" stroke="#c97b4a" stroke-width="1"/></pattern>
-  </defs>
-  <rect width="640" height="360" fill="#fff"/>
-  <text x="20" y="30" font-size="15" font-weight="700" fill="#1f2933">Revestimiento de placa sobre perfil omega — corte en planta</text>
-  <text x="20" y="48" font-size="11" fill="#616e7c">Esquema ilustrativo · sin escala</text>
-  <!-- muro -->
-  <rect x="60" y="90" width="520" height="70" fill="url(#lad)" stroke="#52606d" stroke-width="1.5"/>
-  <rect x="60" y="160" width="520" height="8" fill="#d9d2c5" stroke="#52606d"/>
-  <!-- omegas -->
-  <g fill="none" stroke="#1f2933" stroke-width="3">
-    <path d="M110 168 v6 h8 v14 h20 v-14 h8 v-6"/><path d="M270 168 v6 h8 v14 h20 v-14 h8 v-6"/><path d="M430 168 v6 h8 v14 h20 v-14 h8 v-6"/>
-  </g>
-  <g stroke="#9a6700" stroke-width="2"><line x1="128" y1="150" x2="128" y2="176"/><line x1="288" y1="150" x2="288" y2="176"/><line x1="448" y1="150" x2="448" y2="176"/></g>
-  <!-- placa -->
-  <rect x="60" y="188" width="520" height="14" fill="#e4e7eb" stroke="#334e68" stroke-width="1.5"/>
-  <rect x="356" y="202" width="22" height="4" fill="#3e7cb1"/>
-  <defs><marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#334e68"/></marker></defs>
-  <g stroke="#334e68" stroke-width="1" fill="none">
-    <line x1="128" y1="226" x2="288" y2="226" marker-start="url(#a)" marker-end="url(#a)"/>
-    <line x1="128" y1="204" x2="128" y2="232"/><line x1="288" y1="204" x2="288" y2="232"/>
-    <line x1="44" y1="168" x2="44" y2="202" marker-start="url(#a)" marker-end="url(#a)"/>
-    <line x1="38" y1="168" x2="60" y2="168"/><line x1="38" y1="202" x2="60" y2="202"/>
-  </g>
-  <text x="186" y="222" font-size="11" fill="#1f2933">0,40 m</text>
-  <text x="4" y="182" font-size="11" fill="#1f2933">≈ 25</text><text x="10" y="196" font-size="10" fill="#616e7c">mm</text>
-  <g font-size="12" fill="#1f2933">
-    <line x1="200" y1="110" x2="230" y2="72" stroke="#334e68"/><text x="234" y="72">Muro existente</text>
-    <line x1="128" y1="152" x2="100" y2="120" stroke="#334e68" opacity="0"/>
-    <line x1="296" y1="188" x2="330" y2="250" stroke="#334e68"/><text x="300" y="266">Perfil omega c/0,40 m</text>
-    <line x1="456" y1="176" x2="560" y2="232" stroke="#334e68"/><text x="520" y="246" font-size="11">Tarugo + tornillo</text>
-    <line x1="520" y1="202" x2="540" y2="250" stroke="#334e68"/><text x="456" y="266">Placa de yeso 12,5 mm</text>
-    <text x="456" y="280" font-size="11" fill="#616e7c">(verde RH en zonas húmedas)</text>
-    <line x1="367" y1="206" x2="380" y2="300" stroke="#334e68"/><text x="320" y="316" font-size="11">Cinta + masilla en juntas</text>
-    <text x="60" y="340" font-size="11" fill="#616e7c">Revoque seco: la placa va pegada al muro con adhesivo, sin perfiles.</text>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 490" font-family="Helvetica, Arial, sans-serif">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#334e68"/></marker>
+<pattern id="lana" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M0 6 Q3 0 6 6 T12 6" fill="none" stroke="#c9a227" stroke-width="1.2"/></pattern>
+<pattern id="horm" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M0 12L12 0" stroke="#9aa5b1"/><circle cx="3" cy="4" r="1.2" fill="#9aa5b1"/></pattern>
+<pattern id="muro" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M0 14L14 0" stroke="#bcccdc"/></pattern>
+<pattern id="lad" width="28" height="14" patternUnits="userSpaceOnUse"><rect width="28" height="14" fill="#f7d9c4"/><path d="M0 0H28M0 7H28M7 0V7M21 7V14" stroke="#c97b4a"/></pattern>
+</defs>
+<rect width="480" height="490" fill="#fff"/>
+<text x="16" y="30" font-size="20" font-weight="700" fill="#1f2933">Revestimiento de placa sobre omega</text>
+<text x="16" y="50" font-size="14" fill="#616e7c">Corte en planta · esquema sin escala</text>
+<rect x="40" y="76" width="410" height="70" fill="url(#lad)" stroke="#52606d" stroke-width="1.5"/>
+<rect x="40" y="146" width="410" height="8" fill="#d9d2c5" stroke="#52606d"/>
+<g fill="none" stroke="#1f2933" stroke-width="3.5"><path d="M80 154 v7 h9 v16 h22 v-16 h9 v-7"/><path d="M220 154 v7 h9 v16 h22 v-16 h9 v-7"/><path d="M360 154 v7 h9 v16 h22 v-16 h9 v-7"/></g>
+<g stroke="#9a6700" stroke-width="2.2"><line x1="100" y1="134" x2="100" y2="164"/><line x1="240" y1="134" x2="240" y2="164"/><line x1="380" y1="134" x2="380" y2="164"/></g>
+<rect x="40" y="177" width="410" height="14" fill="#e4e7eb" stroke="#334e68" stroke-width="1.5"/>
+<rect x="300" y="191" width="26" height="4" fill="#3e7cb1"/>
+<circle cx="250" cy="111" r="11" fill="#1f2933"/><text x="250" y="116" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">1</text><circle cx="160" cy="170" r="11" fill="#1f2933"/><text x="160" y="175" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">2</text><circle cx="404" cy="140" r="11" fill="#1f2933"/><text x="404" y="145" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">3</text><circle cx="420" cy="212" r="11" fill="#1f2933"/><text x="420" y="217" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">4</text><circle cx="313" cy="212" r="11" fill="#1f2933"/><text x="313" y="217" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">5</text>
+<line x1="100" y1="236" x2="240" y2="236" stroke="#334e68" stroke-width="1.2" marker-start="url(#a)" marker-end="url(#a)"/><line x1="100" y1="195" x2="100" y2="244" stroke="#334e68"/><line x1="240" y1="195" x2="240" y2="244" stroke="#334e68"/><text x="170" y="262" font-size="16" text-anchor="middle" fill="#1f2933">0,40 m</text>
+<line x1="22" y1="154" x2="22" y2="191" stroke="#334e68" stroke-width="1.2" marker-start="url(#a)" marker-end="url(#a)"/><text x="14" y="216" font-size="15" text-anchor="start" fill="#1f2933">≈ 25 mm</text>
+<line x1="16" y1="286" x2="464" y2="286" stroke="#e4e7eb"/>
+<circle cx="30" cy="295" r="11" fill="#1f2933"/><text x="30" y="300" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">1</text><text x="50" y="300" font-size="17" fill="#1f2933">Muro existente</text>
+<circle cx="30" cy="323" r="11" fill="#1f2933"/><text x="30" y="328" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">2</text><text x="50" y="328" font-size="17" fill="#1f2933">Perfil omega cada 0,40 m</text>
+<circle cx="30" cy="351" r="11" fill="#1f2933"/><text x="30" y="356" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">3</text><text x="50" y="356" font-size="17" fill="#1f2933">Tarugo y tornillo de fijación</text>
+<circle cx="30" cy="379" r="11" fill="#1f2933"/><text x="30" y="384" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">4</text><text x="50" y="384" font-size="17" fill="#1f2933">Placa de yeso 12,5 mm (verde RH en zonas húmedas)</text>
+<circle cx="30" cy="407" r="11" fill="#1f2933"/><text x="30" y="412" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">5</text><text x="50" y="412" font-size="17" fill="#1f2933">Cinta y masilla en juntas</text><text x="16" y="452" font-size="15" fill="#616e7c">Revoque seco: la placa va pegada al muro con adhesivo, sin perfiles.</text></svg>

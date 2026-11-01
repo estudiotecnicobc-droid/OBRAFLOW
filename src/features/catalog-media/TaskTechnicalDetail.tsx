@@ -14,8 +14,9 @@ export const TaskTechnicalDetail: React.FC<Props> = ({ task }) => {
   return (
     <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
       {img && (
-        <button type="button" onClick={() => setZoom(true)} className="block w-full" title="Ampliar detalle">
+        <button type="button" onClick={() => setZoom(true)} className="block w-full cursor-zoom-in" title="Ampliar detalle">
           <img src={img} alt={`Detalle técnico: ${task.name ?? ''}`} className="w-full rounded border border-slate-100" loading="lazy" />
+          <span className="block text-[11px] text-slate-500 mt-1">Clic para ampliar</span>
         </button>
       )}
       {task.description && (
@@ -24,8 +25,8 @@ export const TaskTechnicalDetail: React.FC<Props> = ({ task }) => {
         </div>
       )}
       {zoom && img && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setZoom(false)}>
-          <img src={img} alt="" className="max-w-4xl w-full bg-white rounded-lg" />
+        <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setZoom(false)}>
+          <img src={img} alt="" className="w-[min(95vw,900px)] max-h-[92vh] object-contain bg-white rounded-lg" />
         </div>
       )}
     </div>
