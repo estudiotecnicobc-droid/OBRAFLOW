@@ -43,6 +43,8 @@ import { APUCompositionPanel } from './APUCompositionPanel';
 import { buildApuComposition } from '../utils/apuComposition';
 import { QuantitySourceBadge } from './QuantitySourceBadge';
 import { getQuantitySource, consumePendingHighlight } from '../utils/quantitySource';
+import { analyzeBudgetHealth, type HealthRow } from '../utils/budgetHealth';
+import { BudgetHealthBar } from './BudgetHealthBar';
 
 interface BudgetEditorProps {
   onNavigate?: (tab: string) => void;
@@ -596,6 +598,56 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
     return { grouped, categoryTotals };
   }, [project.items, tasks, pinnedRubros, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap]);
+
+  // ── Salud del presupuesto ────────────────────────────────────────────────
+  const healthRows = useMemo((): HealthRow[] => {
+    const out: HealthRow[] = [];
+    for (const rows of Object.values(budgetData.grouped) as any[][]) {
+      for (const row of rows) {
+        const comp = buildApuComposition(
+          row.task, yieldsIndex[row.task.id] ?? [], materialsMap,
+          taskLaborYieldsIndex[row.task.id] ?? [], laborCategoriesMap,
+          toolYieldsIndex[row.task.id] ?? [], toolsMap,
+        );
+        const src = getQuantitySource(row.item, measurementSheets);
+        out.push({
+          itemId: row.item.id,
+          name: row.item.name || row.task.name,
+          unit: row.task.unit || '',
+          quantity: Number(row.item.quantity) || 0,
+          unitCost: row.unitMatEq + row.unitLab,
+          total: row.totalItem,
+          apuHasMissing: comp.hasMissing,
+          measuredQuantity: src.kind === 'medido' ? src.sheet?.totalQuantity : undefined,
+        });
+      }
+    }
+    return out;
+  }, [budgetData, yieldsIndex, materialsMap, taskLaborYieldsIndex, laborCategoriesMap, toolYieldsIndex, toolsMap, measurementSheets]);
+
+  const healthIssues = useMemo(
+    () => analyzeBudgetHealth(healthRows, { surface: project.surface }),
+    [healthRows, project.surface],
+  );
+
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (highlightTimer.current) clearTimeout(highlightTimer.current); }, []);
+
+  // Despliega los rubros de los ítems, los resalta y lleva la vista al ítem `index`.
+  const revealItems = (itemIds: string[], index: number) => {
+    const ids = new Set(itemIds);
+    const rubrosToOpen = Object.entries(budgetData.grouped)
+      .filter(([, rows]) => (rows as any[]).some(r => ids.has(r.item.id)))
+      .map(([rubro]) => rubro);
+    setExpandedRubros(prev => new Set([...prev, ...rubrosToOpen]));
+    setHighlightIds(ids);
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    highlightTimer.current = setTimeout(() => setHighlightIds(new Set()), 8000);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.querySelector(`[data-budget-item-id="${itemIds[index]}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }));
+  };
 
   const grandTotals = useMemo(() => {
       let mat = 0;
@@ -1433,6 +1485,14 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                       projectId={project.id}
                       organizationId={project.organizationId}
                   />
+              </div>
+          )}
+
+          {/* SALUD DEL PRESUPUESTO */}
+          {/* Mientras cargan los rendimientos los precios no son confiables: no se evalúa. */}
+          {!showComparison && !yieldsBlocked && (
+              <div className="px-6 pt-3">
+                  <BudgetHealthBar issues={healthIssues} itemCount={healthRows.length} onShow={revealItems} />
               </div>
           )}
 
