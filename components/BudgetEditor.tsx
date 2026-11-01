@@ -633,6 +633,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
           quantity: Number(row.item.quantity) || 0,
           unitCost: row.unitMatEq + row.unitLab,
           unitLabor: row.unitLab,
+          materialLines: comp.materials.length,
           total: row.totalItem,
           apuHasMissing: comp.hasMissing,
           measuredQuantity: src.kind === 'medido' ? src.sheet?.totalQuantity : undefined,
