@@ -62,24 +62,8 @@ do $$ declare n int; e text; begin
   insert into _t.res_roles values ('organization_members', 'ascender a owner', 'admin', n, case when n <= 0 and n <> -2 then 'ok' else 'fuga' end);
 end $$;
 
--- Fugas de rol conocidas en producción, pendientes de la migración 073.
+-- Fugas de rol conocidas pendientes de corrección (vacía desde la 073).
 create table _t.conocidos_roles (tabla text, accion text, primary key (tabla, accion));
-insert into _t.conocidos_roles values
- ('budget_items','update'),('budget_items','delete'),('budget_items','insert'),
- ('budget_template_items','update'),('budget_template_items','delete'),('budget_template_items','insert'),
- ('budget_templates','update'),('budget_templates','delete'),('budget_templates','insert'),
- ('master_task_equipment','update'),('master_task_equipment','delete'),('master_task_equipment','insert'),
- ('master_task_labor','update'),('master_task_labor','delete'),('master_task_labor','insert'),
- ('master_task_materials','update'),('master_task_materials','delete'),('master_task_materials','insert'),
- ('master_tasks','update'),('master_tasks','delete'),('master_tasks','insert'),
- ('projects','update'),('projects','delete'),('projects','insert'),
- ('task_crew_yields','update'),('task_crew_yields','delete'),('task_crew_yields','insert'),
- ('task_labor_yields','update'),('task_labor_yields','delete'),('task_labor_yields','insert'),
- ('task_tool_yields','update'),('task_tool_yields','delete'),('task_tool_yields','insert'),
- ('task_yields','update'),('task_yields','delete'),('task_yields','insert'),
- ('tasks','update'),('tasks','delete'),('tasks','insert'),
- ('organizations','update'),
- ('invitations','invitar owner');
 
 \echo
 \echo '== Permisos por rol (solo lo que no está ok) =='
