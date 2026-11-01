@@ -129,14 +129,15 @@ describe('analyzeBudgetHealth', () => {
     expect(r.repetida.title).toBe('3 ítems repiten una tarea que ya está en el presupuesto');
   });
 
-  it('sin mano de obra: solo si se informa la mano de obra y el ítem tiene costo', () => {
+  it('sin mano de obra: solo con 2 materiales o más, mano de obra informada y costo', () => {
     const r = byId([
-      row({ itemId: 'a', unitLabor: 0 }),
-      row({ itemId: 'b', unitLabor: 500 }),
-      row({ itemId: 'c' }),
-      row({ itemId: 'd', unitLabor: 0, unitCost: 0, total: 0 }),
+      row({ itemId: 'hormigon', unitLabor: 0, materialLines: 3 }),
+      row({ itemId: 'volquete', unitLabor: 0, materialLines: 1 }),
+      row({ itemId: 'conMO', unitLabor: 500, materialLines: 3 }),
+      row({ itemId: 'sinDato', materialLines: 3 }),
+      row({ itemId: 'sinCosto', unitLabor: 0, unitCost: 0, total: 0, materialLines: 3 }),
     ]);
-    expect(r.sin_mano_obra.itemIds).toEqual(['a']);
+    expect(r.sin_mano_obra.itemIds).toEqual(['hormigon']);
   });
 
   it('P.U. atípico: tarea repetida no arrastra la referencia (caso 03 de Casa Ciro)', () => {
@@ -149,7 +150,7 @@ describe('analyzeBudgetHealth', () => {
   });
 
   it('avisos descartados por ítem', () => {
-    const rows = [row({ itemId: 'volq', unitLabor: 0 }), row({ itemId: 'muro', unitLabor: 0 })];
+    const rows = [row({ itemId: 'volq', unitLabor: 0, materialLines: 2 }), row({ itemId: 'muro', unitLabor: 0, materialLines: 2 })];
     const r = Object.fromEntries(analyzeBudgetHealth(rows, { ignored: new Set([ignoreKey('sin_mano_obra', 'volq')]) }).map(i => [i.id, i]));
     expect(r.sin_mano_obra.itemIds).toEqual(['muro']);
     expect(r.sin_mano_obra.title).toBe('1 ítem sin mano de obra');

@@ -14,6 +14,8 @@ export interface HealthRow {
   unitCost: number;
   /** Parte de mano de obra del costo unitario. */
   unitLabor?: number;
+  /** Cantidad de materiales (o subcontratos) en el análisis de precio. */
+  materialLines?: number;
   /** Costo directo total del ítem. */
   total: number;
   /** El APU tiene recursos faltantes o sin precio. */
@@ -54,6 +56,8 @@ export const CONCENTRATION_MIN_ITEMS = 5;
 export const PU_OUTLIER_FACTOR = 5;
 /** Mínimo de precios distintos en el grupo para comparar. */
 export const PU_OUTLIER_MIN_GROUP = 4;
+/** Mínimo de materiales para exigir mano de obra (con menos, es provisión o subcontrato). */
+export const MIN_MATERIALS_FOR_LABOR = 2;
 export const MAX_QTY_PER_SURFACE: Record<'m2' | 'm3' | 'ml', number> = { m2: 12, m3: 3, ml: 25 };
 
 /** «m²», «M2», «m2.» → «m2»; «m», «ml», «m.l.» → «ml». */
@@ -179,9 +183,12 @@ export function analyzeBudgetHealth(
 
   push({
     id: 'sin_mano_obra', level: 'warning',
-    itemIds: ids(r => r.quantity > 0 && r.unitCost > 0 && r.unitLabor !== undefined && !(r.unitLabor > 0)),
+    // Con un solo recurso suele ser una provisión, un trámite o un subcontrato (volquete, planos, mesada):
+    // no lleva cuadrilla propia. Con dos o más materiales (hormigón, acero, ladrillos) sí debería.
+    itemIds: ids(r => r.quantity > 0 && r.unitCost > 0 && r.unitLabor !== undefined && !(r.unitLabor > 0)
+      && (r.materialLines ?? 0) >= MIN_MATERIALS_FOR_LABOR),
     title: n => `${plural(n, 'ítem', 'ítems')} sin mano de obra`,
-    hint: 'Si la tarea es solo provisión de materiales o un subcontrato, ignoralo; si no, cargá la cuadrilla en su análisis.',
+    hint: 'Lleva varios materiales pero ninguna cuadrilla. Cargá la mano de obra en su análisis; si la hace un subcontratista, ignoralo.',
   });
 
   const grand = rows.reduce((s, r) => s + (r.total > 0 ? r.total : 0), 0);
