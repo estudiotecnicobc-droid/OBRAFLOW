@@ -46,7 +46,8 @@ insert into _t.ids values
   ('pB', '00000000-0000-0000-0000-0000000000b2'), ('tB', '00000000-0000-0000-0000-0000000000b3'),
   ('mtB','00000000-0000-0000-0000-0000000000b4'), ('btB','00000000-0000-0000-0000-0000000000b5'),
   ('ciB','00000000-0000-0000-0000-0000000000b6'), ('catB','00000000-0000-0000-0000-0000000000b7'),
-  ('rB', '00000000-0000-0000-0000-0000000000b8'), ('pcB','00000000-0000-0000-0000-0000000000b9');
+  ('rB', '00000000-0000-0000-0000-0000000000b8'), ('pcB','00000000-0000-0000-0000-0000000000b9'),
+  ('crB','00000000-0000-0000-0000-0000000000ba'), ('crB2','00000000-0000-0000-0000-0000000000bb');
 
 -- Casos: tabla, valores de B, predicado que identifica filas de B, columna para el UPDATE inocuo,
 -- valores del intento de inserción (null = no se prueba) y si el dueño de B debe ver la fila.
@@ -72,7 +73,7 @@ insert into _t.casos (tabla, vals, pred, col, ataque, control) values
  ('catalog_task_yields',    '{"master_task_id":"mtB","resource_id":"rB"}',               'true', 'id', null, true),
  ('computation_items',      '{"computation_id":"pcB","organization_id":"B","quantity":"1","unidad":"m2"}', 'true', 'id', '{"computation_id":"pcB","organization_id":"B","quantity":"1","unidad":"m2"}', true),
  ('cost_index_values',      '{"index_id":"ciB","period_year":"2026","period_month":"1","value":"100"}', 'true', 'id', '{"index_id":"ciB","period_year":"2026","period_month":"2","value":"1"}', true),
- ('crews',                  '{"organization_id":"B","name":"Cuadrilla B"}',              'true', 'id', '{"organization_id":"B","name":"x"}', true),
+ ('crews',                  '{"id":"crB","organization_id":"B","name":"Cuadrilla B"}',              'true', 'id', '{"organization_id":"B","name":"x"}', true),
  ('invitations',            '{"organization_id":"B","created_by":"ub","invited_email":"x@b.test"}', 'true', 'id', '{"organization_id":"B","created_by":"ua"}', true),
  ('labor_categories',       '{"organization_id":"B","role":"Oficial"}',                  'true', 'id', '{"organization_id":"B","role":"x"}', true),
  ('master_materials',       '{"organization_id":"B","name":"Material B","unit":"kg"}',   'true', 'id', '{"organization_id":"B","name":"x","unit":"kg"}', true),
@@ -82,7 +83,7 @@ insert into _t.casos (tabla, vals, pred, col, ataque, control) values
  ('materials',              '{"organization_id":"B","name":"Material B"}',               'true', 'id', '{"organization_id":"B","name":"x"}', true),
  ('resource_cost_snapshots','{"tenant_id":"B","resource_id":"rB","cost":"1"}',           'true', 'id', '{"tenant_id":"B","resource_id":"rB","cost":"2","effective_date":"2020-01-01"}', true),
  ('resource_pricing_rules', '{"tenant_id":"B","resource_id":"rB"}',                      'true', 'id', '{"tenant_id":"B","resource_id":"rB"}', true),
- ('task_crew_yields',       '{"task_id":"tB","quantity":"3"}',                           'true', 'task_id', '{"task_id":"tB"}', true),
+ ('task_crew_yields',       '{"task_id":"tB","crew_id":"crB","quantity":"3"}',           'true', 'task_id', '{"task_id":"tB","crew_id":"crB2"}', true),
  ('task_labor_yields',      '{"task_id":"tB","organization_id":"B"}',                    'true', 'id', '{"task_id":"tB","organization_id":"B","labor_category_id":"zz"}', true),
  ('task_tool_yields',       '{"task_id":"tB","organization_id":"B"}',                    'true', 'id', '{"task_id":"tB","organization_id":"B","tool_id":"zz"}', true),
  ('task_yields',            '{"task_id":"tB","organization_id":"B"}',                    'true', 'id', '{"task_id":"tB","organization_id":"B","material_id":"zz"}', true),
@@ -109,6 +110,8 @@ do $$ declare c record; begin
   for c in select * from _t.casos order by orden loop
     perform _t.seed(c.tabla, _t.resolve(c.vals));
   end loop;
+  -- segunda cuadrilla de B, para probar inserciones válidas en task_crew_yields
+  perform _t.seed('crews', _t.resolve('{"id":"crB2","organization_id":"B","name":"Cuadrilla B2"}'));
 end $$;
 
 create table _t.res (tabla text, accion text, actor text, filas int, estado text);
