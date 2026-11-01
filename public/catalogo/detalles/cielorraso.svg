@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <pattern id="hormigon" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M0 12L12 0" stroke="#9aa5b1" stroke-width="1"/><circle cx="3" cy="4" r="1" fill="#9aa5b1"/></pattern>
+    <pattern id="muro" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M0 14L14 0" stroke="#bcccdc" stroke-width="1"/></pattern>
+  </defs>
+  <rect width="640" height="360" fill="#fff"/>
+  <text x="20" y="30" font-size="15" font-weight="700" fill="#1f2933">Cielorraso suspendido de placa de yeso — corte</text>
+  <text x="20" y="48" font-size="11" fill="#616e7c">Esquema ilustrativo · sin escala</text>
+  <!-- losa -->
+  <rect x="60" y="70" width="560" height="34" fill="url(#hormigon)" stroke="#52606d" stroke-width="1.5"/>
+  <!-- muro -->
+  <rect x="40" y="70" width="20" height="270" fill="url(#muro)" stroke="#52606d" stroke-width="1.5"/>
+  <!-- velas rígidas -->
+  <g stroke="#1f2933" stroke-width="3">
+    <line x1="220" y1="104" x2="220" y2="214"/><line x1="460" y1="104" x2="460" y2="214"/>
+  </g>
+  <g fill="#9a6700"><rect x="213" y="104" width="14" height="6"/><rect x="453" y="104" width="14" height="6"/></g>
+  <!-- estructura: solera perimetral + montantes -->
+  <rect x="60" y="214" width="10" height="20" fill="#1f2933"/>
+  <rect x="70" y="214" width="550" height="8" fill="none" stroke="#1f2933" stroke-width="2.5"/>
+  <g fill="#1f2933"><rect x="130" y="222" width="6" height="12"/><rect x="250" y="222" width="6" height="12"/><rect x="370" y="222" width="6" height="12"/><rect x="490" y="222" width="6" height="12"/></g>
+  <!-- placa -->
+  <rect x="62" y="234" width="558" height="12" fill="#e4e7eb" stroke="#334e68" stroke-width="1.5"/>
+  <rect x="300" y="246" width="24" height="4" fill="#3e7cb1"/>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#334e68"/></marker></defs>
+  <g stroke="#334e68" stroke-width="1" fill="none">
+    <line x1="220" y1="186" x2="460" y2="186" marker-start="url(#a)" marker-end="url(#a)"/>
+    <line x1="133" y1="270" x2="253" y2="270" marker-start="url(#a)" marker-end="url(#a)"/>
+    <line x1="133" y1="246" x2="133" y2="276"/><line x1="253" y1="246" x2="253" y2="276"/>
+    <line x1="150" y1="104" x2="150" y2="214" marker-start="url(#a)" marker-end="url(#a)"/>
+  </g>
+  <text x="300" y="180" font-size="11" fill="#1f2933">≈ 1,00 m</text>
+  <text x="170" y="266" font-size="11" fill="#1f2933">0,40 m</text>
+  <text x="156" y="160" font-size="10" fill="#616e7c">plenum</text><text x="156" y="172" font-size="10" fill="#616e7c">variable</text>
+  <g font-size="12" fill="#1f2933">
+    <line x1="330" y1="88" x2="380" y2="60" stroke="#334e68"/><text x="384" y="62">Losa existente</text>
+    <line x1="460" y1="150" x2="520" y2="140" stroke="#334e68"/><text x="524" y="144">Vela rígida</text>
+    <text x="524" y="158" font-size="11" fill="#616e7c">c/1,00 m aprox.</text>
+    <line x1="227" y1="107" x2="260" y2="140" stroke="#334e68"/><text x="264" y="144" font-size="11">Anclaje a losa</text>
+    <line x1="560" y1="218" x2="580" y2="192" stroke="#334e68"/><text x="470" y="188">Perfil montante (larguero)</text>
+    <line x1="133" y1="232" x2="110" y2="290" stroke="#334e68"/><text x="80" y="306">Perfiles c/0,40 m</text>
+    <line x1="65" y1="224" x2="90" y2="196" stroke="#334e68"/><text x="74" y="190" font-size="11">Solera perimetral</text>
+    <line x1="420" y1="246" x2="440" y2="300" stroke="#334e68"/><text x="380" y="318">Placa de yeso 9,5 / 12,5 mm</text>
+    <line x1="312" y1="250" x2="300" y2="290" stroke="#334e68"/><text x="230" y="340" font-size="11">Cinta + masilla en juntas</text>
+  </g>
+</svg>

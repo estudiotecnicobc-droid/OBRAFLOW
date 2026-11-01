@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200"><rect width="320" height="200" rx="14" fill="#f3efe9"/>
+<g stroke="#8d5a3b" stroke-width="2" fill="#e8b48f">
+<rect x="70" y="110" width="60" height="26"/><rect x="132" y="110" width="60" height="26"/><rect x="194" y="110" width="60" height="26"/>
+<rect x="100" y="82" width="60" height="26"/><rect x="162" y="82" width="60" height="26"/>
+<rect x="130" y="54" width="60" height="26"/></g>
+<g stroke="#334e68" stroke-width="2" fill="#e4e7eb"><rect x="236" y="54" width="14" height="82"/></g>
+<line x1="60" y1="138" x2="264" y2="138" stroke="#52606d" stroke-width="3"/>
+<text x="160" y="172" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#3e4c59">Mampostería y cerramientos</text></svg>

@@ -34,6 +34,7 @@ import { useBudgetKStore, selectBusinessConfig, computeBudgetKSummary } from '..
 import { computeBudgetItemSaleBreakdown, BudgetItemSaleBreakdown, ItemDirectCostInput } from '../services/budgetItemBreakdown';
 import { projectsService } from '../services/projectsService';
 import { YieldsErrorBanner, useYieldsBlocked } from './YieldsErrorBanner';
+import { TaskTechnicalDetail, RubroBanner } from '../src/features/catalog-media/TaskTechnicalDetail';
 
 interface BudgetEditorProps {
   onNavigate?: (tab: string) => void;
@@ -1760,6 +1761,8 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                           </div>
                                       )}
 
+                                      <RubroBanner category={panelRubro} />
+
                                       {/* Grouped list */}
                                       {(!noMasterTasksAtAll || catProjectTasks.length > 0 || anyGlobal || !!search) && (
                                           <div className="max-h-80 overflow-y-auto border border-slate-200 rounded-lg">
@@ -1855,11 +1858,17 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                           </div>
                                       )}
 
+                                      {(() => {
+                                          const sel = selectedGlobal
+                                              ?? tasks.find(t => t.id === configPanel.selectedTaskId)
+                                              ?? activeMasterTasks.find(mt => mt.id === configPanel.selectedTaskId);
+                                          return sel ? <TaskTechnicalDetail key={sel.id} task={sel} /> : null;
+                                      })()}
+
                                       {/* Feedback messages */}
                                       {selectedGlobal && (
                                           <div className="text-xs text-orange-800 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 space-y-1">
                                               <p className="font-bold">{selectedGlobal.name}</p>
-                                              {selectedGlobal.description && <p className="text-orange-700">{selectedGlobal.description}</p>}
                                               <p className="text-[11px] text-orange-600">Al agregarla se copia a los APU de tu empresa con materiales y mano de obra.</p>
                                           </div>
                                       )}

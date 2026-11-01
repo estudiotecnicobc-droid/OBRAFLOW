@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200"><rect width="320" height="200" rx="14" fill="#edf6f3"/>
+<g stroke="#2f6f5e" stroke-width="2" fill="#cfe8df">
+<rect x="96" y="34" width="40" height="30"/><rect x="138" y="34" width="40" height="30"/><rect x="180" y="34" width="40" height="30"/>
+<rect x="96" y="66" width="40" height="30"/><rect x="138" y="66" width="40" height="30"/><rect x="180" y="66" width="40" height="30"/>
+<rect x="96" y="98" width="40" height="30"/><rect x="138" y="98" width="40" height="30"/><rect x="180" y="98" width="40" height="30"/></g>
+<rect x="84" y="30" width="10" height="110" fill="#bcccdc"/>
+<line x1="84" y1="140" x2="236" y2="140" stroke="#52606d" stroke-width="3"/>
+<text x="160" y="172" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#3e4c59">Revestimientos</text></svg>

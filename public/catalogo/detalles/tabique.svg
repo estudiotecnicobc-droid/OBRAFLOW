@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <pattern id="lana" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M0 5 Q2.5 0 5 5 T10 5" fill="none" stroke="#c9a227" stroke-width="1"/></pattern>
+    <marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#334e68"/></marker>
+  </defs>
+  <rect width="640" height="360" fill="#fff"/>
+  <text x="20" y="30" font-size="15" font-weight="700" fill="#1f2933">Tabique de placa de yeso — corte en planta</text>
+  <text x="20" y="48" font-size="11" fill="#616e7c">Esquema ilustrativo · sin escala</text>
+  <!-- lana -->
+  <rect x="80" y="152" width="480" height="56" fill="url(#lana)" opacity=".8"/>
+  <!-- placas -->
+  <rect x="60" y="138" width="520" height="14" fill="#e4e7eb" stroke="#334e68" stroke-width="1.5"/>
+  <rect x="60" y="208" width="520" height="14" fill="#e4e7eb" stroke="#334e68" stroke-width="1.5"/>
+  <!-- montantes (C) -->
+  <g fill="none" stroke="#1f2933" stroke-width="3">
+    <path d="M112 156 h-12 v48 h12"/><path d="M272 156 h-12 v48 h12"/><path d="M432 156 h-12 v48 h12"/>
+  </g>
+  <!-- tornillos -->
+  <g stroke="#9a6700" stroke-width="2">
+    <line x1="104" y1="130" x2="104" y2="160"/><line x1="264" y1="130" x2="264" y2="160"/><line x1="424" y1="130" x2="424" y2="160"/>
+    <line x1="104" y1="200" x2="104" y2="230"/><line x1="264" y1="200" x2="264" y2="230"/><line x1="424" y1="200" x2="424" y2="230"/>
+  </g>
+  <!-- junta con cinta -->
+  <rect x="330" y="134" width="22" height="4" fill="#3e7cb1"/>
+  <!-- cotas -->
+  <g stroke="#334e68" stroke-width="1" fill="none">
+    <line x1="106" y1="262" x2="266" y2="262" marker-start="url(#a)" marker-end="url(#a)"/>
+    <line x1="106" y1="230" x2="106" y2="270"/><line x1="266" y1="230" x2="266" y2="270"/>
+    <line x1="598" y1="152" x2="598" y2="208" marker-start="url(#a)" marker-end="url(#a)"/>
+    <line x1="580" y1="152" x2="606" y2="152"/><line x1="580" y1="208" x2="606" y2="208"/>
+  </g>
+  <text x="150" y="282" font-size="12" fill="#1f2933">0,40 m (0,60 m en ACU60)</text>
+  <text x="604" y="184" font-size="12" fill="#1f2933">70</text>
+  <text x="604" y="198" font-size="10" fill="#616e7c">mm</text>
+  <g stroke="#334e68" stroke-width="1" fill="none">
+    <line x1="40" y1="138" x2="40" y2="222" marker-start="url(#a)" marker-end="url(#a)"/>
+    <line x1="34" y1="138" x2="60" y2="138"/><line x1="34" y1="222" x2="60" y2="222"/>
+    <line x1="574" y1="138" x2="574" y2="152"/>
+  </g>
+  <text x="6" y="176" font-size="11" fill="#1f2933">≈95</text><text x="10" y="190" font-size="10" fill="#616e7c">mm</text>
+  <text x="540" y="132" font-size="10" fill="#616e7c">12,5</text>
+  <!-- rótulos -->
+  <g font-size="12" fill="#1f2933">
+    <line x1="470" y1="138" x2="500" y2="92" stroke="#334e68"/><text x="404" y="86">Placa de yeso 12,5 mm (ambas caras)</text>
+    <line x1="272" y1="170" x2="210" y2="100" stroke="#334e68"/><text x="150" y="94">Montante 70 mm</text>
+    <line x1="341" y1="134" x2="341" y2="108" stroke="#334e68"/><text x="300" y="104" font-size="11">Cinta + masilla en juntas</text>
+    <line x1="500" y1="180" x2="530" y2="300" stroke="#334e68"/><text x="440" y="318">Lana mineral (opcional, acústica)</text>
+    <line x1="424" y1="226" x2="380" y2="326" stroke="#334e68"/><text x="300" y="340">Tornillo T2 c/0,25 m aprox.</text>
+  </g>
+</svg>
