@@ -1,0 +1,66 @@
+-- =============================================================================
+-- Respaldo dirigido y reversión — aplicación del 31/10/2026 (070, 067, 069, 060, 068)
+--
+-- El proyecto está en el plan gratuito de Supabase (sin backups descargables desde
+-- el panel). Estas migraciones casi no tocan datos, así que el respaldo es la
+-- definición exacta de lo que cambian, tomada de producción antes de aplicar.
+-- Ejecutar SOLO la sección de la migración que haya que revertir.
+-- =============================================================================
+
+-- ── Revertir 068 (fichas técnicas) ───────────────────────────────────────────
+-- DELETE FROM public.catalog_task_yields WHERE master_task_id IN
+--   (SELECT id FROM public.master_tasks WHERE organization_id IS NULL
+--     AND code IN ('OF-FUN-104','OF-YES-104','OF-IMP-003','OF-SAN-128'));
+-- DELETE FROM public.master_tasks WHERE organization_id IS NULL
+--   AND code IN ('OF-FUN-104','OF-YES-104','OF-IMP-003','OF-SAN-128');
+-- DELETE FROM public.resources WHERE organization_id IS NULL AND code = 'OF-M-ICB';
+-- ALTER TABLE public.master_tasks DROP COLUMN IF EXISTS technical_sheet;
+
+-- ── Revertir 060 (price_index_sync_runs) ─────────────────────────────────────
+-- DROP TABLE IF EXISTS public.price_index_sync_runs;
+
+-- ── Revertir 069 (search_path y EXECUTE en funciones de trigger) ─────────────
+-- ALTER FUNCTION public.set_updated_at() RESET search_path;
+-- ALTER FUNCTION public.handle_updated_at() RESET search_path;
+-- ALTER FUNCTION public.trg_set_updated_at_org_sub() RESET search_path;
+-- ALTER FUNCTION public.get_org_uuid(text) RESET search_path;
+-- ALTER FUNCTION public.calc_index_variation() RESET search_path;
+-- ALTER FUNCTION public.resync_org_material_prices(text) RESET search_path;
+-- ALTER FUNCTION public.repair_master_task_material_prices(text) RESET search_path;
+-- ALTER FUNCTION public.is_valid_positive_number(jsonb) RESET search_path;
+-- ALTER FUNCTION public.validate_composite_components(jsonb) RESET search_path;
+-- ALTER FUNCTION public.get_my_admin_organization_ids() RESET search_path;
+-- ALTER FUNCTION public.sync_current_snapshot_cache() RESET search_path;
+-- ALTER FUNCTION public.trg_fn_create_org_subscription() RESET search_path;
+-- GRANT EXECUTE ON FUNCTION public.audit_master_catalog(), public.sync_profile_email(),
+--   public.trg_fn_create_org_subscription(), public.trg_fn_new_org_seed(),
+--   public.rls_auto_enable() TO authenticated;
+
+-- ── Revertir 067 (get_org_entitlements, definición previa) ───────────────────
+-- CREATE OR REPLACE FUNCTION public.get_org_entitlements(p_org_id uuid)
+--  RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER
+-- AS $function$
+--   SELECT jsonb_object_agg(pe.feature_key,
+--     CASE pe.feature_type
+--       WHEN 'boolean' THEN to_jsonb(COALESCE(pe.bool_value, false))
+--       WHEN 'numeric' THEN to_jsonb(COALESCE(pe.numeric_value, 0))
+--     END)
+--   FROM public.organization_subscriptions os
+--   JOIN public.plan_entitlements pe ON pe.plan_id = os.plan_id
+--   WHERE os.organization_id = p_org_id AND os.status IN ('trialing', 'active');
+-- $function$;
+-- ALTER FUNCTION public.get_org_entitlements(uuid) RESET search_path;
+-- GRANT EXECUTE ON FUNCTION public.get_org_entitlements(uuid) TO PUBLIC, anon;
+
+-- ── Revertir 070 (políticas de organization_members / organizations) ─────────
+-- ATENCIÓN: restaura el agujero de seguridad. Solo si la app deja de funcionar
+-- y como paso transitorio.
+-- CREATE POLICY members_insert ON public.organization_members FOR INSERT TO authenticated
+--   WITH CHECK (organization_id IN (SELECT org_id FROM get_my_organization_ids()));
+-- CREATE POLICY members_update ON public.organization_members FOR UPDATE TO authenticated
+--   USING (organization_id IN (SELECT org_id FROM get_my_organization_ids())) WITH CHECK (role <> 'owner');
+-- DROP POLICY IF EXISTS members_delete ON public.organization_members;
+-- CREATE POLICY members_delete ON public.organization_members FOR DELETE TO authenticated
+--   USING (organization_id IN (SELECT org_id FROM get_my_organization_ids()));
+-- CREATE POLICY organizations_insert_authenticated ON public.organizations FOR INSERT TO authenticated WITH CHECK (true);
+-- (organization_members_*_authenticated con `true` no se restauran.)

@@ -10,7 +10,6 @@ import { INITIAL_MATERIALS, INITIAL_TOOLS, INITIAL_LABOR_CATEGORIES } from '../c
 import { generateId } from '../utils/generateId';
 import { Material, Task, Tool, LaborCategory, TaskYield, Crew } from '../types';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { GoogleGenAI } from "@google/genai";
 import { MasterMaterialsPanel } from './MasterMaterialsPanel';
 import { MasterTasksPanel } from './MasterTasksPanel';
 import { BudgetTemplatesPanel } from './BudgetTemplatesPanel';
@@ -23,6 +22,7 @@ import { ReportsPanel } from '../src/features/reports/ReportsPanel';
 import { GlobalResourcesPanel } from './GlobalResourcesPanel';
 import { ChandiasCalculator } from '../src/features/material-calculator/ChandiasCalculator';
 import { ParametricCalculator } from '../src/features/parametric-calculator/ParametricCalculator';
+import { supabase } from '../services/supabaseClient';
 
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -357,52 +357,15 @@ export const DataAdmin: React.FC<DataAdminProps> = ({ initialSubTab, scope }) =>
               return;
           }
 
-          // 2. Configurar Google GenAI con Grounding
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-          
-          // 3. Prompt de Ingeniería + Búsqueda
-          const prompt = `
-            Actúa como el "Asistente de Inteligencia de Mercado" de Obraflow.
-            
-            OBJETIVO:
-            Tu tarea es buscar precios de mercado actualizados en Argentina para los siguientes materiales de construcción.
-            Prioriza buscar en 'mercadolibre.com.ar', 'cifras.com.ar', 'construar.com.ar' o sitios de corralones grandes.
-            
-            MATERIALES A CONSULTAR (Contexto interno):
-            ${JSON.stringify(candidates)}
-            
-            CONSULTA DEL USUARIO: "${aiQuery}"
-            
-            REGLAS:
-            1. Busca el precio actual de mercado (minorista promedio) para cada material.
-            2. Si hay mucha volatilidad, aplica un margen de seguridad del 5% sobre el precio encontrado.
-            3. RESPONDE UNICAMENTE CON UN BLOQUE JSON VALIDO. No incluyas texto antes ni después del bloque JSON.
-            
-            FORMATO JSON ESPERADO:
-            {
-              "explanation": "Resumen técnico del análisis de precios y fuentes consultadas.",
-              "updates": [
-                { 
-                  "id": "ID_DEL_MATERIAL_ORIGINAL", 
-                  "name": "Nombre", 
-                  "current_price": 100, 
-                  "new_price": 120, 
-                  "source": "Nombre Fuente", 
-                  "date": "YYYY-MM-DD" 
-                }
-              ]
-            }
-          `;
-
-          const response = await ai.models.generateContent({
-              model: "gemini-3-flash-preview",
-              contents: prompt,
-              config: {
-                  tools: [{ googleSearch: {} }],
-                  // NOTE: JSON Schema enforcement is disabled when using Search Tool to avoid API conflicts.
-                  // We rely on the prompt to format the output as JSON.
-              }
+          // 2. Consulta al asistente en el servidor (la clave de Gemini no viaja al navegador)
+          const { data: { session } } = await supabase.auth.getSession();
+          const resp = await fetch('/api/market-prices', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+              body: JSON.stringify({ query: aiQuery, candidates }),
           });
+          const response = await resp.json();
+          if (!resp.ok) throw new Error(response?.error ?? `HTTP ${resp.status}`);
 
           if (response.text) {
               let jsonStr = response.text;

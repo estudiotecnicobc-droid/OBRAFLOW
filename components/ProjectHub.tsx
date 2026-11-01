@@ -1,11 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useERP } from '../context/ERPContext';
 import { useAuth } from '../context/AuthContext';
 import {
-  FolderPlus, HardHat, MapPin, User, LogOut, Search, LayoutGrid, Images, List, Columns3, Camera, Calendar, X,
+  FolderPlus, HardHat, MapPin, User, LogOut, Search, LayoutGrid, Images, List, Columns3, Camera, Calendar, X, Home,
 } from 'lucide-react';
 import { Project, ProjectStatus } from '../types';
 import { ProjectWizard } from './ProjectWizard';
+import { DEMO_NAME, demoProjectData } from '../src/features/demo/demoHouse';
+import { countProjects, demoAlreadyOffered, markDemo, setDemoPending } from '../src/features/demo/demoState';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { ProjectCover, CoverPicker } from '../src/features/projects/ProjectCover';
 import { toLocalDate } from '../services/calculationService';
@@ -56,8 +58,8 @@ const Progress: React.FC<{ value: number | null }> = ({ value }) =>
   );
 
 export const ProjectHub: React.FC = () => {
-  const { projects, setActiveProject } = useERP();
-  const { user, logout, hasPermission } = useAuth();
+  const { projects, setActiveProject, createNewProject } = useERP();
+  const { user, logout, hasPermission, activeOrganizationId: orgId } = useAuth();
 
   const [showWizard, setShowWizard] = useState(false);
   const [view, setView] = usePersistentState<View>('obraflow_hub_view', 'cards');
@@ -67,6 +69,29 @@ export const ProjectHub: React.FC = () => {
   const [coverFor, setCoverFor] = useState<Project | null>(null);
 
   const canCreate = hasPermission(['admin', 'project_manager']);
+
+  // ── Obra de ejemplo ───────────────────────────────────────────────────────
+  const hasDemo = projects.some(p => p.name === DEMO_NAME);
+  const startDemo = () => {
+    if (!orgId) return;
+    setDemoPending(orgId);
+    createNewProject(demoProjectData());
+  };
+  // Primera vez en una empresa sin obras: se crea sola. Si ya se creó (o se borró) no se repite.
+  useEffect(() => {
+    if (!canCreate || !orgId) return;
+    let cancelled = false;
+    (async () => {
+      if (await demoAlreadyOffered(orgId)) return;
+      const n = await countProjects(orgId);
+      if (cancelled || n === null) return;
+      if (n > 0) { markDemo(orgId, 'omitida'); return; }
+      await markDemo(orgId, 'creada');
+      if (!cancelled) startDemo();
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canCreate, orgId]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: projects.length };
@@ -201,10 +226,19 @@ export const ProjectHub: React.FC = () => {
               </p>
             </div>
             {canCreate && (
+              <div className="flex flex-wrap gap-2 self-start md:self-auto">
+              {/* Con la lista vacía, el recuadro ya ofrece la obra de ejemplo. */}
+              {!hasDemo && projects.length > 0 && (
+                <button onClick={startDemo}
+                  className="bg-white hover:bg-slate-50 text-blue-700 border border-blue-200 px-4 py-2.5 rounded-xl font-bold flex items-center gap-2">
+                  <Home size={18} /> Obra de ejemplo
+                </button>
+              )}
               <button onClick={() => setShowWizard(true)}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-blue-200 flex items-center gap-2 transition-transform active:scale-95 self-start md:self-auto">
                 <FolderPlus size={20} /> Nuevo Proyecto
               </button>
+              </div>
             )}
           </div>
 
@@ -254,9 +288,14 @@ export const ProjectHub: React.FC = () => {
         {projects.length === 0 ? (
           <div className="py-20 text-center border-2 border-dashed border-slate-300 rounded-2xl bg-white/50">
             <FolderPlus size={48} className="mx-auto text-slate-300 mb-4" />
-            <h3 className="text-lg font-bold text-slate-600">No hay proyectos creados</h3>
-            <p className="text-slate-400 text-sm mb-6">Comience creando su primera obra.</p>
-            {canCreate && <button onClick={() => setShowWizard(true)} className="text-blue-600 font-bold hover:underline">Crear ahora</button>}
+            <h3 className="text-lg font-bold text-slate-600">Todavía no hay obras</h3>
+            <p className="text-slate-500 text-sm mb-6 max-w-md mx-auto">Para conocer ObraFlow, abrí la obra de ejemplo: una vivienda de 70 m² con cómputo, presupuesto y análisis de costos completos. O empezá tu propia obra.</p>
+            {canCreate && (
+              <div className="flex flex-wrap justify-center gap-3">
+                <button onClick={startDemo} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"><Home size={16} /> Explorá la obra de ejemplo</button>
+                <button onClick={() => setShowWizard(true)} className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2"><FolderPlus size={16} /> Crear mi obra</button>
+              </div>
+            )}
           </div>
         ) : visible.length === 0 ? (
           <div className="py-16 text-center text-slate-500 text-sm">
