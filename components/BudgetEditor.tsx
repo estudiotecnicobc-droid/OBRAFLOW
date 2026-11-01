@@ -382,6 +382,18 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   const [editingQuantityId, setEditingQuantityId] = useState<string | null>(null);
   // Al bajar por la tabla se compactan la barra superior y los totales para dejar más filas a la vista.
   const [tableScrolled, setTableScrolled] = useState(false);
+  // Alto disponible del panel = alto visible real de <main> (no 100dvh: puede haber barras de scroll u otros elementos).
+  const mainPanelRef = useRef<HTMLDivElement>(null);
+  const [availH, setAvailH] = useState<number | null>(null);
+  useEffect(() => {
+    const scroller = mainPanelRef.current?.closest('main');
+    if (!scroller) return;
+    const update = () => setAvailH(scroller.clientHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(scroller);
+    return () => ro.disconnect();
+  }, []);
   // Planilla de medición abierta (panel lateral) para un ítem.
   const [measuringItemId, setMeasuringItemId] = useState<string | null>(null);
   // Ítems recién enviados/actualizados desde el Calculador de cómputo: se resaltan unos segundos.
@@ -1262,18 +1274,21 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
       />
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 min-w-0 flex flex-col h-full md:sticky md:top-4 md:h-[calc(100dvh-2rem)] bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden relative print:hidden">
+      <div
+        ref={mainPanelRef}
+        style={availH ? ({ '--panel-h': `${availH - 32}px` } as React.CSSProperties) : undefined}
+        className="flex-1 min-w-0 flex flex-col h-full md:sticky md:top-4 md:h-[var(--panel-h,calc(100dvh-2rem))] bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden relative print:hidden">
           
           {/* HEADER & STEPPER */}
           <div className={`border-b border-slate-100 transition-[padding] ${tableScrolled ? 'px-6 py-2' : 'p-6'}`}>
-              <div className="flex justify-between items-end">
+              <div className="flex flex-wrap justify-between items-end gap-3">
                   <div className={tableScrolled ? 'hidden' : ''}>
                       <h1 className="text-2xl font-black text-slate-800 tracking-tight">Cómputo y Presupuesto Profesional</h1>
                       <div className="text-sm text-slate-500 mt-1 flex items-center gap-2">
                           <Clock size={14} /> Última actualización: {new Date().toLocaleDateString()}
                       </div>
                   </div>
-                  <div className={`flex items-center gap-2 ${tableScrolled ? 'ml-auto' : ''}`}>
+                  <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
                       <div className="flex items-center rounded-lg overflow-hidden border border-slate-200 text-xs font-bold">
                           <button
                               onClick={() => setTableViewMode('tecnico')}
@@ -1290,16 +1305,18 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                       </div>
                       <button
                           onClick={() => setQuickOpen(true)}
-                          className="flex items-center gap-2 h-9 px-3.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+                          title="Presupuesto rápido"
+                          className="flex items-center gap-2 h-9 px-2.5 2xl:px-3.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
                       >
-                          <Zap size={15} className="text-orange-500" /> Presupuesto rápido
+                          <Zap size={15} className="text-orange-500" /> <span className="hidden 2xl:inline">Presupuesto rápido</span>
                       </button>
                       <button
                           onClick={() => setShowComparison(v => !v)}
                           aria-pressed={showComparison}
-                          className={`flex items-center gap-2 h-9 px-3.5 rounded-lg text-xs font-bold border transition-colors ${showComparison ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                          title="Actualizar presupuesto"
+                          className={`flex items-center gap-2 h-9 px-2.5 2xl:px-3.5 rounded-lg text-xs font-bold border transition-colors ${showComparison ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                       >
-                          <DollarSign size={15} className={showComparison ? 'text-blue-600' : 'text-slate-500'} /> Actualizar presupuesto
+                          <DollarSign size={15} className={showComparison ? 'text-blue-600' : 'text-slate-500'} /> <span className="hidden 2xl:inline">Actualizar presupuesto</span>
                       </button>
                       <div className="relative" ref={reportsMenuRef}>
                           <button
@@ -1394,11 +1411,11 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
           {/* La tabla scrollea dentro del panel (alto de pantalla en desktop) y el encabezado queda fijo. */}
           {!showComparison && <div className="flex-1 min-h-0 overflow-auto bg-slate-50/50 p-6 pt-0"
               onScroll={e => { const s = e.currentTarget.scrollTop > 24; if (s !== tableScrolled) setTableScrolled(s); }}>
-              <div className="mt-6 bg-white border border-slate-200 shadow-sm rounded-lg overflow-clip">
+              <div className="mt-6 w-max min-w-full bg-white border border-slate-200 shadow-sm rounded-lg overflow-clip">
                   <table className="w-full text-left border-collapse">
                       <thead className="sticky top-0 z-20 shadow-[0_1px_0_0_rgb(226_232_240),0_2px_4px_-2px_rgb(15_23_42/0.15)]">
                           <tr className="bg-slate-100 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-200">
-                              <th className="p-3 w-1/3">Descripción del Ítem</th>
+                              <th className="p-3 min-w-[14rem]">Descripción del Ítem</th>
                               <th className="p-3 w-16 text-center">Unidad</th>
                               <th className="p-3 w-24 text-center">Cantidad</th>
                               {tableViewMode === 'tecnico' ? (
@@ -1443,20 +1460,22 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                       )}
                                       {/* RUBRO HEADER */}
                                       <tr data-rubro-row={rubro} className="bg-slate-800 text-white cursor-pointer hover:bg-slate-700 transition-colors scroll-mt-12" onClick={() => toggleRubroExpansion(rubro)}>
-                                          <td colSpan={1} className="p-2 pl-4 font-bold text-sm flex items-center gap-2 uppercase tracking-wide">
-                                              {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                              {rubro}
+                                          <td colSpan={3} className="p-2 pl-4 font-bold text-sm uppercase tracking-wide">
+                                              <span className="flex items-center gap-2">
+                                                  {isExpanded ? <ChevronDown size={16} className="shrink-0" /> : <ChevronRight size={16} className="shrink-0" />}
+                                                  {rubro}
+                                              </span>
                                           </td>
                                           {tableViewMode === 'tecnico' ? (
                                               <>
-                                                  <td colSpan={6}></td>
+                                                  <td colSpan={4}></td>
                                                   <td className="p-2 text-right font-mono font-bold text-sm">
                                                       ${totals.total.toLocaleString(undefined, {minimumFractionDigits: 2})}
                                                   </td>
                                               </>
                                           ) : (
                                               <>
-                                                  <td colSpan={3}></td>
+                                                  <td colSpan={1}></td>
                                                   <td className="p-2 text-right font-mono font-bold text-sm text-emerald-300">
                                                       ${items.reduce((s, r) => s + (breakdownByItemId[r.item.id]?.salePriceTotal ?? 0), 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
                                                   </td>
@@ -1485,7 +1504,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                                         <tr key={row.item.id} data-budget-item-id={row.item.id} className={`border-b border-slate-100 hover:bg-blue-50/30 transition-colors group ${highlightIds.has(row.item.id) ? 'bg-teal-50 ring-2 ring-inset ring-teal-300' : ''}`}>
                                                             {/* Description */}
                                                             <td className="p-2 pl-8">
-                                                                <div className="font-medium text-slate-700 text-xs">{row.task.name}</div>
+                                                                <div className="font-medium text-slate-700 text-xs max-w-[24rem]">{row.task.name}</div>
                                                                 <div className="text-[9px] text-slate-400">{row.task.code}</div>
                                                             </td>
                                                             
@@ -1630,27 +1649,27 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
           {/* FOOTER TOTALS */}
           <div className={`bg-slate-900 text-white border-t-4 border-blue-600 shadow-2xl z-10 transition-[padding] ${tableScrolled ? 'px-6 py-2' : 'p-6'}`}>
-              <div className="flex flex-col md:flex-row justify-between items-end gap-6">
+              <div className="flex flex-col md:flex-row md:flex-wrap justify-between items-end gap-x-6 gap-y-2">
                   {/* ... Adjustments Summary ... */}
                   {yieldsBlocked && (
                       <div className="text-xs font-bold text-amber-300 uppercase self-center">Totales no disponibles — sin validar</div>
                   )}
-                  <div className={`flex gap-8 text-right ${yieldsBlocked ? 'opacity-40' : ''}`}>
+                  <div className={`flex flex-wrap justify-end items-end gap-x-5 xl:gap-x-8 gap-y-2 text-right ml-auto ${yieldsBlocked ? 'opacity-40' : ''}`}>
                       <div>
                           <div className="text-[10px] font-bold text-slate-400 uppercase">Materiales + Eq</div>
-                          <div className="text-lg font-mono font-medium text-blue-300">
+                          <div className="text-sm xl:text-lg font-mono font-medium text-blue-300">
                               ${grandTotals.mat.toLocaleString(undefined, {maximumFractionDigits: 0})}
                           </div>
                       </div>
                       <div>
                           <div className="text-[10px] font-bold text-slate-400 uppercase">Mano de Obra</div>
-                          <div className="text-lg font-mono font-medium text-orange-300">
+                          <div className="text-sm xl:text-lg font-mono font-medium text-orange-300">
                               ${grandTotals.lab.toLocaleString(undefined, {maximumFractionDigits: 0})}
                           </div>
                       </div>
                       <div>
                           <div className="text-xs font-bold text-slate-300 uppercase mb-1">TOTAL GENERAL</div>
-                          <div className={`${tableScrolled ? 'text-2xl' : 'text-4xl'} font-black text-white font-mono tracking-tight leading-none`}>
+                          <div className={`${tableScrolled ? 'text-xl xl:text-2xl' : 'text-2xl xl:text-4xl'} font-black text-white font-mono tracking-tight leading-none`}>
                               ${grandTotals.finalTotal.toLocaleString(undefined, {maximumFractionDigits: 2})}
                           </div>
                       </div>
