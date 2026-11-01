@@ -124,7 +124,7 @@ export const BudgetRubroIndex: React.FC<Props> = ({
   const iconBtn = 'p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors';
 
   return (
-    <div className="w-72 flex-shrink-0 self-start sticky top-4 h-[calc(100dvh-2rem)] bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-sm print:hidden">
+    <div className="w-72 flex-shrink-0 self-start sticky top-4 h-[var(--panel-h,calc(100dvh-2rem))] bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-sm print:hidden">
       <div className="px-4 pt-3 pb-2 border-b border-slate-200 space-y-2">
         <div className="flex items-center gap-2">
           <ListTree size={16} className="text-slate-500" />

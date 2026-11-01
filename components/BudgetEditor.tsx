@@ -382,18 +382,24 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   const [editingQuantityId, setEditingQuantityId] = useState<string | null>(null);
   // Al bajar por la tabla se compactan la barra superior y los totales para dejar más filas a la vista.
   const [tableScrolled, setTableScrolled] = useState(false);
-  // Alto disponible del panel = alto visible real de <main> (no 100dvh: puede haber barras de scroll u otros elementos).
-  const mainPanelRef = useRef<HTMLDivElement>(null);
-  const [availH, setAvailH] = useState<number | null>(null);
+  // Alto de los paneles (índice y presupuesto) = espacio visible de <main> debajo de las pestañas,
+  // para que el final de ambos (totales, Cuadro empresario, «Agregar rubro») entre sin scrollear la página.
+  const [editorRoot, setEditorRoot] = useState<HTMLDivElement | null>(null);
+  const [panelH, setPanelH] = useState<number | null>(null);
   useEffect(() => {
-    const scroller = mainPanelRef.current?.closest('main');
-    if (!scroller) return;
-    const update = () => setAvailH(scroller.clientHeight);
+    const root = editorRoot;
+    const scroller = root?.closest('main');
+    if (!root || !scroller) return;
+    const update = () => {
+      const top = root.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+      const padBottom = parseFloat(getComputedStyle(scroller.firstElementChild ?? scroller).paddingBottom) || 0;
+      setPanelH(Math.max(420, Math.floor(scroller.clientHeight - top - padBottom)));
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(scroller);
     return () => ro.disconnect();
-  }, []);
+  }, [editorRoot]);
   // Planilla de medición abierta (panel lateral) para un ítem.
   const [measuringItemId, setMeasuringItemId] = useState<string | null>(null);
   // Ítems recién enviados/actualizados desde el Calculador de cómputo: se resaltan unos segundos.
@@ -1252,7 +1258,10 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
   // Render logic
   return (
-    <div className="flex h-full gap-6 font-sans relative">
+    <div
+      ref={setEditorRoot}
+      style={panelH ? ({ '--panel-h': `${panelH}px` } as React.CSSProperties) : undefined}
+      className="flex h-full gap-6 font-sans relative">
       {quickModal}
       {measuringItemId && <MeasurementDrawer budgetItemId={measuringItemId} onClose={() => setMeasuringItemId(null)} />}
       {yieldsBlocked && <div className="absolute top-0 inset-x-0 z-30"><YieldsErrorBanner /></div>}
@@ -1275,8 +1284,6 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
       {/* MAIN CONTENT */}
       <div
-        ref={mainPanelRef}
-        style={availH ? ({ '--panel-h': `${availH - 32}px` } as React.CSSProperties) : undefined}
         className="flex-1 min-w-0 flex flex-col h-full md:sticky md:top-4 md:h-[var(--panel-h,calc(100dvh-2rem))] bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden relative print:hidden">
           
           {/* HEADER & STEPPER */}
