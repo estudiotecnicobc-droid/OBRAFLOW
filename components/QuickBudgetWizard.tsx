@@ -7,6 +7,7 @@ import { DURLOCK_TEMPLATE } from '../src/features/quickBudget/durlockTemplate';
 import { buildRows, defaultValues, evaluate } from '../src/features/quickBudget/engine';
 import type { QuickRow, QuickTemplate, V } from '../src/features/quickBudget/types';
 import { FichaThumb } from '../src/features/catalog-media/TaskTechnicalDetail';
+import { fichaImage, rubroFicha } from '../src/features/catalog-media/catalogMedia';
 
 export type QuickSource = { kind: 'org'; task: MasterTask } | { kind: 'global'; task: MasterTask } | { kind: 'none' };
 
@@ -38,6 +39,16 @@ const SOURCE_BADGE: Record<QuickSource['kind'], { label: string; cls: string; ti
 };
 
 // La plantilla de placa de yeso se reemplaza por la de sistemas Durlock.
+const OBRA_IMAGES = new Set(['cocina', 'muro', 'pintura', 'piso', 'terraza', 'durlock', 'frente', 'vereda', 'electrica', 'ampliacion']);
+const obraImage = (id: string) => (OBRA_IMAGES.has(id) ? `/catalogo/obras/${id}.svg` : null);
+/** Imagen del paso de datos: la de la obra completa o, si es un rubro, su esquema representativo. */
+const stepImage = (t: QuickTemplate) => {
+  const obra = obraImage(t.id);
+  if (obra) return obra;
+  const f = rubroFicha(t.rubros[0]?.rubro);
+  return f ? fichaImage(f) : null;
+};
+
 const TEMPLATES = QUICK_TEMPLATES.map(t => (t.id === DURLOCK_TEMPLATE.id ? DURLOCK_TEMPLATE : t));
 
 export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply, initialRubro, existing }) => {
@@ -191,10 +202,13 @@ export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply,
                     const n = t.rubros.reduce((a, r) => a + r.tasks.length, 0);
                     return (
                       <button key={t.id} onClick={() => pick([t])}
-                        className="text-left p-4 border border-slate-200 rounded-xl hover:border-orange-400 hover:shadow-sm transition-all">
-                        <div className="font-bold text-sm text-slate-800">{t.name}</div>
-                        <div className="text-xs text-slate-500 mt-1 leading-relaxed">{t.description}</div>
-                        <div className="text-[11px] text-slate-400 mt-2">{n} tareas posibles</div>
+                        className="text-left p-4 border border-slate-200 rounded-xl hover:border-orange-400 hover:shadow-sm transition-all flex gap-3 items-start">
+                        {obraImage(t.id) && <img src={obraImage(t.id)!} alt="" className="w-24 h-16 object-cover rounded-lg shrink-0" loading="lazy" />}
+                        <span className="min-w-0">
+                          <span className="block font-bold text-sm text-slate-800">{t.name}</span>
+                          <span className="block text-xs text-slate-500 mt-1 leading-relaxed">{t.description}</span>
+                          <span className="block text-[11px] text-slate-400 mt-2">{n} tareas posibles</span>
+                        </span>
                       </button>
                     );
                   })}
@@ -288,9 +302,13 @@ export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply,
                           </div>
                         ))}
                       </div>
-                      {t.calcs.length > 0 && ev && (
-                        <div className="lg:col-span-2">
-                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 lg:sticky lg:top-0">
+                      {((t.calcs.length > 0 && ev) || stepImage(t)) && (
+                        <div className="lg:col-span-2 space-y-3 lg:sticky lg:top-0 self-start">
+                          {stepImage(t) && (
+                            <img src={stepImage(t)!} alt={t.name} className="w-full rounded-xl border border-slate-200 bg-white" loading="lazy" />
+                          )}
+                          {t.calcs.length > 0 && ev && (
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
                             <div className="text-xs font-bold text-slate-500 uppercase">Se calcula solo</div>
                             {t.calcs.map(c => (
                               <div key={c.key} className="flex justify-between gap-3 text-sm">
@@ -301,6 +319,7 @@ export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply,
                               </div>
                             ))}
                           </div>
+                          )}
                         </div>
                       )}
                     </div>
