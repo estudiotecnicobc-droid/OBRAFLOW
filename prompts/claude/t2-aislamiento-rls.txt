@@ -1,0 +1,1 @@
+T2 del plan: tests automáticos de aislamiento entre empresas (RLS) en CI, con copia del esquema de producción. Hallazgos convertidos en migración 072 (sin aplicar, requiere OK).
