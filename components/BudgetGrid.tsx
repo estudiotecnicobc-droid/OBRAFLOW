@@ -1,6 +1,9 @@
 import React, { useMemo, useState, Fragment, useRef } from 'react';
 import { useERP } from '../context/ERPContext';
 import { calculateUnitPrice } from '../services/calculationService';
+import { MeasurementDrawer } from './MeasurementDrawer';
+import { QuantitySourceBadge } from './QuantitySourceBadge';
+import { getQuantitySource } from '../utils/quantitySource';
 import { 
   useReactTable, 
   getCoreRowModel, 
@@ -34,14 +37,16 @@ interface GridRow {
 export const BudgetGrid: React.FC = () => {
   const { 
     project, tasks, materials, rubros,
-    updateBudgetItem, addTaskYield, updateMaterial, snapshots, createSnapshot,
+    addTaskYield, updateMaterial, snapshots, createSnapshot,
     addTaskToolYield, updateTool, updateTask,
     // Indexes
     yieldsIndex, materialsMap, toolYieldsIndex, toolsMap,
-    laborCategoriesMap, taskCrewYieldsIndex, crewsMap, taskLaborYieldsIndex
+    laborCategoriesMap, taskCrewYieldsIndex, crewsMap, taskLaborYieldsIndex,
+    measurementSheets,
   } = useERP();
 
   const [expanded, setExpanded] = useState({});
+  const [measuringItemId, setMeasuringItemId] = useState<string | null>(null);
   
   // PDF Preview State
   const [showPdfPreview, setShowPdfPreview] = useState(false);
@@ -152,17 +157,21 @@ export const BudgetGrid: React.FC = () => {
       cell: ({ row, getValue }) => {
         if (row.original.type === 'rubro') return null;
         
-        // Inline Editing for Quantity
+        // Solo lectura: la cantidad se carga en «Ítems y presupuesto» o en la planilla de medición.
+        const item = row.original.originalItem;
+        const src = getQuantitySource(item, measurementSheets);
         return (
-          <input
-            type="number"
-            className="w-20 text-right p-1.5 border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-medium transition-all hover:border-slate-300"
-            value={getValue() as number}
-            onChange={(e) => {
-               const val = parseFloat(e.target.value);
-               if (!isNaN(val)) updateBudgetItem(row.original.id, { quantity: val });
-            }}
-          />
+          <button
+            type="button"
+            onClick={() => setMeasuringItemId(row.original.id)}
+            title="Abrir planilla de medición"
+            className="flex flex-col items-end gap-0.5 w-24 ml-auto px-1.5 py-1 rounded hover:bg-blue-50"
+          >
+            <span className="text-sm font-medium text-slate-700 font-mono">
+              {(getValue() as number).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+            </span>
+            <QuantitySourceBadge source={src} />
+          </button>
         );
       },
       size: 100,
@@ -204,7 +213,7 @@ export const BudgetGrid: React.FC = () => {
       },
       size: 80,
     },
-  ], [updateBudgetItem, totalProjectCost]);
+  ], [totalProjectCost, measurementSheets]);
 
   const table = useReactTable<GridRow>({
     data,
@@ -380,6 +389,7 @@ export const BudgetGrid: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {measuringItemId && <MeasurementDrawer budgetItemId={measuringItemId} onClose={() => setMeasuringItemId(null)} />}
       
       {/* CSS Injection for PDF Print */}
       <style>{`
@@ -397,9 +407,9 @@ export const BudgetGrid: React.FC = () => {
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
          <div>
             <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                <TableIcon className="text-blue-600" /> Presupuesto Jerárquico
+                <TableIcon className="text-blue-600" /> Análisis de costos
             </h2>
-            <p className="text-sm text-slate-500">Edición en grilla con desglose de recursos y análisis de desvíos.</p>
+            <p className="text-sm text-slate-500">Desglose del APU de cada ítem y análisis de desvíos. Las cantidades se cargan en «Ítems y presupuesto» o en su planilla de medición.</p>
          </div>
          
          {/* KPI & Actions */}

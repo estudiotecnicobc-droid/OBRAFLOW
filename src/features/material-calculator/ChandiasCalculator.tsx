@@ -23,6 +23,7 @@ import { MasterTaskMaterial, APUSourceMetadata } from '../../../types';
 import { ReportPreviewModal, ReportMode } from './ReportPreviewModal';
 import { computationService } from '../../../services/computationService';
 import { buildComputationImportPayloads } from '../../../services/importComputationItems';
+import { setPendingHighlight } from '../../../utils/quantitySource';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1865,10 +1866,12 @@ interface RightPanelProps {
   restoredAt?:    number;
   /** Callback invocado tras crear un APU exitosamente — el padre debe llamar refetch(). */
   onAPUCreated?:  () => void;
+  /** Ir a «Ítems y presupuesto» (resaltando lo enviado). Si falta, no se muestra el botón. */
+  onViewInBudget?: () => void;
 }
 const RightPanel: React.FC<RightPanelProps> = ({
   items, orgMaterials, organizationId, projectId, existingNames,
-  onRemove, onClear, onExportCSV, onSaveComputation, onSendToPresupuesto, restoredAt, onAPUCreated,
+  onRemove, onClear, onExportCSV, onSaveComputation, onSendToPresupuesto, restoredAt, onAPUCreated, onViewInBudget,
 }) => {
   const [tab,        setTab]        = useState<RightTab>('items');
   const [apuItem,    setApuItem]    = useState<ChandiasAddedItem | null>(null);
@@ -1905,7 +1908,7 @@ const RightPanel: React.FC<RightPanelProps> = ({
       const msg = await onSendToPresupuesto();
       setSendMsg(msg);
       setSendStatus('sent');
-      setTimeout(() => { setSendStatus('idle'); setSendMsg(null); }, 6000);
+      setTimeout(() => { setSendStatus('idle'); setSendMsg(null); }, 15000);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al enviar';
       setSendMsg(msg);
@@ -1964,7 +1967,12 @@ const RightPanel: React.FC<RightPanelProps> = ({
       {sendStatus === 'sent' && sendMsg && (
         <div className="mx-2 mt-2 flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[10px] text-emerald-700 shrink-0">
           <CheckCircle2 size={11} className="shrink-0" />
-          <span>{sendMsg}</span>
+          <span className="flex-1">{sendMsg}</span>
+          {onViewInBudget && (
+            <button onClick={onViewInBudget} className="shrink-0 px-2 py-0.5 rounded bg-emerald-600 text-white font-semibold hover:bg-emerald-700">
+              Ver en presupuesto →
+            </button>
+          )}
         </div>
       )}
       {/* Banner error al enviar */}
@@ -2138,7 +2146,7 @@ const RightPanel: React.FC<RightPanelProps> = ({
               <button
                 onClick={handleSendToPresupuesto}
                 disabled={sendStatus === 'sending' || saveStatus === 'saving'}
-                title="Guarda el cómputo y crea ítems de presupuesto en el proyecto activo"
+                title="Guarda el cómputo, crea los ítems nuevos y actualiza la cantidad de los que ya están en el presupuesto"
                 className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg transition-colors"
               >
                 {sendStatus === 'sending'
@@ -2270,7 +2278,7 @@ function saveDraft(
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export const ChandiasCalculator: React.FC = () => {
+export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavigate }) => {
   const { user } = useAuth();
   const orgId    = user?.organizationId ?? '';
 
@@ -2286,6 +2294,7 @@ export const ChandiasCalculator: React.FC = () => {
     updateMaterial,
     updateLaborCategory,
     addBudgetItem,
+    updateBudgetItem,
     addTaskYield,
     addTaskLaborYield,
     addTaskToolYield,
@@ -2492,7 +2501,7 @@ export const ChandiasCalculator: React.FC = () => {
     }
 
     // ── 2. Construir payloads ─────────────────────────────────────────────
-    const { payloads, noAPUPayloads, skippedNames } = buildComputationImportPayloads(
+    const { payloads, noAPUPayloads, existingUpdates } = buildComputationImportPayloads(
       items,
       masterTasks,
       orgId,
@@ -2506,11 +2515,29 @@ export const ChandiasCalculator: React.FC = () => {
 
     const totalToSend = payloads.length + noAPUPayloads.length;
 
-    if (totalToSend === 0) {
-      const detail = skippedNames.length > 0
-        ? ` (${skippedNames.length} ítem${skippedNames.length > 1 ? 's' : ''} ya en presupuesto)`
-        : '';
-      throw new Error(`Nada nuevo para enviar${detail}`);
+    // Ítems que ya estaban: se actualiza la cantidad (no se duplican ni se omiten).
+    const budgetItemByName = new Map<string, { id: string; quantity: number }>();
+    for (const bi of project.items) {
+      const t = projectTasks.find(pt => pt.id === bi.taskId);
+      const key = t?.name.trim().toLowerCase();
+      if (key && !budgetItemByName.has(key)) budgetItemByName.set(key, { id: bi.id, quantity: bi.quantity });
+    }
+    const touchedIds: string[] = [];
+    let updatedCount = 0;
+    for (const u of existingUpdates) {
+      const bi = budgetItemByName.get(u.nameKey);
+      if (!bi) continue;
+      touchedIds.push(bi.id);
+      const qty = Number(u.quantity.toFixed(2));
+      if (Math.abs(bi.quantity - qty) > 0.005 || u.computationItemId) {
+        updateBudgetItem(bi.id, { quantity: qty, ...(u.computationItemId ? { computationItemId: u.computationItemId } : {}) });
+        updatedCount++;
+      }
+    }
+
+    if (totalToSend === 0 && updatedCount === 0) {
+      setPendingHighlight(touchedIds);
+      return 'Sin cambios: el presupuesto ya tiene estas cantidades';
     }
 
     // ── 3. Crear tasks + yields + budget_items ────────────────────────────
@@ -2532,26 +2559,28 @@ export const ChandiasCalculator: React.FC = () => {
       p.laborYields.forEach(ly => addTaskLaborYield(ly));
       p.toolYields.forEach(ty => addTaskToolYield(ty));
       addBudgetItem(p.budgetItem);
+      touchedIds.push(p.budgetItem.id);
     }
     for (const { task, budgetItem } of noAPUPayloads) {
       await addTask(task);
       addBudgetItem(budgetItem);
+      touchedIds.push(budgetItem.id);
     }
+    setPendingHighlight(touchedIds);
 
     // ── 4. Mensaje de resultado ───────────────────────────────────────────
-    const parts: string[] = [`${totalToSend} ítem${totalToSend > 1 ? 's' : ''} enviado${totalToSend > 1 ? 's' : ''} al presupuesto`];
+    const parts: string[] = [];
+    if (totalToSend > 0) parts.push(`${totalToSend} ítem${totalToSend > 1 ? 's' : ''} nuevo${totalToSend > 1 ? 's' : ''}`);
+    if (updatedCount > 0) parts.push(`${updatedCount} cantidad${updatedCount > 1 ? 'es' : ''} actualizada${updatedCount > 1 ? 's' : ''}`);
     if (noAPUPayloads.length > 0) {
       parts.push(`${noAPUPayloads.length} sin APU (costo = 0)`);
-    }
-    if (skippedNames.length > 0) {
-      parts.push(`${skippedNames.length} ya existía${skippedNames.length > 1 ? 'n' : ''}`);
     }
     return parts.join(' · ');
   }, [
     items, projectId, project?.id, orgId, masterTasks, orgMaterials,
     laborCategoriesMap, toolsMap, erpMaterials, budgetTaskNamesSet,
     addTask, addMaterial, updateMaterial, updateLaborCategory,
-    addTaskYield, addTaskLaborYield, addTaskToolYield, addBudgetItem,
+    addTaskYield, addTaskLaborYield, addTaskToolYield, addBudgetItem, updateBudgetItem, project?.items, projectTasks,
   ]);
 
   // ── Preset activo (coincidencia exacta de anchos) ─────────────────────────
@@ -2675,6 +2704,7 @@ export const ChandiasCalculator: React.FC = () => {
             onSendToPresupuesto={handleSendToPresupuesto}
             restoredAt={restoredAt}
             onAPUCreated={refetchMasterTasks}
+            onViewInBudget={onNavigate ? () => onNavigate('budget') : undefined}
           />
         </div>
       </div>
