@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeBudgetHealth, looksLikeCommaError, normalizeUnit, type HealthRow } from '../../utils/budgetHealth';
+import { analyzeBudgetHealth, findUnitPriceOutliers, looksLikeCommaError, normalizeUnit, type HealthRow } from '../../utils/budgetHealth';
 
 const row = (over: Partial<HealthRow> & { itemId: string }): HealthRow => ({
   name: 'Tarea', unit: 'm2', quantity: 10, unitCost: 1000, total: 10000, apuHasMissing: false, ...over,
@@ -92,5 +92,50 @@ describe('analyzeBudgetHealth', () => {
       row({ itemId: 'a', unitCost: 0, total: 0 }),
     ]);
     expect(issues.map(i => i.level)).toEqual(['error', 'warning']);
+  });
+
+  it('P.U. atípico: casos reales de Casa Ciro (estructuras, m³)', () => {
+    const est = (itemId: string, unitCost: number) => row({ itemId, rubro: '05 Estructuras', unit: 'm3', unitCost, quantity: 1, total: unitCost });
+    const rows = [
+      est('col', 172_300), est('col20', 1_430_800), est('colH21', 2_053_300),
+      est('viga', 156_210), est('viga2', 1_293_300),
+      est('vf', 128_593), est('vf2', 1_681_632.6),
+    ];
+    expect(findUnitPriceOutliers(rows).sort()).toEqual(['col', 'vf', 'viga']);
+  });
+
+  it('P.U. atípico: excavación con mano de obra fuera de escala', () => {
+    const exc = (itemId: string, unitCost: number) => row({ itemId, rubro: '03 Movimiento de suelos', unit: 'm³', unitCost });
+    const rows = [exc('a', 201_636), exc('b', 12_600), exc('c', 15_000), exc('d', 20_200), exc('e', 18_000)];
+    expect(findUnitPriceOutliers(rows)).toEqual(['a']);
+  });
+
+  it('P.U. atípico: no compara grupos chicos ni unidades distintas', () => {
+    const rows = [
+      row({ itemId: 'a', rubro: 'R', unit: 'm3', unitCost: 100 }),
+      row({ itemId: 'b', rubro: 'R', unit: 'm3', unitCost: 10_000 }),
+      row({ itemId: 'c', rubro: 'R', unit: 'm2', unitCost: 100 }),
+      row({ itemId: 'd', rubro: 'R', unit: 'm2', unitCost: 100 }),
+    ];
+    expect(findUnitPriceOutliers(rows)).toEqual([]);
+  });
+
+  it('tareas repetidas', () => {
+    const r = byId([
+      row({ itemId: 'e1', taskId: 'EXC-001' }), row({ itemId: 'e2', taskId: 'EXC-001' }),
+      row({ itemId: 'e3', taskId: 'EXC-001' }), row({ itemId: 'x', taskId: 'OTRA' }),
+    ]);
+    expect(r.repetida.itemIds).toEqual(['e1', 'e2', 'e3']);
+    expect(r.repetida.title).toBe('3 ítems repiten una tarea que ya está en el presupuesto');
+  });
+
+  it('sin mano de obra: solo si se informa la mano de obra y el ítem tiene costo', () => {
+    const r = byId([
+      row({ itemId: 'a', unitLabor: 0 }),
+      row({ itemId: 'b', unitLabor: 500 }),
+      row({ itemId: 'c' }),
+      row({ itemId: 'd', unitLabor: 0, unitCost: 0, total: 0 }),
+    ]);
+    expect(r.sin_mano_obra.itemIds).toEqual(['a']);
   });
 });

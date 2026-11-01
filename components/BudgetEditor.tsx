@@ -602,7 +602,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   // ── Salud del presupuesto ────────────────────────────────────────────────
   const healthRows = useMemo((): HealthRow[] => {
     const out: HealthRow[] = [];
-    for (const rows of Object.values(budgetData.grouped) as any[][]) {
+    for (const [rubro, rows] of Object.entries(budgetData.grouped) as [string, any[]][]) {
       for (const row of rows) {
         const comp = buildApuComposition(
           row.task, yieldsIndex[row.task.id] ?? [], materialsMap,
@@ -612,10 +612,13 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
         const src = getQuantitySource(row.item, measurementSheets);
         out.push({
           itemId: row.item.id,
+          taskId: row.task.id,
+          rubro,
           name: row.item.name || row.task.name,
           unit: row.task.unit || '',
           quantity: Number(row.item.quantity) || 0,
           unitCost: row.unitMatEq + row.unitLab,
+          unitLabor: row.unitLab,
           total: row.totalItem,
           apuHasMissing: comp.hasMissing,
           measuredQuantity: src.kind === 'medido' ? src.sheet?.totalQuantity : undefined,
