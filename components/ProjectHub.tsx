@@ -227,7 +227,8 @@ export const ProjectHub: React.FC = () => {
             </div>
             {canCreate && (
               <div className="flex flex-wrap gap-2 self-start md:self-auto">
-              {!hasDemo && (
+              {/* Con la lista vacía, el recuadro ya ofrece la obra de ejemplo. */}
+              {!hasDemo && projects.length > 0 && (
                 <button onClick={startDemo}
                   className="bg-white hover:bg-slate-50 text-blue-700 border border-blue-200 px-4 py-2.5 rounded-xl font-bold flex items-center gap-2">
                   <Home size={18} /> Obra de ejemplo
