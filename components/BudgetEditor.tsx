@@ -20,15 +20,13 @@ import { PROJECT_TEMPLATES } from '../constants';
 import { APUBuilder } from './APUBuilder';
 import { useMasterTasks } from '../hooks/useMasterTasks';
 import { useMasterMaterials } from '../hooks/useMasterMaterials';
+import { useQuickBudgetApply } from '../hooks/useQuickBudgetApply';
 import { buildRubroImportPayloads } from '../services/importMasterRubro';
 import { buildImportPayload } from '../services/importMasterTask';
 import { QuickBudgetWizard, QuickSelection } from './QuickBudgetWizard';
-import { rubroCategory } from '../src/features/quickBudget/engine';
 import { officialRubro, isLegacyRubro } from '../src/features/budgets/rubroMap';
 import type { QuickTemplate } from '../src/features/quickBudget/types';
 import { masterTasksService } from '../services/masterTasksSupabaseService';
-import { supabase } from '../services/supabaseClient';
-import { laborCategoriesService } from '../services/laborCategoriesService';
 import { BudgetBusinessPanel } from './BudgetBusinessPanel';
 import { useBudgetKStore, selectBusinessConfig, computeBudgetKSummary } from '../store/useBudgetKStore';
 import { computeBudgetItemSaleBreakdown, BudgetItemSaleBreakdown, ItemDirectCostInput } from '../services/budgetItemBreakdown';
@@ -143,27 +141,6 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
 
   // writePayload es async: espera que la Task exista en Supabase antes de insertar
   // el BudgetItem, evitando la violación de FK que causaba pérdida de datos en recarga.
-  const writePayload = async (p: ReturnType<typeof buildImportPayload>): Promise<void> => {
-    p.materialsToCreate.forEach(m => addMaterial(m));
-    p.materialsToUpdate.forEach(({ id, cost }) => updateMaterial(id, { cost }));
-    p.laborCategoriesToUpdate.forEach(({ id, basicHourlyRate }) => updateLaborCategory(id, { basicHourlyRate }));
-    try {
-      await addTask(p.task); // espera confirmación Supabase antes de linkar el budget_item
-    } catch (err) {
-      // Task no persistió → no insertar yields ni budget_item para evitar FK inválida.
-      // La task quedó en local state (optimistic) pero desaparecerá al recargar.
-      console.error('[writePayload] Falló el insert de tarea — se cancela el payload:', err);
-      return;
-    }
-    p.taskYields.forEach(ty => addTaskYield(ty));
-    p.laborYields.forEach(ly => addTaskLaborYield(ly));
-    p.toolYields.forEach(ty => addTaskToolYield(ty));
-    try {
-      await addBudgetItem(p.budgetItem);
-    } catch (err) {
-      console.error('[writePayload] Falló el insert de budget_item — tarea importada pero sin ítem de presupuesto:', err);
-    }
-  };
 
   const handleWizardRubroImport = async () => {
     if (project.id === '__phantom__' || !wizardSelectedRubro) return;
@@ -204,6 +181,7 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
     () => Object.fromEntries(masterMaterials.map(m => [m.id, m])),
     [masterMaterials],
   );
+  const { apply: applyQuickRows, writePayload } = useQuickBudgetApply({ masterTasks, refetchMasterTasks, masterMaterialsMap });
 
   const handleWizardTemplateImport = async () => {
     if (project.id === '__phantom__' || !wizardSelectedTemplateId) return;
@@ -239,94 +217,9 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
   };
   // ── Presupuesto rápido: plantillas del sistema ──────────────────────────────
   const handleQuickApply = async (rows: QuickSelection[], template: QuickTemplate): Promise<string> => {
-    if (project.id === '__phantom__') throw new Error('Abrí una obra para cargar el presupuesto.');
-    const orgId = project.organizationId;
-
-    // 1. Copiar a la empresa los APU que solo están en el catálogo general.
-    const globals = rows.filter(r => r.source.kind === 'global');
-    const cloneFailed: string[] = [];
-    for (const g of Array.from(new Map(globals.map(r => [r.source.kind === 'global' ? r.source.task.id : '', r])).values())) {
-      if (g.source.kind !== 'global') continue;
-      const { error } = await supabase.rpc('clone_master_task_to_org', {
-        p_master_task_id: g.source.task.id,
-        p_organization_id: orgId,
-      });
-      if (error) cloneFailed.push(g.task.name);
-    }
-    const orgTasks = globals.length > 0 ? await masterTasksService.list(orgId) : masterTasks;
-    if (globals.length > 0) refetchMasterTasks();
-
-    // 2. La mano de obra de los APU copiados se vincula por nombre de categoría;
-    //    si la empresa no tiene ese oficio, se crea con el valor hora de referencia.
-    const resolveMt = (row: QuickSelection): MasterTask | undefined => {
-      if (row.source.kind === 'org') return row.source.task;
-      if (row.source.kind === 'global') {
-        const src = row.source.task;
-        return orgTasks.find(t => t.code === src.code && t.name === src.name);
-      }
-      return undefined;
-    };
-    const laborMap: Record<string, LaborCategory> = { ...laborCategoriesMap };
-    const laborByRole = new Map((Object.values(laborMap) as LaborCategory[]).map(c => [c.role.trim().toLowerCase(), c.id]));
-    for (const row of rows) {
-      for (const l of resolveMt(row)?.labor ?? []) {
-        const key = l.laborCategoryName.trim().toLowerCase();
-        if (laborMap[l.laborCategoryId] || laborByRole.has(key)) continue;
-        const lc: LaborCategory = {
-          id: crypto.randomUUID(), organizationId: orgId, role: l.laborCategoryName,
-          basicHourlyRate: l.snapshotHourlyRate ?? 0,
-          socialChargesPercent: l.socialChargesPct ?? 95, insurancePercent: l.socialChargesPct === 0 ? 0 : 5,
-          family: 'MANO DE OBRA',
-        };
-        try {
-          await laborCategoriesService.create(lc);
-          addLaborCategory(lc);
-          laborMap[lc.id] = lc;
-          laborByRole.set(key, lc.id);
-        } catch (e) {
-          console.error('[handleQuickApply] No se pudo crear la categoría de mano de obra', l.laborCategoryName, e);
-        }
-      }
-    }
-    const withLocalLabor = (mt: MasterTask): MasterTask => ({
-      ...mt,
-      labor: mt.labor.map(l => laborMap[l.laborCategoryId]
-        ? l
-        : { ...l, laborCategoryId: laborByRole.get(l.laborCategoryName.trim().toLowerCase()) ?? l.laborCategoryId }),
-    });
-
-    let runningMaterials = [...projectMaterials];
-    let withApu = 0, withoutApu = 0;
-    const skippedLabor = new Set<string>();
-    for (const row of rows) {
-      const mt = resolveMt(row);
-      const category = rubroCategory(row.rubro);
-      const base: MasterTask = mt ? withLocalLabor(mt) : {
-        id: '', organizationId: orgId, name: row.task.name, unit: row.task.unit, category,
-        description: row.task.includes, dailyYield: 1, materials: [], labor: [], equipment: [],
-        tags: [], isActive: true, createdAt: '', updatedAt: '',
-      } as MasterTask;
-      const p = buildImportPayload(
-        base, orgId, project.id, row.quantity,
-        laborMap, toolsMap, runningMaterials, masterMaterialsMap,
-      );
-      p.budgetItem.quantity = row.quantity;
-      if (!mt) p.task.masterTaskId = undefined;
-      if (!p.task.category) p.task.category = category;
-      if (!p.task.description) p.task.description = row.task.includes;
-      p.skippedLabor.forEach(n => skippedLabor.add(n));
-      runningMaterials = [...runningMaterials, ...p.materialsToCreate];
-      await writePayload(p);
-      if (mt) withApu++; else withoutApu++;
-    }
+    const { message } = await applyQuickRows(rows, template.name);
     setWizardDismissed(true);
-
-    const lines = [`${template.name}: ${rows.length} tareas agregadas.`];
-    lines.push(`${withApu} con análisis de precio.`);
-    if (withoutApu > 0) lines.push(`${withoutApu} sin análisis de precio todavía: tienen la cantidad cargada y el precio lo completás en cada tarea.`);
-    if (cloneFailed.length > 0) lines.push(`No se pudieron copiar del catálogo general: ${cloneFailed.join(', ')}.`);
-    if (skippedLabor.size > 0) lines.push(`Mano de obra que no está en tu lista de oficios: ${Array.from(skippedLabor).join(', ')}. Agregala en Personal y cuadrillas.`);
-    return lines.join('\n');
+    return message;
   };
 
   const [savedToMasterIds, setSavedToMasterIds] = useState<Set<string>>(new Set());

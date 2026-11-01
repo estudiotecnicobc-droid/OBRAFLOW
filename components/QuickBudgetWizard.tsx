@@ -9,7 +9,8 @@ import type { QuickRow, QuickTemplate, V } from '../src/features/quickBudget/typ
 import { FichaThumb } from '../src/features/catalog-media/TaskTechnicalDetail';
 import { fichaImage, rubroFicha } from '../src/features/catalog-media/catalogMedia';
 
-export type QuickSource = { kind: 'org'; task: MasterTask } | { kind: 'global'; task: MasterTask } | { kind: 'none' };
+import { makeSourceResolver, type QuickSource } from '../src/features/quickBudget/resolveSource';
+export type { QuickSource };
 
 export interface QuickSelection extends QuickRow {
   source: QuickSource;
@@ -89,19 +90,7 @@ export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply,
     return (name: string, code?: string) => (!!code && codes.has(norm(code))) || names.has(norm(name));
   }, [existing]);
 
-  const resolve = useMemo(() => {
-    const orgByCode = new Map<string, MasterTask>(orgTasks.filter(t => t.code).map(t => [norm(t.code), t]));
-    const orgByName = new Map<string, MasterTask>(orgTasks.map(t => [norm(t.name), t]));
-    const globByCode = new Map<string, MasterTask>(globalTasks.filter(t => t.code).map(t => [norm(t.code), t]));
-    const globByName = new Map<string, MasterTask>(globalTasks.map(t => [norm(t.name), t]));
-    return (name: string, code?: string): QuickSource => {
-      const o = (code ? orgByCode.get(norm(code)) : undefined) ?? orgByName.get(norm(name));
-      if (o) return { kind: 'org', task: o };
-      const g = (code ? globByCode.get(norm(code)) : undefined) ?? globByName.get(norm(name));
-      if (g) return { kind: 'global', task: g };
-      return { kind: 'none' };
-    };
-  }, [orgTasks, globalTasks]);
+  const resolve = useMemo(() => makeSourceResolver(orgTasks, globalTasks), [orgTasks, globalTasks]);
 
   const pick = (ts: QuickTemplate[]) => {
     setPicked(ts);
