@@ -10,6 +10,10 @@ El panel «Etapas de obra» listaba los 44 rubros (incluidos los auxiliares 90�
 - Tabla, índice e impresión usan la misma lista (`visibleRubros`), ordenada por código.
 - Persistencia: `localStorage` por proyecto (`obraflow:budget-rubros:<projectId>`). Sin migración ni cambios en ERPContext.
 
+## Iteración 2
+- El índice queda fijo (sticky) al desplazarse por la tabla.
+- Barra superior: vistas «Código», «Etapas» (agrupado con subtotal y % por etapa) e «Incidencia» (mayor a menor monto); modo «Compacta»; expandir/contraer todos los rubros de la tabla. Preferencia de vista en localStorage (`obraflow:budget-index-view`). La tabla y la impresión siguen ordenadas por código.
+
 ## Archivos
 - `src/features/budgets/rubroGroups.ts` (grupos, orden, persistencia)
 - `src/features/budgets/components/BudgetRubroIndex.tsx`

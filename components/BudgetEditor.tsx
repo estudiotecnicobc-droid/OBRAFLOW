@@ -1226,6 +1226,8 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
         onJump={jumpToRubro}
         onAdd={addRubroToIndex}
         onRemove={removeRubroFromIndex}
+        onExpandAll={() => setExpandedRubros(new Set(visibleRubros))}
+        onCollapseAll={() => setExpandedRubros(new Set())}
       />
 
       {/* MAIN CONTENT */}

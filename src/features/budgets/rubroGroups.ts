@@ -37,19 +37,45 @@ export function sortRubros(rubros: Iterable<string>): string[] {
   });
 }
 
-/** Agrupa rubros (excluye auxiliares 90–95) en los grupos del buscador. */
-export function groupRubros(rubros: Iterable<string>): RubroGroup[] {
+/** Grupo (etapa) al que pertenece un rubro; sin código → «Otros rubros». */
+export function rubroGroupLabel(rubro: string): string {
+  const code = rubroCode(rubro);
+  return GROUPS.find(g => code !== null && g.codes.includes(code))?.label ?? OTHER_LABEL;
+}
+
+/** Agrupa rubros en las etapas, en orden de etapa y de código. Con `includeAll`, conserva auxiliares y 'Otros'. */
+export function groupRubros(rubros: Iterable<string>, includeAll = false): RubroGroup[] {
   const buckets = new Map<string, string[]>();
   for (const r of sortRubros(rubros)) {
-    if (isAuxiliaryRubro(r) || r === 'Otros') continue;
-    const code = rubroCode(r);
-    const label = GROUPS.find(g => code !== null && g.codes.includes(code))?.label ?? OTHER_LABEL;
+    if (!includeAll && (isAuxiliaryRubro(r) || r === 'Otros')) continue;
+    const label = rubroGroupLabel(r);
     if (!buckets.has(label)) buckets.set(label, []);
     buckets.get(label)!.push(r);
   }
   return [...GROUPS.map(g => g.label), OTHER_LABEL]
     .filter(l => buckets.has(l))
     .map(label => ({ label, rubros: buckets.get(label)! }));
+}
+
+export type RubroIndexView = 'codigo' | 'etapas' | 'incidencia';
+const VIEW_KEY = 'obraflow:budget-index-view';
+
+export function loadIndexView(): { view: RubroIndexView; compact: boolean } {
+  try {
+    const v = JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}');
+    const view: RubroIndexView = ['codigo', 'etapas', 'incidencia'].includes(v.view) ? v.view : 'codigo';
+    return { view, compact: v.compact === true };
+  } catch {
+    return { view: 'codigo', compact: false };
+  }
+}
+
+export function saveIndexView(pref: { view: RubroIndexView; compact: boolean }): void {
+  try {
+    localStorage.setItem(VIEW_KEY, JSON.stringify(pref));
+  } catch {
+    /* preferencia visual: si no se guarda, no pasa nada */
+  }
 }
 
 /** Nombre sin el prefijo numérico, en tipo oración ("06 MAMPOSTERÍA, Y…" → "Mampostería, y…"). */

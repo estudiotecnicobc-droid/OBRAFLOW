@@ -10,3 +10,6 @@
 - [ ] Recargar la página: los rubros vacíos agregados siguen ahí. Cambiar de proyecto: cada uno tiene su lista.
 - [ ] Imprimir presupuesto: salen todos los rubros con ítems, en orden de código.
 - [ ] Con «Actualizar presupuesto» abierto, clic en un rubro del índice vuelve a la tabla.
+- [ ] Bajar hasta las últimas tareas del presupuesto: el índice queda fijo a la vista.
+- [ ] Vistas «Código», «Etapas» (grupos con subtotal y %) e «Incidencia» (mayor a menor); «Compacta» deja una línea por rubro. La elección se recuerda al recargar.
+- [ ] Botones expandir/contraer: abren o cierran todos los rubros de la tabla.
