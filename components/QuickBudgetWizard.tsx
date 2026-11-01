@@ -6,6 +6,7 @@ import { QUICK_TEMPLATES } from '../src/features/quickBudget/templates';
 import { DURLOCK_TEMPLATE } from '../src/features/quickBudget/durlockTemplate';
 import { buildRows, defaultValues, evaluate } from '../src/features/quickBudget/engine';
 import type { QuickRow, QuickTemplate, V } from '../src/features/quickBudget/types';
+import { FichaThumb } from '../src/features/catalog-media/TaskTechnicalDetail';
 
 export type QuickSource = { kind: 'org'; task: MasterTask } | { kind: 'global'; task: MasterTask } | { kind: 'none' };
 
@@ -229,6 +230,7 @@ export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply,
                             <span className="block text-[11px] text-slate-500 leading-snug">{t.description}</span>
                             <span className="block text-[11px] text-slate-400 mt-0.5">{n} tareas</span>
                           </span>
+                          <span className="ml-auto"><FichaThumb task={{ category: t.rubros[0]?.rubro }} /></span>
                         </label>
                       );
                     })}
@@ -341,7 +343,10 @@ export const QuickBudgetWizard: React.FC<Props> = ({ orgTasks, onClose, onApply,
                                 </span>
                               )}
                             </div>
-                            <p className="text-xs text-slate-600 mt-0.5">{row.task.includes}</p>
+                            <div className="flex gap-3 items-start mt-0.5">
+                              <p className="text-xs text-slate-600 flex-1">{row.task.includes}</p>
+                              <FichaThumb task={{ name: row.task.name, category: row.rubro }} size="md" />
+                            </div>
                             {row.task.note && <p className="text-[11px] text-slate-400 mt-0.5">{row.task.note}</p>}
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
