@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300"><defs><pattern id="lad" width="28" height="14" patternUnits="userSpaceOnUse"><rect width="28" height="14" fill="#d8a58a"/><path d="M0 0H28M0 7H28M14 0V7M0 7V14M28 7V14" stroke="#f1e6dc" stroke-width="1.4"/></pattern><pattern id="cer" width="30" height="30" patternUnits="userSpaceOnUse"><rect width="30" height="30" fill="#e9eef2"/><path d="M0 0H30V30" fill="none" stroke="#b8c4ce"/></pattern><pattern id="bald" width="24" height="24" patternUnits="userSpaceOnUse"><rect width="24" height="24" fill="#cfd3d6"/><path d="M0 0H24V24" fill="none" stroke="#9aa3aa"/><circle cx="6" cy="6" r="2" fill="#b4bbc1"/><circle cx="18" cy="6" r="2" fill="#b4bbc1"/><circle cx="6" cy="18" r="2" fill="#b4bbc1"/><circle cx="18" cy="18" r="2" fill="#b4bbc1"/></pattern></defs><rect width="480" height="300" rx="16" fill="#f4f1ec"/><rect x="40" y="40" width="400" height="200" fill="#fbfaf7"/>
+<rect x="40" y="150" width="400" height="30" fill="url(#cer)"/>
+<rect x="60" y="60" width="160" height="70" rx="4" fill="#e8cfa4" stroke="#b08d57" stroke-width="2"/><line x1="140" y1="60" x2="140" y2="130" stroke="#b08d57" stroke-width="2"/>
+<rect x="300" y="60" width="120" height="70" rx="4" fill="#e8cfa4" stroke="#b08d57" stroke-width="2"/>
+<rect x="40" y="180" width="400" height="12" fill="#6b7280"/>
+<rect x="40" y="192" width="400" height="58" fill="#e8cfa4" stroke="#b08d57" stroke-width="2"/>
+<g stroke="#b08d57" stroke-width="2"><line x1="140" y1="192" x2="140" y2="250"/><line x1="240" y1="192" x2="240" y2="250"/><line x1="340" y1="192" x2="340" y2="250"/></g>
+<rect x="260" y="174" width="70" height="8" rx="3" fill="#cbd5e1"/><path d="M295 174 v-26 h14" fill="none" stroke="#64748b" stroke-width="4"/>
+<g fill="#334155"><circle cx="170" cy="177" r="6"/><circle cx="200" cy="177" r="6"/></g>
+<rect x="160" y="200" width="70" height="44" rx="3" fill="#475569"/><rect x="168" y="208" width="54" height="22" fill="#94a3b8"/>
+<rect x="30" y="250" width="420" height="10" fill="#9aa3aa"/></svg>

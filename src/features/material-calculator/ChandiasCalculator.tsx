@@ -23,6 +23,8 @@ import { MasterTaskMaterial, APUSourceMetadata } from '../../../types';
 import { ReportPreviewModal, ReportMode } from './ReportPreviewModal';
 import { computationService } from '../../../services/computationService';
 import { buildComputationImportPayloads } from '../../../services/importComputationItems';
+import { setPendingHighlight } from '../../../utils/quantitySource';
+import { DecimalInput } from '../../../components/DecimalInput';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -274,8 +276,8 @@ const CreateAPUModal: React.FC<CreateAPUModalProps> = ({
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Rendimiento diario</label>
               <div className="flex rounded-lg border border-slate-200 overflow-hidden focus-within:ring-1 focus-within:ring-blue-400">
-                <input type="number" min="0.01" step="any" value={dailyYield}
-                  onChange={e => setDailyYield(e.target.value)}
+                <DecimalInput step={1} value={dailyYield}
+                  onValue={(n, raw) => setDailyYield(raw === '' ? '' : String(n))}
                   className="flex-1 px-3 py-2 text-sm focus:outline-none min-w-0"
                 />
                 <span className="px-2 text-xs text-slate-400 bg-slate-50 flex items-center border-l border-slate-200 whitespace-nowrap">
@@ -929,12 +931,11 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
               <div key={dim.id}>
                 <label className="block text-xs font-semibold text-slate-500 mb-1">{dim.label}</label>
                 <div className="flex rounded-lg border border-slate-200 overflow-hidden focus-within:ring-1 focus-within:ring-blue-400 focus-within:border-blue-400">
-                  <input
-                    type="number" min="0" step="0.05"
+                  <DecimalInput step={0.05}
                     value={dimValues[dim.id] ?? ''}
-                    onChange={e => setDimValues(prev => ({ ...prev, [dim.id]: e.target.value }))}
+                    onValue={(n, raw) => setDimValues(prev => ({ ...prev, [dim.id]: raw === '' ? '' : String(n) }))}
                     placeholder="0"
-                    className="flex-1 px-3 py-2 text-sm bg-white focus:outline-none min-w-0"
+                    className="flex-1 pl-2 py-2 text-sm bg-white focus:outline-none min-w-0"
                   />
                   <span className="px-2.5 text-xs text-slate-400 bg-slate-50 flex items-center border-l border-slate-200 whitespace-nowrap">
                     {dim.unit}
@@ -1015,17 +1016,15 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
                                 <option>Puerta</option>
                                 <option>Otro</option>
                               </select>
-                              <input
-                                type="number" min="0.01" step="any"
+                              <DecimalInput step={0.05}
                                 value={o.ancho || ''}
-                                onChange={e => updateOpening(o.id, 'ancho', parseFloat(e.target.value) || 0)}
+                                onValue={n => updateOpening(o.id, 'ancho', n)}
                                 placeholder="0.00"
                                 className="px-1.5 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 text-center"
                               />
-                              <input
-                                type="number" min="0.01" step="any"
+                              <DecimalInput step={0.05}
                                 value={o.alto || ''}
-                                onChange={e => updateOpening(o.id, 'alto', parseFloat(e.target.value) || 0)}
+                                onValue={n => updateOpening(o.id, 'alto', n)}
                                 placeholder="0.00"
                                 className="px-1.5 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 text-center"
                               />
@@ -1116,17 +1115,15 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
                         </div>
                         {floorSectors.map(s => (
                           <div key={s.id} className="grid grid-cols-[1fr_1fr_20px] gap-1.5 items-center">
-                            <input
-                              type="number" min="0.01" step="any"
+                            <DecimalInput step={0.05}
                               value={s.largo || ''}
-                              onChange={e => updateFloorSector(s.id, 'largo', parseFloat(e.target.value) || 0)}
+                              onValue={n => updateFloorSector(s.id, 'largo', n)}
                               placeholder="0.00"
                               className="px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
                             />
-                            <input
-                              type="number" min="0.01" step="any"
+                            <DecimalInput step={0.05}
                               value={s.ancho || ''}
-                              onChange={e => updateFloorSector(s.id, 'ancho', parseFloat(e.target.value) || 0)}
+                              onValue={n => updateFloorSector(s.id, 'ancho', n)}
                               placeholder="0.00"
                               className="px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
                             />
@@ -1211,10 +1208,9 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
                       Desperdicio hormigón
                     </label>
                     <div className="flex rounded-lg border border-stone-200 overflow-hidden focus-within:ring-1 focus-within:ring-stone-400 w-28">
-                      <input
-                        type="number" min="0" max="30" step="1"
+                      <DecimalInput step={1} max={30}
                         value={beamWaste}
-                        onChange={e => setBeamWaste(Math.max(0, Math.min(30, parseFloat(e.target.value) || 0)))}
+                        onValue={n => setBeamWaste(Math.max(0, Math.min(30, n)))}
                         className="flex-1 px-3 py-1.5 text-sm bg-white focus:outline-none min-w-0"
                       />
                       <span className="px-2 text-xs text-stone-400 bg-stone-50 flex items-center border-l border-stone-200">%</span>
@@ -1227,10 +1223,9 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
                       Cuantía de acero
                     </label>
                     <div className="flex rounded-lg border border-stone-200 overflow-hidden focus-within:ring-1 focus-within:ring-stone-400 w-28">
-                      <input
-                        type="number" min="0" step="5"
+                      <DecimalInput step={5}
                         value={beamSteelRatio}
-                        onChange={e => setBeamSteelRatio(Math.max(0, parseFloat(e.target.value) || 0))}
+                        onValue={n => setBeamSteelRatio(Math.max(0, n))}
                         className="flex-1 px-3 py-1.5 text-sm bg-white focus:outline-none min-w-0"
                       />
                       <span className="px-2 text-xs text-stone-400 bg-stone-50 flex items-center border-l border-stone-200">kg/m³</span>
@@ -1803,10 +1798,9 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
 
               {/* Cantidad */}
               <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden focus-within:ring-1 focus-within:ring-blue-400 shrink-0">
-                <input
-                  type="number" min="0.001" step="any"
+                <DecimalInput
                   value={matQty}
-                  onChange={e => setMatQty(e.target.value)}
+                  onValue={(n, raw) => setMatQty(raw === '' ? '' : String(n))}
                   placeholder="Cantidad"
                   className="w-24 px-2.5 py-1.5 text-xs focus:outline-none"
                 />
@@ -1865,10 +1859,12 @@ interface RightPanelProps {
   restoredAt?:    number;
   /** Callback invocado tras crear un APU exitosamente — el padre debe llamar refetch(). */
   onAPUCreated?:  () => void;
+  /** Ir a «Ítems y presupuesto» (resaltando lo enviado). Si falta, no se muestra el botón. */
+  onViewInBudget?: () => void;
 }
 const RightPanel: React.FC<RightPanelProps> = ({
   items, orgMaterials, organizationId, projectId, existingNames,
-  onRemove, onClear, onExportCSV, onSaveComputation, onSendToPresupuesto, restoredAt, onAPUCreated,
+  onRemove, onClear, onExportCSV, onSaveComputation, onSendToPresupuesto, restoredAt, onAPUCreated, onViewInBudget,
 }) => {
   const [tab,        setTab]        = useState<RightTab>('items');
   const [apuItem,    setApuItem]    = useState<ChandiasAddedItem | null>(null);
@@ -1905,7 +1901,7 @@ const RightPanel: React.FC<RightPanelProps> = ({
       const msg = await onSendToPresupuesto();
       setSendMsg(msg);
       setSendStatus('sent');
-      setTimeout(() => { setSendStatus('idle'); setSendMsg(null); }, 6000);
+      setTimeout(() => { setSendStatus('idle'); setSendMsg(null); }, 15000);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al enviar';
       setSendMsg(msg);
@@ -1962,9 +1958,14 @@ const RightPanel: React.FC<RightPanelProps> = ({
 
       {/* Banner enviado al presupuesto */}
       {sendStatus === 'sent' && sendMsg && (
-        <div className="mx-2 mt-2 flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[10px] text-emerald-700 shrink-0">
-          <CheckCircle2 size={11} className="shrink-0" />
-          <span>{sendMsg}</span>
+        <div className={`mx-2 mt-2 flex items-center gap-1.5 px-2.5 py-1.5 border rounded-lg text-[10px] shrink-0 ${sendMsg.includes('No se actualizó') ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+          {sendMsg.includes('No se actualizó') ? <AlertTriangle size={11} className="shrink-0" /> : <CheckCircle2 size={11} className="shrink-0" />}
+          <span className="flex-1">{sendMsg}</span>
+          {onViewInBudget && (
+            <button onClick={onViewInBudget} className="shrink-0 px-2 py-0.5 rounded bg-emerald-600 text-white font-semibold hover:bg-emerald-700">
+              Ver en presupuesto →
+            </button>
+          )}
         </div>
       )}
       {/* Banner error al enviar */}
@@ -2138,7 +2139,7 @@ const RightPanel: React.FC<RightPanelProps> = ({
               <button
                 onClick={handleSendToPresupuesto}
                 disabled={sendStatus === 'sending' || saveStatus === 'saving'}
-                title="Guarda el cómputo y crea ítems de presupuesto en el proyecto activo"
+                title="Guarda el cómputo, crea los ítems nuevos y actualiza la cantidad de los que ya están en el presupuesto"
                 className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg transition-colors"
               >
                 {sendStatus === 'sending'
@@ -2270,7 +2271,7 @@ function saveDraft(
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export const ChandiasCalculator: React.FC = () => {
+export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavigate }) => {
   const { user } = useAuth();
   const orgId    = user?.organizationId ?? '';
 
@@ -2286,6 +2287,7 @@ export const ChandiasCalculator: React.FC = () => {
     updateMaterial,
     updateLaborCategory,
     addBudgetItem,
+    updateBudgetItem,
     addTaskYield,
     addTaskLaborYield,
     addTaskToolYield,
@@ -2492,7 +2494,7 @@ export const ChandiasCalculator: React.FC = () => {
     }
 
     // ── 2. Construir payloads ─────────────────────────────────────────────
-    const { payloads, noAPUPayloads, skippedNames } = buildComputationImportPayloads(
+    const { payloads, noAPUPayloads, existingUpdates } = buildComputationImportPayloads(
       items,
       masterTasks,
       orgId,
@@ -2506,11 +2508,40 @@ export const ChandiasCalculator: React.FC = () => {
 
     const totalToSend = payloads.length + noAPUPayloads.length;
 
-    if (totalToSend === 0) {
-      const detail = skippedNames.length > 0
-        ? ` (${skippedNames.length} ítem${skippedNames.length > 1 ? 's' : ''} ya en presupuesto)`
-        : '';
-      throw new Error(`Nada nuevo para enviar${detail}`);
+    // Ítems que ya estaban: se actualiza la cantidad (no se duplican ni se omiten).
+    const budgetItemsByName = new Map<string, { id: string; quantity: number; name: string }[]>();
+    for (const bi of project.items) {
+      const t = projectTasks.find(pt => pt.id === bi.taskId);
+      const key = t?.name.trim().toLowerCase();
+      if (!key) continue;
+      budgetItemsByName.set(key, [...(budgetItemsByName.get(key) ?? []), { id: bi.id, quantity: bi.quantity, name: t!.name.trim() }]);
+    }
+    const touchedIds: string[] = [];
+    const repeated: string[] = [];
+    let updatedCount = 0;
+    for (const u of existingUpdates) {
+      const matches = budgetItemsByName.get(u.nameKey) ?? [];
+      if (matches.length === 0) continue;
+      // Repetida en el presupuesto: no se adivina cuál actualizar; se avisa y se resaltan todas.
+      if (matches.length > 1) {
+        repeated.push(`${matches[0].name} está ${matches.length} veces`);
+        touchedIds.push(...matches.map(m => m.id));
+        continue;
+      }
+      const bi = matches[0];
+      touchedIds.push(bi.id);
+      const qty = Number(u.quantity.toFixed(2));
+      if (Math.abs(bi.quantity - qty) > 0.005 || u.computationItemId) {
+        updateBudgetItem(bi.id, { quantity: qty, ...(u.computationItemId ? { computationItemId: u.computationItemId } : {}) });
+        updatedCount++;
+      }
+    }
+
+    const repeatedMsg = repeated.length > 0 ? ` · No se actualizó porque ${repeated.join('; ')}: unificalas o editá la cantidad a mano` : '';
+
+    if (totalToSend === 0 && updatedCount === 0) {
+      setPendingHighlight(touchedIds);
+      return (repeated.length > 0 ? 'Sin cambios' : 'Sin cambios: el presupuesto ya tiene estas cantidades') + repeatedMsg;
     }
 
     // ── 3. Crear tasks + yields + budget_items ────────────────────────────
@@ -2532,26 +2563,28 @@ export const ChandiasCalculator: React.FC = () => {
       p.laborYields.forEach(ly => addTaskLaborYield(ly));
       p.toolYields.forEach(ty => addTaskToolYield(ty));
       addBudgetItem(p.budgetItem);
+      touchedIds.push(p.budgetItem.id);
     }
     for (const { task, budgetItem } of noAPUPayloads) {
       await addTask(task);
       addBudgetItem(budgetItem);
+      touchedIds.push(budgetItem.id);
     }
+    setPendingHighlight(touchedIds);
 
     // ── 4. Mensaje de resultado ───────────────────────────────────────────
-    const parts: string[] = [`${totalToSend} ítem${totalToSend > 1 ? 's' : ''} enviado${totalToSend > 1 ? 's' : ''} al presupuesto`];
+    const parts: string[] = [];
+    if (totalToSend > 0) parts.push(`${totalToSend} ítem${totalToSend > 1 ? 's' : ''} nuevo${totalToSend > 1 ? 's' : ''}`);
+    if (updatedCount > 0) parts.push(`${updatedCount} cantidad${updatedCount > 1 ? 'es' : ''} actualizada${updatedCount > 1 ? 's' : ''}`);
     if (noAPUPayloads.length > 0) {
       parts.push(`${noAPUPayloads.length} sin APU (costo = 0)`);
     }
-    if (skippedNames.length > 0) {
-      parts.push(`${skippedNames.length} ya existía${skippedNames.length > 1 ? 'n' : ''}`);
-    }
-    return parts.join(' · ');
+    return parts.join(' · ') + repeatedMsg;
   }, [
     items, projectId, project?.id, orgId, masterTasks, orgMaterials,
     laborCategoriesMap, toolsMap, erpMaterials, budgetTaskNamesSet,
     addTask, addMaterial, updateMaterial, updateLaborCategory,
-    addTaskYield, addTaskLaborYield, addTaskToolYield, addBudgetItem,
+    addTaskYield, addTaskLaborYield, addTaskToolYield, addBudgetItem, updateBudgetItem, project?.items, projectTasks,
   ]);
 
   // ── Preset activo (coincidencia exacta de anchos) ─────────────────────────
@@ -2675,6 +2708,7 @@ export const ChandiasCalculator: React.FC = () => {
             onSendToPresupuesto={handleSendToPresupuesto}
             restoredAt={restoredAt}
             onAPUCreated={refetchMasterTasks}
+            onViewInBudget={onNavigate ? () => onNavigate('budget') : undefined}
           />
         </div>
       </div>

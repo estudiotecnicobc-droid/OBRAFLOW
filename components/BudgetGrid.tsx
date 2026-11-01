@@ -1,6 +1,11 @@
 import React, { useMemo, useState, Fragment, useRef } from 'react';
 import { useERP } from '../context/ERPContext';
 import { calculateUnitPrice } from '../services/calculationService';
+import { MeasurementDrawer } from './MeasurementDrawer';
+import { QuantitySourceBadge } from './QuantitySourceBadge';
+import { getQuantitySource } from '../utils/quantitySource';
+import { officialRubro } from '../src/features/budgets/rubroMap';
+import { sortRubros } from '../src/features/budgets/rubroGroups';
 import { 
   useReactTable, 
   getCoreRowModel, 
@@ -33,15 +38,17 @@ interface GridRow {
 // --- Component ---
 export const BudgetGrid: React.FC = () => {
   const { 
-    project, tasks, materials, rubros,
-    updateBudgetItem, addTaskYield, updateMaterial, snapshots, createSnapshot,
+    project, tasks, materials,
+    addTaskYield, updateMaterial, snapshots, createSnapshot,
     addTaskToolYield, updateTool, updateTask,
     // Indexes
     yieldsIndex, materialsMap, toolYieldsIndex, toolsMap,
-    laborCategoriesMap, taskCrewYieldsIndex, crewsMap, taskLaborYieldsIndex
+    laborCategoriesMap, taskCrewYieldsIndex, crewsMap, taskLaborYieldsIndex,
+    measurementSheets,
   } = useERP();
 
   const [expanded, setExpanded] = useState({});
+  const [measuringItemId, setMeasuringItemId] = useState<string | null>(null);
   
   // PDF Preview State
   const [showPdfPreview, setShowPdfPreview] = useState(false);
@@ -50,26 +57,25 @@ export const BudgetGrid: React.FC = () => {
   // 1. Data Transformation: Flat List -> Hierarchical (Rubro -> Task)
   const data = useMemo(() => {
     const groups: Record<string, GridRow[]> = {};
-    
-    // Initialize groups for all rubros to ensure order
-    rubros.forEach(r => groups[r] = []);
-    groups['Sin Categoría'] = [];
 
     project.items.forEach(item => {
       const task = tasks.find(t => t.id === item.taskId);
       if (!task) return;
 
       const analysis = calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap, 9, taskLaborYieldsIndex);
-      const category = task.category && rubros.includes(task.category) ? task.category : 'Sin Categoría';
-      
+      // Mismo rubro que «Ítems y presupuesto» (normaliza familias de APU, tildes y mayúsculas).
+      const category = officialRubro(task.category, task.name);
+      // Misma fórmula que «Ítems y presupuesto»: suma de componentes ya redondeados (evita diferencias de $0,01).
+      const unitPrice = analysis.materialCost + analysis.toolCost + analysis.fixedCost + analysis.laborCost;
+
       const gridRow: GridRow = {
         id: item.id,
         type: 'task',
         name: task.name,
         unit: task.unit,
         quantity: item.quantity,
-        unitPrice: analysis.totalUnitCost,
-        totalPrice: analysis.totalUnitCost * item.quantity,
+        unitPrice,
+        totalPrice: unitPrice * item.quantity,
         originalItem: { ...item, taskData: task },
       };
 
@@ -80,7 +86,7 @@ export const BudgetGrid: React.FC = () => {
     // Flatten to: Rubro Header -> Task Rows
     // In TanStack Table, we can use subRows for true tree structure.
     const result: GridRow[] = [];
-    Object.keys(groups).forEach(rubro => {
+    sortRubros(Object.keys(groups)).forEach(rubro => {
       if (groups[rubro].length > 0) {
         const rubroTotal = groups[rubro].reduce((sum, row) => sum + row.totalPrice, 0);
         result.push({
@@ -97,7 +103,7 @@ export const BudgetGrid: React.FC = () => {
     });
 
     return result;
-  }, [project.items, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, rubros, taskCrewYieldsIndex, crewsMap, laborCategoriesMap]);
+  }, [project.items, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap]);
 
   // 2. Total Project Cost Calculation
   const totalProjectCost = useMemo(() => 
@@ -127,9 +133,9 @@ export const BudgetGrid: React.FC = () => {
             <span className={isRubro ? 'font-bold text-slate-800 uppercase text-xs tracking-wider' : 'font-medium text-slate-700 text-sm'}>
               {getValue() as string}
             </span>
-            {!isRubro && row.original.type === 'task' && (
+            {!isRubro && row.original.type === 'task' && row.original.originalItem.taskData.code && (
                 <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 rounded border border-slate-200">
-                    {row.original.originalItem.taskData.code || row.original.originalItem.taskData.id.substring(0,4)}
+                    {row.original.originalItem.taskData.code}
                 </span>
             )}
           </div>
@@ -152,17 +158,21 @@ export const BudgetGrid: React.FC = () => {
       cell: ({ row, getValue }) => {
         if (row.original.type === 'rubro') return null;
         
-        // Inline Editing for Quantity
+        // Solo lectura: la cantidad se carga en «Ítems y presupuesto» o en la planilla de medición.
+        const item = row.original.originalItem;
+        const src = getQuantitySource(item, measurementSheets);
         return (
-          <input
-            type="number"
-            className="w-20 text-right p-1.5 border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-medium transition-all hover:border-slate-300"
-            value={getValue() as number}
-            onChange={(e) => {
-               const val = parseFloat(e.target.value);
-               if (!isNaN(val)) updateBudgetItem(row.original.id, { quantity: val });
-            }}
-          />
+          <button
+            type="button"
+            onClick={() => setMeasuringItemId(row.original.id)}
+            title="Abrir planilla de medición"
+            className="flex flex-col items-end gap-0.5 w-24 ml-auto px-1.5 py-1 rounded hover:bg-blue-50"
+          >
+            <span className="text-sm font-medium text-slate-700 font-mono">
+              {(getValue() as number).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+            </span>
+            <QuantitySourceBadge source={src} />
+          </button>
         );
       },
       size: 100,
@@ -204,7 +214,7 @@ export const BudgetGrid: React.FC = () => {
       },
       size: 80,
     },
-  ], [updateBudgetItem, totalProjectCost]);
+  ], [totalProjectCost, measurementSheets]);
 
   const table = useReactTable<GridRow>({
     data,
@@ -380,6 +390,7 @@ export const BudgetGrid: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {measuringItemId && <MeasurementDrawer budgetItemId={measuringItemId} onClose={() => setMeasuringItemId(null)} />}
       
       {/* CSS Injection for PDF Print */}
       <style>{`
@@ -397,9 +408,9 @@ export const BudgetGrid: React.FC = () => {
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
          <div>
             <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                <TableIcon className="text-blue-600" /> Presupuesto Jerárquico
+                <TableIcon className="text-blue-600" /> Análisis de costos
             </h2>
-            <p className="text-sm text-slate-500">Edición en grilla con desglose de recursos y análisis de desvíos.</p>
+            <p className="text-sm text-slate-500">Desglose del APU de cada ítem y análisis de desvíos. Las cantidades se cargan en «Ítems y presupuesto» o en su planilla de medición.</p>
          </div>
          
          {/* KPI & Actions */}

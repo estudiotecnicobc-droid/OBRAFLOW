@@ -47,9 +47,11 @@ const MODES: { id: Mode; label: string; icon: React.ReactNode; description: stri
 
 interface Props {
   organizationId: string;
+  /** Navegación del módulo Presupuesto (para «Ver en presupuesto»). */
+  onNavigate?: (tab: string) => void;
 }
 
-export const ParametricCalculator: React.FC<Props> = ({ organizationId }) => {
+export const ParametricCalculator: React.FC<Props> = ({ organizationId, onNavigate }) => {
   const [mode, setMode] = useState<Mode>('dimensiones');
 
   const activeMode = MODES.find(m => m.id === mode)!;
@@ -83,7 +85,7 @@ export const ParametricCalculator: React.FC<Props> = ({ organizationId }) => {
 
       {/* Contenido del modo activo */}
       {mode === 'dimensiones' && (
-        <ChandiasCalculator />
+        <ChandiasCalculator onNavigate={onNavigate} />
       )}
 
       {mode === 'apu' && (

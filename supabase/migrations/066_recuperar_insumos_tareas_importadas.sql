@@ -1,8 +1,23 @@
--- Migración 066: recuperar insumos de tareas importadas (data fix)
--- Aplicada en producción el 31/10/2026 (versión 20261031183518) desde otra sesión;
--- recuperada de supabase_migrations.schema_migrations para que el repo la tenga.
--- Completa task_yields de tareas de proyecto creadas desde un APU que quedaron sin
--- materiales. Idempotente (ON CONFLICT DO NOTHING).
+-- =============================================================================
+-- Migración 066: recuperar los insumos de las tareas importadas desde el catálogo
+--
+-- Causa: al importar un APU (presupuesto rápido, plantillas, catálogo) la app guardaba
+-- task_yields con waste_percent = NULL cuando el material no traía desperdicio. La
+-- columna es NOT NULL (default 0), así que el insert fallaba en silencio: la tarea
+-- quedaba con su mano de obra pero sin materiales. En pantalla se veían hasta recargar.
+-- El código ya envía 0 (services/tasksService.ts); esta migración repara los datos.
+--
+-- Qué hace: para cada tarea de un presupuesto que tiene APU de origen (master_task_id)
+-- y no tiene ningún material, copia los materiales de ese APU:
+--   · APU nuevos: catalog_task_yields + resources (MATERIAL y SUBCONTRACT);
+--   · APU legacy: master_task_materials.
+-- Cada material se vincula con el material de la empresa del mismo nombre (el que la
+-- importación creó). Si no existe, se omite.
+--
+-- Idempotente: solo toca tareas sin materiales y usa ON CONFLICT DO NOTHING.
+-- =============================================================================
+
+BEGIN;
 
 WITH affected AS (
   SELECT t.id AS task_id, t.master_task_id, t.organization_id
@@ -22,6 +37,7 @@ lines AS (
   JOIN public.master_task_materials m ON m.master_task_id = a.master_task_id
 ),
 matched AS (
+  -- Un material por nombre: si la empresa tiene dos con el mismo nombre, el más reciente.
   SELECT DISTINCT ON (l.task_id, l.material_name)
          l.task_id, l.organization_id, mat.id AS material_id, l.quantity, l.waste
   FROM lines l
@@ -34,3 +50,5 @@ INSERT INTO public.task_yields (task_id, material_id, quantity, waste_percent, o
 SELECT task_id, material_id, quantity, waste, organization_id
 FROM matched
 ON CONFLICT (task_id, material_id) DO NOTHING;
+
+COMMIT;
