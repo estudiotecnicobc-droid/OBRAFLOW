@@ -38,6 +38,8 @@ import { TaskTechnicalDetail, RubroBanner } from '../src/features/catalog-media/
 import { BudgetRubroIndex } from '../src/features/budgets/components/BudgetRubroIndex';
 import { arrangeRubros, loadIndexView, loadPinnedRubros, saveIndexView, savePinnedRubros, sortRubros } from '../src/features/budgets/rubroGroups';
 import { MeasurementDrawer } from './MeasurementDrawer';
+import { APUCompositionPanel } from './APUCompositionPanel';
+import { buildApuComposition } from '../utils/apuComposition';
 import { QuantitySourceBadge } from './QuantitySourceBadge';
 import { getQuantitySource, consumePendingHighlight } from '../utils/quantitySource';
 
@@ -1991,17 +1993,14 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                               );
                           })()}
 
-                          {/* Task Resource Composition — visible al seleccionar una tarea */}
+                          {/* Composición del APU — visible al seleccionar una tarea */}
                           {configPanel.selectedTaskId && !selectedGlobal && (() => {
                               const selTask   = tasks.find(t => t.id === configPanel.selectedTaskId);
-                              const mats      = yieldsIndex[configPanel.selectedTaskId]          ?? [];
-                              const labors    = taskLaborYieldsIndex[configPanel.selectedTaskId] ?? [];
-                              const equips    = toolYieldsIndex[configPanel.selectedTaskId]      ?? [];
-                              const hasData   = mats.length > 0 || labors.length > 0 || equips.length > 0 || !!selTask?.fixedCost;
-                              const hasPriceWarning = hasData && (
-                                  mats.some(y => { const m = materialsMap[y.materialId]; return !m || m.cost === 0; }) ||
-                                  labors.some(ly => { const c = laborCategoriesMap[ly.laborCategoryId]; return !c || c.basicHourlyRate === 0; })
-                              );
+                              if (!selTask) return null;
+                              const mats      = yieldsIndex[selTask.id]          ?? [];
+                              const labors    = taskLaborYieldsIndex[selTask.id] ?? [];
+                              const equips    = toolYieldsIndex[selTask.id]      ?? [];
+                              const hasData   = mats.length > 0 || labors.length > 0 || equips.length > 0 || !!selTask.fixedCost || !!selTask.laborCost;
                               if (!hasData) return (
                                   <div className="pt-4 border-t border-slate-100">
                                       <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
@@ -2009,88 +2008,9 @@ export const BudgetEditor: React.FC<BudgetEditorProps> = ({ onNavigate }) => {
                                       </p>
                                   </div>
                               );
-                              return (
-                                  <div className="space-y-3 pt-4 border-t border-slate-100">
-                                      <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
-                                          <Calculator size={12} className="text-blue-400"/> Composición APU
-                                      </label>
-
-                                      {mats.length > 0 && (
-                                          <div>
-                                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
-                                                  <Package size={10}/> Materiales ({mats.length})
-                                              </p>
-                                              <div className="space-y-0.5">
-                                                  {mats.map((y, i) => {
-                                                      const mat = materialsMap[y.materialId];
-                                                      return (
-                                                          <div key={i} className="flex justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
-                                                              <span className="truncate">{mat?.name ?? y.materialId}</span>
-                                                              <span className="ml-2 font-mono text-slate-400 shrink-0">{y.quantity} {mat?.unit ?? ''}</span>
-                                                          </div>
-                                                      );
-                                                  })}
-                                              </div>
-                                          </div>
-                                      )}
-
-                                      {labors.length > 0 && (
-                                          <div>
-                                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
-                                                  <Hammer size={10}/> Mano de Obra ({labors.length})
-                                              </p>
-                                              <div className="space-y-0.5">
-                                                  {labors.map((ly, i) => {
-                                                      const cat = laborCategoriesMap[ly.laborCategoryId];
-                                                      return (
-                                                          <div key={i} className="flex justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
-                                                              <span className="truncate">{cat?.name ?? ly.laborCategoryId}</span>
-                                                              <span className="ml-2 font-mono text-slate-400 shrink-0">{ly.quantity} op</span>
-                                                          </div>
-                                                      );
-                                                  })}
-                                              </div>
-                                          </div>
-                                      )}
-
-                                      {equips.length > 0 && (
-                                          <div>
-                                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
-                                                  <Settings size={10}/> Equipos ({equips.length})
-                                              </p>
-                                              <div className="space-y-0.5">
-                                                  {equips.map((ty, i) => {
-                                                      const tool = toolsMap[ty.toolId];
-                                                      return (
-                                                          <div key={i} className="flex justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
-                                                              <span className="truncate">{tool?.name ?? ty.toolId}</span>
-                                                              <span className="ml-2 font-mono text-slate-400 shrink-0">{ty.hoursPerUnit} h/u</span>
-                                                          </div>
-                                                      );
-                                                  })}
-                                              </div>
-                                          </div>
-                                      )}
-
-                                      {!!selTask?.fixedCost && (
-                                          <div>
-                                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
-                                                  <DollarSign size={10}/> Otros Costos
-                                              </p>
-                                              <div className="flex justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded">
-                                                  <span className="truncate">{selTask.fixedCostDescription ?? 'Costo fijo'}</span>
-                                                  <span className="ml-2 font-mono text-slate-400 shrink-0">${selTask.fixedCost.toFixed(2)}</span>
-                                              </div>
-                                          </div>
-                                      )}
-
-                                      {hasPriceWarning && (
-                                          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
-                                              <AlertCircle size={13}/> Esta tarea tiene recursos sin precio definido. El costo puede ser $0.
-                                          </p>
-                                      )}
-                                  </div>
-                              );
+                              const comp = buildApuComposition(selTask, mats, materialsMap, labors, laborCategoriesMap, equips, toolsMap);
+                              const analysis = calculateUnitPrice(selTask, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap, 9, taskLaborYieldsIndex);
+                              return <APUCompositionPanel comp={comp} analysis={analysis} />;
                           })()}
 
                           {/* Presets Section */}
