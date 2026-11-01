@@ -4,6 +4,8 @@ import { calculateUnitPrice } from '../services/calculationService';
 import { MeasurementDrawer } from './MeasurementDrawer';
 import { QuantitySourceBadge } from './QuantitySourceBadge';
 import { getQuantitySource } from '../utils/quantitySource';
+import { officialRubro } from '../src/features/budgets/rubroMap';
+import { sortRubros } from '../src/features/budgets/rubroGroups';
 import { 
   useReactTable, 
   getCoreRowModel, 
@@ -36,7 +38,7 @@ interface GridRow {
 // --- Component ---
 export const BudgetGrid: React.FC = () => {
   const { 
-    project, tasks, materials, rubros,
+    project, tasks, materials,
     addTaskYield, updateMaterial, snapshots, createSnapshot,
     addTaskToolYield, updateTool, updateTask,
     // Indexes
@@ -55,17 +57,14 @@ export const BudgetGrid: React.FC = () => {
   // 1. Data Transformation: Flat List -> Hierarchical (Rubro -> Task)
   const data = useMemo(() => {
     const groups: Record<string, GridRow[]> = {};
-    
-    // Initialize groups for all rubros to ensure order
-    rubros.forEach(r => groups[r] = []);
-    groups['Sin Categoría'] = [];
 
     project.items.forEach(item => {
       const task = tasks.find(t => t.id === item.taskId);
       if (!task) return;
 
       const analysis = calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap, 9, taskLaborYieldsIndex);
-      const category = task.category && rubros.includes(task.category) ? task.category : 'Sin Categoría';
+      // Mismo rubro que «Ítems y presupuesto» (normaliza familias de APU, tildes y mayúsculas).
+      const category = officialRubro(task.category, task.name);
       
       const gridRow: GridRow = {
         id: item.id,
@@ -85,7 +84,7 @@ export const BudgetGrid: React.FC = () => {
     // Flatten to: Rubro Header -> Task Rows
     // In TanStack Table, we can use subRows for true tree structure.
     const result: GridRow[] = [];
-    Object.keys(groups).forEach(rubro => {
+    sortRubros(Object.keys(groups)).forEach(rubro => {
       if (groups[rubro].length > 0) {
         const rubroTotal = groups[rubro].reduce((sum, row) => sum + row.totalPrice, 0);
         result.push({
@@ -102,7 +101,7 @@ export const BudgetGrid: React.FC = () => {
     });
 
     return result;
-  }, [project.items, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, rubros, taskCrewYieldsIndex, crewsMap, laborCategoriesMap]);
+  }, [project.items, tasks, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap]);
 
   // 2. Total Project Cost Calculation
   const totalProjectCost = useMemo(() => 

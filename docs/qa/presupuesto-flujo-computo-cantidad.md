@@ -14,3 +14,5 @@
 - [ ] Ítem medido que el calculador actualiza con otro valor: badge «Medido ≠» en ámbar; al abrir, «Usar la planilla» vuelve la cantidad al total medido.
 - [ ] Panel de proyecto (etapas): el enlace dice «Análisis de costos» y abre esa pestaña.
 - [ ] Celular: el panel ocupa todo el ancho y se puede cerrar.
+- [ ] Análisis de costos: los subtotales por rubro coinciden con los de Ítems y presupuesto; no aparece «Sin categoría» para ítems que en el presupuesto tienen rubro; Mampostería aparece una sola vez.
+- [ ] Calculador → mandar una tarea que está 2+ veces en el presupuesto: banner ámbar «… está N veces: unificalas…»; ninguna cantidad cambia; «Ver en presupuesto» resalta todas.

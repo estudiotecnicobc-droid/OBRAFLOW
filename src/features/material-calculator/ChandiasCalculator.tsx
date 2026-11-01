@@ -1965,8 +1965,8 @@ const RightPanel: React.FC<RightPanelProps> = ({
 
       {/* Banner enviado al presupuesto */}
       {sendStatus === 'sent' && sendMsg && (
-        <div className="mx-2 mt-2 flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[10px] text-emerald-700 shrink-0">
-          <CheckCircle2 size={11} className="shrink-0" />
+        <div className={`mx-2 mt-2 flex items-center gap-1.5 px-2.5 py-1.5 border rounded-lg text-[10px] shrink-0 ${sendMsg.includes('No se actualizó') ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+          {sendMsg.includes('No se actualizó') ? <AlertTriangle size={11} className="shrink-0" /> : <CheckCircle2 size={11} className="shrink-0" />}
           <span className="flex-1">{sendMsg}</span>
           {onViewInBudget && (
             <button onClick={onViewInBudget} className="shrink-0 px-2 py-0.5 rounded bg-emerald-600 text-white font-semibold hover:bg-emerald-700">
@@ -2516,17 +2516,26 @@ export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }
     const totalToSend = payloads.length + noAPUPayloads.length;
 
     // Ítems que ya estaban: se actualiza la cantidad (no se duplican ni se omiten).
-    const budgetItemByName = new Map<string, { id: string; quantity: number }>();
+    const budgetItemsByName = new Map<string, { id: string; quantity: number; name: string }[]>();
     for (const bi of project.items) {
       const t = projectTasks.find(pt => pt.id === bi.taskId);
       const key = t?.name.trim().toLowerCase();
-      if (key && !budgetItemByName.has(key)) budgetItemByName.set(key, { id: bi.id, quantity: bi.quantity });
+      if (!key) continue;
+      budgetItemsByName.set(key, [...(budgetItemsByName.get(key) ?? []), { id: bi.id, quantity: bi.quantity, name: t!.name.trim() }]);
     }
     const touchedIds: string[] = [];
+    const repeated: string[] = [];
     let updatedCount = 0;
     for (const u of existingUpdates) {
-      const bi = budgetItemByName.get(u.nameKey);
-      if (!bi) continue;
+      const matches = budgetItemsByName.get(u.nameKey) ?? [];
+      if (matches.length === 0) continue;
+      // Repetida en el presupuesto: no se adivina cuál actualizar; se avisa y se resaltan todas.
+      if (matches.length > 1) {
+        repeated.push(`${matches[0].name} está ${matches.length} veces`);
+        touchedIds.push(...matches.map(m => m.id));
+        continue;
+      }
+      const bi = matches[0];
       touchedIds.push(bi.id);
       const qty = Number(u.quantity.toFixed(2));
       if (Math.abs(bi.quantity - qty) > 0.005 || u.computationItemId) {
@@ -2535,9 +2544,11 @@ export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }
       }
     }
 
+    const repeatedMsg = repeated.length > 0 ? ` · No se actualizó porque ${repeated.join('; ')}: unificalas o editá la cantidad a mano` : '';
+
     if (totalToSend === 0 && updatedCount === 0) {
       setPendingHighlight(touchedIds);
-      return 'Sin cambios: el presupuesto ya tiene estas cantidades';
+      return (repeated.length > 0 ? 'Sin cambios' : 'Sin cambios: el presupuesto ya tiene estas cantidades') + repeatedMsg;
     }
 
     // ── 3. Crear tasks + yields + budget_items ────────────────────────────
@@ -2575,7 +2586,7 @@ export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }
     if (noAPUPayloads.length > 0) {
       parts.push(`${noAPUPayloads.length} sin APU (costo = 0)`);
     }
-    return parts.join(' · ');
+    return parts.join(' · ') + repeatedMsg;
   }, [
     items, projectId, project?.id, orgId, masterTasks, orgMaterials,
     laborCategoriesMap, toolsMap, erpMaterials, budgetTaskNamesSet,

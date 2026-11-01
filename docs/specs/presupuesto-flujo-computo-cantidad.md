@@ -16,6 +16,11 @@ Además, el «Calculador de cómputo» creaba ítems nuevos y **salteaba** los q
 - **«Análisis de costos»** (ex «Grilla de costos»): cantidad de solo lectura con badge; clic → panel de medición. Los rendimientos del APU siguen editables.
 - Pestañas numeradas según el flujo: ① Cómputo ② Ítems y presupuesto ③ Análisis de costos.
 
+## Iteración 2 (feedback de la prueba en Casa Ciro)
+- **Análisis de costos agrupa igual que Ítems y presupuesto**: usa `officialRubro(task.category, task.name)` y ordena con `sortRubros`. Antes exigía que la categoría coincidiera exacto con la lista de rubros del proyecto. Todo lo demás iba a «Sin categoría» (39 % del total en Casa Ciro), y «MAMPOSTERIA» / «MAMPOSTERÍA» salían duplicadas.
+- `rubroMap`: «Estructura H.A.» / «Estructura H°A°» → 05 (también en Ítems y presupuesto).
+- **Calculador con tarea repetida en el presupuesto**: no actualiza ninguna. Avisa en ámbar («X está N veces: unificalas o editá la cantidad a mano») y resalta todas al ir a «Ver en presupuesto».
+
 ## Fuera de alcance (etapa 2, requiere migración y cambios en ERPContext)
 - Las planillas de medición siguen en `localStorage` (`erp_measurements`): no se comparten entre equipos ni usuarios. Hay que migrarlas a Supabase.
 
