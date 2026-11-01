@@ -65,15 +65,17 @@ export const BudgetGrid: React.FC = () => {
       const analysis = calculateUnitPrice(task, yieldsIndex, materialsMap, toolYieldsIndex, toolsMap, taskCrewYieldsIndex, crewsMap, laborCategoriesMap, 9, taskLaborYieldsIndex);
       // Mismo rubro que «Ítems y presupuesto» (normaliza familias de APU, tildes y mayúsculas).
       const category = officialRubro(task.category, task.name);
-      
+      // Misma fórmula que «Ítems y presupuesto»: suma de componentes ya redondeados (evita diferencias de $0,01).
+      const unitPrice = analysis.materialCost + analysis.toolCost + analysis.fixedCost + analysis.laborCost;
+
       const gridRow: GridRow = {
         id: item.id,
         type: 'task',
         name: task.name,
         unit: task.unit,
         quantity: item.quantity,
-        unitPrice: analysis.totalUnitCost,
-        totalPrice: analysis.totalUnitCost * item.quantity,
+        unitPrice,
+        totalPrice: unitPrice * item.quantity,
         originalItem: { ...item, taskData: task },
       };
 
@@ -131,9 +133,9 @@ export const BudgetGrid: React.FC = () => {
             <span className={isRubro ? 'font-bold text-slate-800 uppercase text-xs tracking-wider' : 'font-medium text-slate-700 text-sm'}>
               {getValue() as string}
             </span>
-            {!isRubro && row.original.type === 'task' && (
+            {!isRubro && row.original.type === 'task' && row.original.originalItem.taskData.code && (
                 <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 rounded border border-slate-200">
-                    {row.original.originalItem.taskData.code || row.original.originalItem.taskData.id.substring(0,4)}
+                    {row.original.originalItem.taskData.code}
                 </span>
             )}
           </div>
