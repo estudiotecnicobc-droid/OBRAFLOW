@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildApuUnitCost, summarizePriceStatus, WARN_CURRENCY_MIXED, WARN_PRICE_NOT_RESOLVED } from '../apuPricing';
+import { buildApuUnitCost, describePriceQuality, observationIdsOf, summarizePriceStatus, WARN_CURRENCY_MIXED, WARN_PRICE_NOT_RESOLVED } from '../apuPricing';
 import type { ApuPricingComponent, PriceResolution, ResolvedReferencePrice } from '../types';
 
 const relevado = (over: Partial<ResolvedReferencePrice> = {}): ResolvedReferencePrice => ({
@@ -121,13 +121,13 @@ describe('buildApuUnitCost', () => {
     });
   });
 
-  it('APU congelado: FROZEN cuenta como RELEVADO y la trazabilidad conserva la resolution frozen_snapshot', () => {
+  it('APU congelado: la calidad es la del precio original (CATALOG_UNVERIFIED → ESTIMADO) y la trazabilidad conserva la resolution', () => {
     const r = buildApuUnitCost(
       [comp()],
       { c1: relevado({ source: 'FROZEN_SNAPSHOT', priceStatus: 'FROZEN', referenceId: 'fp-1', observationCount: null, resolution: frozenResolution }) },
     );
     expect(r.isUsable).toBe(true);
-    expect(r.priceQuality).toBe('RELEVADO');
+    expect(r.priceQuality).toBe('ESTIMADO');
     expect(r.traceability[0].resolution).toEqual(frozenResolution);
     expect(r.traceability[0].observationCount).toBeNull();
   });
@@ -176,19 +176,58 @@ describe('buildApuUnitCost', () => {
   });
 });
 
+const frozenOf = (original: ResolvedReferencePrice['priceStatus'], over: Partial<ResolvedReferencePrice> = {}): ResolvedReferencePrice =>
+  relevado({
+    source: 'FROZEN_SNAPSHOT', priceStatus: 'FROZEN', observationCount: null,
+    resolution: { ...frozenResolution, original_price_status: original, original_resolution: original === 'RELEVADO' ? observedResolution : null },
+    ...over,
+  });
+
+describe('describePriceQuality', () => {
+  it('precio vivo: LIVE + calidad derivada de priceStatus', () => {
+    expect(describePriceQuality(relevado())).toEqual({ freezeState: 'LIVE', priceQuality: 'RELEVADO' });
+    expect(describePriceQuality(relevado({ priceStatus: 'CATALOG_UNVERIFIED' }))).toEqual({ freezeState: 'LIVE', priceQuality: 'ESTIMADO' });
+    expect(describePriceQuality(relevado({ priceStatus: 'DESACTUALIZADO' }))).toEqual({ freezeState: 'LIVE', priceQuality: 'DESACTUALIZADO' });
+  });
+
+  it('precio congelado: FROZEN + calidad del estado ORIGINAL', () => {
+    expect(describePriceQuality(frozenOf('RELEVADO'))).toEqual({ freezeState: 'FROZEN', priceQuality: 'RELEVADO' });
+    expect(describePriceQuality(frozenOf('CATALOG_UNVERIFIED'))).toEqual({ freezeState: 'FROZEN', priceQuality: 'ESTIMADO' });
+    expect(describePriceQuality(frozenOf('DESACTUALIZADO'))).toEqual({ freezeState: 'FROZEN', priceQuality: 'DESACTUALIZADO' });
+  });
+
+  it('congelado sin resolution original → FROZEN + ESTIMADO (no se asume relevado)', () => {
+    expect(describePriceQuality(frozenOf('RELEVADO', { resolution: null }))).toEqual({ freezeState: 'FROZEN', priceQuality: 'ESTIMADO' });
+  });
+
+  it('no usable o sin precio → SIN_PRECIO en cualquier estado', () => {
+    expect(describePriceQuality(relevado({ isUsable: false }))).toEqual({ freezeState: 'LIVE', priceQuality: 'SIN_PRECIO' });
+    expect(describePriceQuality(frozenOf('RELEVADO', { price: null, isUsable: false }))).toEqual({ freezeState: 'FROZEN', priceQuality: 'SIN_PRECIO' });
+  });
+});
+
+describe('observationIdsOf', () => {
+  it('median_by_supplier → observation_ids; frozen → los de la resolution original; otros → []', () => {
+    expect(observationIdsOf(observedResolution)).toEqual(['o1', 'o2', 'o3']);
+    expect(observationIdsOf(frozenOf('RELEVADO').resolution)).toEqual(['o1', 'o2', 'o3']);
+    expect(observationIdsOf(frozenResolution)).toEqual([]);
+    expect(observationIdsOf({ method: 'single_source', source: 'ORG_MASTER', as_of: '2026-11-02', mode: 'CURRENT', observed_candidates: 0 })).toEqual([]);
+    expect(observationIdsOf(null)).toEqual([]);
+  });
+});
+
 describe('summarizePriceStatus', () => {
   it('vacío → SIN_PRECIO', () => {
     expect(summarizePriceStatus([])).toBe('SIN_PRECIO');
   });
 
-  it('todos RELEVADO (o FROZEN) → RELEVADO', () => {
-    expect(summarizePriceStatus([relevado(), relevado({ source: 'FROZEN_SNAPSHOT', priceStatus: 'FROZEN' })])).toBe('RELEVADO');
+  it('todos RELEVADO (vivos o congelados de origen RELEVADO) → RELEVADO', () => {
+    expect(summarizePriceStatus([relevado(), frozenOf('RELEVADO')])).toBe('RELEVADO');
   });
 
-  it('FROZEN es el relevado del congelado: no se degrada aunque el original fuera CATALOG_UNVERIFIED o viejo', () => {
-    expect(summarizePriceStatus([
-      relevado({ source: 'FROZEN_SNAPSHOT', priceStatus: 'FROZEN', effectiveDate: '2025-01-15', resolution: frozenResolution }),
-    ])).toBe('RELEVADO');
+  it('FROZEN no es calidad: un congelado de origen CATALOG_UNVERIFIED → ESTIMADO, de origen DESACTUALIZADO → DESACTUALIZADO', () => {
+    expect(summarizePriceStatus([relevado(), frozenOf('CATALOG_UNVERIFIED')])).toBe('ESTIMADO');
+    expect(summarizePriceStatus([relevado(), frozenOf('DESACTUALIZADO')])).toBe('DESACTUALIZADO');
   });
 
   it('algún CATALOG_UNVERIFIED → ESTIMADO', () => {

@@ -45,6 +45,15 @@ export type PriceWarning =
 /** Indicador de calidad agregado para un APU / presupuesto (capa UI). */
 export type ApuPriceQuality = 'RELEVADO' | 'ESTIMADO' | 'DESACTUALIZADO' | 'SIN_PRECIO';
 
+/** Estado de congelamiento de un precio: ortogonal a su calidad. */
+export type FreezeState = 'FROZEN' | 'LIVE';
+
+/** Salida de `describePriceQuality`: estado + calidad del precio original. */
+export interface PriceQualityDescription {
+  freezeState: FreezeState;
+  priceQuality: ApuPriceQuality;
+}
+
 /** `reference_pricing_status` de `budget_cost_snapshots` y `status` de `freeze_budget_prices`. */
 export type PriceReconciliationStatus = 'reconciled' | 'pending_reconciliation' | 'partial';
 
@@ -217,9 +226,12 @@ export interface FrozenComponentPrice {
   priceStatus: PriceStatus;
   effectiveDate: string | null;
   /**
-   * Factor comercial→técnico ya aplicado por la homologación al precio de la
-   * observación de origen. NULL si la fuente no es SUPPLIER_OBSERVED. Solo
-   * evidencia: `unitPrice` ya está en la unidad técnica.
+   * `price_observations.unit_factor` de la observación de REFERENCIA
+   * (`referenceId`), no de la mediana: cada proveedor puede tener su propio
+   * factor comercial→técnico y la homologación ya lo aplicó a su precio
+   * normalizado. NULL si la fuente no es SUPPLIER_OBSERVED. Solo evidencia:
+   * `unitPrice` ya está en la unidad técnica; nunca reaplicarlo. Para el resto
+   * de las observaciones ver `observationIdsOf(resolution)`.
    */
   supplierUnitFactor: number | null;
   /**

@@ -87,7 +87,11 @@ export function observedPriceFromRow(row: Row): ObservedPrice {
   };
 }
 
-/** `unit_price` NULL (solo source NO_PRICE) fuerza `isUsable = false`. */
+/**
+ * `unit_price` NULL (solo source NO_PRICE) fuerza `isUsable = false`.
+ * `supplier_unit_factor` es el factor de la observación de referencia
+ * (`reference_id`), no un factor de la mediana; es evidencia, no se aplica.
+ */
 export function frozenPriceFromRow(row: Row): FrozenComponentPrice {
   const unitPrice = numOrNull(row.unit_price);
   return {

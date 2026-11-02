@@ -22,6 +22,9 @@
  *   · Por eso este módulo nunca usa `supplierUnitFactor` ni `apuConversionFactor`
  *     de FrozenComponentPrice en la aritmética: un precio congelado se consume
  *     tal cual y el factor no debe aplicarse dos veces.
+ *   · Para presupuestos CONGELADOS no se usa buildApuUnitCost: se usa
+ *     `buildFrozenBudgetCost` (frozenBudget.ts), que suma directamente las
+ *     filas persistidas de budget_cost_snapshot_prices.
  */
 
 import { getConversionFactor } from '../yieldUnitConversion';
@@ -32,7 +35,11 @@ import type {
   ApuPriceTrace,
   ApuPricingComponent,
   ApuUnitCostResult,
+  FreezeState,
   PriceCurrency,
+  PriceQualityDescription,
+  PriceResolution,
+  PriceStatus,
   ResolvedReferencePrice,
 } from './types';
 
@@ -68,8 +75,10 @@ function resolveFactor(component: ApuPricingComponent, resolvedUnit: string | nu
 }
 
 /**
- * Costo unitario de materiales de un APU con desglose por componente,
- * trazabilidad de la fuente de cada precio y warnings agregados.
+ * Costo unitario de materiales de un APU VIVO con desglose por componente,
+ * trazabilidad de la fuente de cada precio y warnings agregados. Aplica
+ * `conversionFactor` (convención TS). Para snapshots congelados usar
+ * `buildFrozenBudgetCost` (frozenBudget.ts), que no reconstruye nada.
  */
 export function buildApuUnitCost(
   components: ApuPricingComponent[],
@@ -149,38 +158,70 @@ export function buildApuUnitCost(
 }
 
 /**
+ * IDs de las observaciones que participaron en la mediana (fuente
+ * SUPPLIER_OBSERVED, o la resolution original de un precio congelado). Permite
+ * trazar al resto de los proveedores: `referenceId` / `supplierUnitFactor`
+ * apuntan solo a la observación de referencia.
+ */
+export function observationIdsOf(resolution: PriceResolution | null | undefined): string[] {
+  if (!resolution) return [];
+  if (resolution.method === 'median_by_supplier') return [...resolution.observation_ids];
+  if (resolution.method === 'frozen_snapshot') return observationIdsOf(resolution.original_resolution ?? null);
+  return [];
+}
+
+function qualityFromStatus(status: PriceStatus | null | undefined): ApuPriceQuality {
+  switch (status) {
+    case 'RELEVADO':           return 'RELEVADO';
+    case 'DESACTUALIZADO':     return 'DESACTUALIZADO';
+    case 'SIN_PRECIO':         return 'SIN_PRECIO';
+    case 'CATALOG_UNVERIFIED': return 'ESTIMADO';
+    default:                   return 'ESTIMADO'; // estado desconocido o FROZEN sin original
+  }
+}
+
+/**
+ * Separa dos conceptos que el motor devuelve mezclados en `priceStatus`:
+ *   · freezeState  — FROZEN si el precio salió de un snapshot (source
+ *                    FROZEN_SNAPSHOT / priceStatus FROZEN), LIVE en otro caso.
+ *   · priceQuality — calidad del precio ORIGINAL. Para un precio congelado se
+ *                    toma `resolution.original_price_status`; congelar no mejora
+ *                    la calidad: un catálogo no verificado congelado sigue
+ *                    siendo ESTIMADO. Si falta la resolution original → ESTIMADO.
+ * Un precio no usable o sin precio es SIN_PRECIO en cualquier estado.
+ */
+export function describePriceQuality(r: ResolvedReferencePrice): PriceQualityDescription {
+  const frozen = r.source === 'FROZEN_SNAPSHOT' || r.priceStatus === 'FROZEN';
+  const freezeState: FreezeState = frozen ? 'FROZEN' : 'LIVE';
+
+  if (!r.isUsable || r.price === null || r.priceStatus === 'SIN_PRECIO') {
+    return { freezeState, priceQuality: 'SIN_PRECIO' };
+  }
+  if (!frozen) return { freezeState, priceQuality: qualityFromStatus(r.priceStatus) };
+
+  const original = r.resolution?.method === 'frozen_snapshot'
+    ? r.resolution.original_price_status
+    : undefined;
+  return { freezeState, priceQuality: qualityFromStatus(original) };
+}
+
+const QUALITY_RANK: Record<ApuPriceQuality, number> = {
+  RELEVADO: 0, ESTIMADO: 1, DESACTUALIZADO: 2, SIN_PRECIO: 3,
+};
+
+/**
  * Indicador de calidad agregado para un conjunto de precios resueltos.
  * Prioridad (peor gana): SIN_PRECIO > DESACTUALIZADO > ESTIMADO > RELEVADO.
- *   · SIN_PRECIO     — lista vacía, algún precio no usable o sin precio
- *   · DESACTUALIZADO — algún SUPPLIER_OBSERVED con más de 30 días
- *   · ESTIMADO       — algún precio de catálogo no verificado (CATALOG_UNVERIFIED),
- *                      de recurso/legacy o de estado desconocido
- *   · RELEVADO       — todos relevados o congelados (FROZEN)
- *
- * FROZEN se trata como RELEVADO: un precio congelado es el "relevado del
- * congelado", es decir, el valor que se validó y fijó en el momento del
- * snapshot. Su antigüedad respecto de hoy no lo degrada a DESACTUALIZADO ni a
- * ESTIMADO; la calidad original (observado, catálogo, legacy) queda disponible
- * en `resolution.original_price_status` para quien quiera mostrarla.
+ * Usa `describePriceQuality`: FROZEN no es una calidad, es un estado; la
+ * calidad de un precio congelado es la de su precio original.
  */
 export function summarizePriceStatus(resolved: ResolvedReferencePrice[]): ApuPriceQuality {
   if (resolved.length === 0) return 'SIN_PRECIO';
-
-  let hasStale = false;
-  let hasEstimated = false;
-
+  let worst: ApuPriceQuality = 'RELEVADO';
   for (const r of resolved) {
-    if (!r.isUsable || r.price === null || r.priceStatus === 'SIN_PRECIO') return 'SIN_PRECIO';
-    switch (r.priceStatus) {
-      case 'DESACTUALIZADO':     hasStale = true; break;
-      case 'CATALOG_UNVERIFIED': hasEstimated = true; break;
-      case 'RELEVADO':
-      case 'FROZEN':             break;
-      default:                   hasEstimated = true;
-    }
+    const { priceQuality } = describePriceQuality(r);
+    if (QUALITY_RANK[priceQuality] > QUALITY_RANK[worst]) worst = priceQuality;
+    if (worst === 'SIN_PRECIO') break;
   }
-
-  if (hasStale) return 'DESACTUALIZADO';
-  if (hasEstimated) return 'ESTIMADO';
-  return 'RELEVADO';
+  return worst;
 }
