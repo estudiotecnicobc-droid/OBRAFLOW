@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Search, Plus, Trash2, RefreshCcw, Download, Package, X, AlertTriangle, CheckCircle2, BookPlus, Loader2, Layers, ChevronDown, Settings2, ShoppingCart, FileText, BookOpen, Save } from 'lucide-react';
+import { Search, Plus, Trash2, RefreshCcw, Download, Package, X, AlertTriangle, CheckCircle2, BookPlus, Loader2, Layers, ChevronDown, Settings2, ShoppingCart, FileText, BookOpen, Save, Ruler, MinusCircle } from 'lucide-react';
 import { CHANDIAS_CATALOG, ChandiasTask } from './catalog/chandiasCatalog';
 import { TaskSketch } from './TaskSketch';
 import {
@@ -924,6 +924,14 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
           <div className="mt-3 mb-1 bg-slate-50 rounded-xl border border-slate-100 py-2 px-1">
             <TaskSketch task={task} dimValues={dimValues} />
           </div>
+
+          {task.condiciones && (
+            <div className="mt-2 rounded-xl border border-slate-100 bg-white px-3 py-2 space-y-1.5 text-[11px] leading-snug text-slate-600">
+              <p className="flex gap-1.5"><Ruler size={12} className="shrink-0 mt-0.5 text-slate-400" /><span><span className="font-semibold text-slate-700">Cómo se mide: </span>{task.condiciones.medicion}</span></p>
+              <p className="flex gap-1.5"><CheckCircle2 size={12} className="shrink-0 mt-0.5 text-emerald-500" /><span><span className="font-semibold text-slate-700">Incluye: </span>{task.condiciones.incluye}</span></p>
+              <p className="flex gap-1.5"><MinusCircle size={12} className="shrink-0 mt-0.5 text-slate-400" /><span><span className="font-semibold text-slate-700">No incluye: </span>{task.condiciones.noIncluye}</span></p>
+            </div>
+          )}
 
           {/* Inputs dinámicos */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
