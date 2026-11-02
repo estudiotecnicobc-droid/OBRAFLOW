@@ -48,8 +48,8 @@ describe('Tarea simple: Mampostería (TAREA-001)', () => {
     const ladrilloContrib = 16 * 0.4747;
     // Arena: 0.020 M3 × $91.29 = $1.8258
     const arenaContrib = 0.020 * 91.29;
-    // Cemento: 0.0144 bolsas 50kg × $79.49/KG × 50 = 0.0144 × 3974.5 = $57.2328
-    const cementoContrib = 0.0144 * 79.49 * 50;
+    // Cemento: 0.72 kg (= 0.0144 bolsas × 50 kg/bolsa) × $79.49/KG = $57.2328
+    const cementoContrib = 0.72 * 79.49;
 
     const expectedMat = ladrilloContrib + arenaContrib + cementoContrib;
     expect(result.materialCost).toBeCloseTo(expectedMat, 2);
@@ -129,27 +129,27 @@ describe('Variación de costos por fecha', () => {
   });
 });
 
-// ── 4. Conversión de unidades ─────────────────────────────────────────────────
-describe('Conversión de unidades comerciales', () => {
-  it('bolsas de 50kg: 0.0144 bolsas × 50 × precio/KG', async () => {
+// ── 4. Unidad técnica única ───────────────────────────────────────────────────
+describe('Criterio unidad técnica única', () => {
+  it('componente en KG con factor del material NO reaplica factor: cost = qty × precio', async () => {
     const costKg = getResourceUnitCost(RES_CEMENTO, ORG, '2026-01-31')!;
 
-    // Construir tarea mínima solo con cemento en "50kg"
     const task: MasterTask = {
-      id: 'test-50kg',
+      id: 'test-kg',
       organizationId: ORG,
-      name: 'Test 50kg',
+      name: 'Test kg',
       unit: 'UN',
       dailyYield: 1,
       isActive: true,
       createdAt: '',
       updatedAt: '',
       materials: [{
-        id: 'm-test',
-        materialName: 'Cemento 50kg',
-        unit: '50kg',
-        quantity: 1,
+        id: 'm-test-kg',
+        materialName: 'Cemento (kg)',
+        unit: 'KG',
+        quantity: 50,                 // la cantidad siempre en técnica
         resourceId: RES_CEMENTO,
+        conversionFactor: 50,         // evidencia (equivalente a 1 bolsa 50 kg), no interviene
       }],
       labor: [],
       equipment: [],
@@ -159,26 +159,23 @@ describe('Conversión de unidades comerciales', () => {
     ctx.tasksMap.set(task.id, task);
     const result = await computeTaskCost(task, ctx);
 
-    // 1 bolsa de 50kg × precio/KG = 50 × costKg
     expect(result.materialCost).toBeCloseTo(50 * costKg, 2);
   });
 
-  it('bolsas de 25kg: factor correcto', async () => {
-    const costKg = getResourceUnitCost(RES_CEMENTO, ORG, '2026-01-31')!;
-
+  it('componente en "50kg" (etiqueta comercial) con precio en KG → UNIT_MISMATCH, material omitido', async () => {
     const task: MasterTask = {
-      id: 'test-25kg',
+      id: 'test-50kg-mismatch',
       organizationId: ORG,
-      name: 'Test 25kg',
+      name: 'Test 50kg mismatch',
       unit: 'UN',
       dailyYield: 1,
       isActive: true,
       createdAt: '',
       updatedAt: '',
       materials: [{
-        id: 'm-test2',
-        materialName: 'Cemento 25kg',
-        unit: '25kg',
+        id: 'm-test-mismatch',
+        materialName: 'Cemento 50kg',
+        unit: '50kg',               // antes se infería factor 50; ahora no se convierte
         quantity: 1,
         resourceId: RES_CEMENTO,
       }],
@@ -190,7 +187,10 @@ describe('Conversión de unidades comerciales', () => {
     ctx.tasksMap.set(task.id, task);
     const result = await computeTaskCost(task, ctx);
 
-    expect(result.materialCost).toBeCloseTo(25 * costKg, 2);
+    expect(result.materialCost).toBe(0);
+    expect(result.warnings ?? []).toEqual(
+      expect.arrayContaining([expect.stringMatching(/UNIT_MISMATCH.*50kg.*KG/)]),
+    );
   });
 
   it('hh → HS: alias normalizado correctamente en MO', async () => {

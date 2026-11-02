@@ -2,12 +2,17 @@
 // Calcula el costo unitario de un MasterTask con soporte para:
 //   · APUs anidados (sub_master_task_id)
 //   · Recursos versionados (resourceId → get_resource_cost RPC)
-//   · Conversión de unidades comerciales (conversionFactor)
 //   · Cycle detection (diamond dependencies OK, ciclos A→B→A detectados)
 //   · Memoización (un MasterTask se calcula una sola vez por contexto)
+//
+// Criterio de unidades (alineado con calculate_consolidated_resources, 057):
+// cantidad y precio están siempre en la unidad técnica del componente.
+// `conversionFactor` NO interviene en el costo — es evidencia para compras.
+// Si la unidad del precio difiere de la del componente, el material queda
+// fuera del costo con warning UNIT_MISMATCH (no se convierte en silencio).
 
 import { MasterTask, RecursiveAPUResult, RecursiveEngineContext } from '../types';
-import { getConversionFactor } from './yieldUnitConversion';
+import { unitsMatch } from './unitNormalization';
 
 const WORKDAY_HOURS = 9; // horas de jornada laboral estándar
 
@@ -52,22 +57,19 @@ export async function computeTaskCost(
         warnings.push(`sub-APU ${m.subMasterTaskId} no encontrado para "${m.materialName}"`);
       }
     } else if (m.resourceId) {
-      // Recurso versionado: resolver costo por fecha
+      // Recurso versionado: resolver costo por fecha. El precio llega en la
+      // unidad técnica del recurso; si difiere de la del componente, el
+      // material queda fuera del costo con UNIT_MISMATCH.
       const fromCache = await ctx.resolveCost(m.resourceId);
       if (fromCache != null) {
-        // Aplicar factor de conversión de unidades
-        let factor = m.conversionFactor ?? 1;
-        if (!m.conversionFactor) {
-          const resource = ctx.resourcesMap?.get(m.resourceId);
-          if (resource) {
-            factor = getConversionFactor(m.unit, resource.unit);
-          } else {
-            warnings.push(
-              `Recurso ${m.resourceId} no en resourcesMap — factor conversión = 1 para "${m.materialName}"`,
-            );
-          }
+        const resource = ctx.resourcesMap?.get(m.resourceId);
+        if (resource && !unitsMatch(m.unit, resource.unit)) {
+          warnings.push(
+            `UNIT_MISMATCH: "${m.materialName}" mide en "${m.unit}" pero el recurso está en "${resource.unit}" — material omitido`,
+          );
+          continue;
         }
-        unitPrice = fromCache * factor;
+        unitPrice = fromCache;
       } else {
         warnings.push(`Sin costo para recurso ${m.resourceId} ("${m.materialName}") — usando lastKnownUnitPrice`);
         unitPrice = m.lastKnownUnitPrice ?? null;

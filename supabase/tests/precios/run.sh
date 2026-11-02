@@ -41,7 +41,8 @@ for f in "$MIG_DIR"/057_fix_resources_commercial_columns.sql; do
   psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f"
 done
 
-for f in "$MIG_DIR"/202611021000{01,02,03,04,05,06,07,08,09,10}_*.sql; do
+for f in "$MIG_DIR"/202611021000{01,02,03,04,05,06,07,08,09,10}_*.sql \
+         "$MIG_DIR"/20261103100000_*.sql; do
   echo "== $(basename "$f")"
   psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f"
 done

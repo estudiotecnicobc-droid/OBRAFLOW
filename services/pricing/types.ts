@@ -284,7 +284,7 @@ export interface ApuPricingComponent {
   unit: string;                     // unidad del rendimiento en el APU
   quantity: number;                 // cantidad por unidad de APU
   wastePercent?: number | null;
-  conversionFactor?: number | null; // unidad rendimiento → unidad base del recurso
+  conversionFactor?: number | null; // evidencia: unidades técnicas por 1 comercial. No afecta costo.
 }
 
 export interface ApuComponentCost {
@@ -292,8 +292,8 @@ export interface ApuComponentCost {
   materialName: string;
   quantity: number;
   wastePercent: number;
-  conversionFactor: number;
-  unitPrice: number | null;         // precio resuelto en la unidad del APU (ya convertido)
+  conversionFactor: number;         // evidencia, siempre refleja el valor del componente (1 si no venía)
+  unitPrice: number | null;         // precio del motor tal cual, en la unidad técnica del componente
   currency: string | null;
   cost: number;                     // aporte al costo unitario, 4 decimales (0 si no usable)
   isUsable: boolean;
