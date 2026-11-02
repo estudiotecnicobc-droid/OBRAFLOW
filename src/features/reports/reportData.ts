@@ -46,43 +46,110 @@ export interface PurchaseLine {
   rubros: string[];
 }
 
-export function buildPurchaseList(src: ReportSource): PurchaseLine[] {
+type Acc = Map<string, { mat: Material; qty: number; rubros: Set<string> }>;
+
+function toPurchaseLine(mat: Material, qty: number, rubros: Set<string>): PurchaseLine {
+  const cf = mat.conversionFactor && mat.conversionFactor > 1 ? mat.conversionFactor : 1;
+  const purchaseQty = cf > 1 ? Math.ceil(qty / cf - 1e-9) : piecePurchase(mat.unit, qty) ?? Math.ceil(qty - 1e-9);
+  const purchaseUnit = cf > 1 ? (mat.commercialUnit || mat.commercialFormat || `${cf} ${mat.unit}`) : mat.unit;
+  const purchaseUnitCost = (mat.cost || 0) * cf;
+  return {
+    id: mat.id,
+    name: mat.name,
+    unit: mat.unit,
+    technicalQty: qty,
+    purchaseQty,
+    purchaseUnit,
+    unitCost: mat.cost || 0,
+    purchaseUnitCost,
+    purchaseCost: purchaseQty * purchaseUnitCost,
+    category: mat.category?.trim() || 'Otros materiales',
+    rubros: [...rubros].sort(),
+  };
+}
+
+const sortLines = (lines: PurchaseLine[]) =>
+  lines.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+
+/**
+ * Recorre los materiales de las tareas del presupuesto y los acumula por la
+ * clave que devuelve `keyOf` (null = se excluye esa porción).
+ */
+function accumulate(src: ReportSource, keyOf: (mat: Material, task: Task | undefined) => string | null): Map<string, Acc> {
   const tasks = taskIndex(src.tasks);
-  const acc = new Map<string, { mat: Material; qty: number; rubros: Set<string> }>();
+  const groups = new Map<string, Acc>();
   for (const item of src.items) {
     const task = tasks.get(item.taskId);
     for (const y of src.yieldsIndex[item.taskId] || []) {
       const mat = src.materialsMap[y.materialId];
       if (!mat) continue;
+      const key = keyOf(mat, task);
+      if (key === null) continue;
       const qty = y.quantity * (1 + (y.wastePercent || 0) / 100) * item.quantity;
+      const acc = groups.get(key) ?? new Map();
       const e = acc.get(mat.id) ?? { mat, qty: 0, rubros: new Set<string>() };
       e.qty += qty;
       e.rubros.add(rubroOf(task));
       acc.set(mat.id, e);
+      groups.set(key, acc);
     }
   }
-  return [...acc.values()]
-    .filter(e => e.qty > 0)
-    .map(({ mat, qty, rubros }) => {
-      const cf = mat.conversionFactor && mat.conversionFactor > 1 ? mat.conversionFactor : 1;
-      const purchaseQty = cf > 1 ? Math.ceil(qty / cf - 1e-9) : piecePurchase(mat.unit, qty) ?? Math.ceil(qty - 1e-9);
-      const purchaseUnit = cf > 1 ? (mat.commercialUnit || mat.commercialFormat || `${cf} ${mat.unit}`) : mat.unit;
-      const purchaseUnitCost = (mat.cost || 0) * cf;
-      return {
-        id: mat.id,
-        name: mat.name,
-        unit: mat.unit,
-        technicalQty: qty,
-        purchaseQty,
-        purchaseUnit,
-        unitCost: mat.cost || 0,
-        purchaseUnitCost,
-        purchaseCost: purchaseQty * purchaseUnitCost,
-        category: mat.category?.trim() || 'Otros materiales',
-        rubros: [...rubros].sort(),
-      };
-    })
-    .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+  return groups;
+}
+
+const accToLines = (acc: Acc): PurchaseLine[] =>
+  sortLines([...acc.values()].filter(e => e.qty > 0).map(({ mat, qty, rubros }) => toPurchaseLine(mat, qty, rubros)));
+
+export function buildPurchaseList(src: ReportSource): PurchaseLine[] {
+  return accToLines(accumulate(src, () => '').get('') ?? new Map());
+}
+
+// ── Pedido de cotización armado por grupos ──────────────────────────────────
+
+/** Cómo se arma el pedido: por tipo de material, por rubro del presupuesto o por tarea. */
+export type QuoteGrouping = 'material' | 'rubro' | 'tarea';
+
+const taskLabel = (task?: Task) =>
+  task ? (task.code ? `${task.code} · ${task.name}` : task.name) : 'Tarea sin nombre';
+
+const groupKeyFn = (by: QuoteGrouping) => (mat: Material, task: Task | undefined): string =>
+  by === 'material' ? (mat.category?.trim() || 'Otros materiales')
+    : by === 'rubro' ? rubroOf(task)
+      : taskLabel(task);
+
+export interface QuoteGroupOption { key: string; materials: number }
+
+/** Grupos disponibles para elegir, con cuántos materiales tiene cada uno. */
+export function quoteGroupOptions(src: ReportSource, by: QuoteGrouping): QuoteGroupOption[] {
+  const fn = groupKeyFn(by);
+  return [...accumulate(src, fn).entries()]
+    .map(([key, acc]) => ({ key, materials: [...acc.values()].filter(e => e.qty > 0).length }))
+    .filter(g => g.materials > 0)
+    .sort((a, b) => a.key.localeCompare(b.key, 'es', { numeric: true }));
+}
+
+export interface QuoteSection { title?: string; lines: PurchaseLine[] }
+
+/**
+ * Líneas del pedido de cotización. Solo entran los grupos de `include`
+ * (todos si no se indica). Con `separate`, una sección por grupo y cada
+ * material con la cantidad que usa ese grupo; sin `separate`, una sola lista
+ * que suma los grupos elegidos y redondea una vez.
+ */
+export function buildQuoteSections(
+  src: ReportSource,
+  opts: { by: QuoteGrouping; include?: string[]; separate: boolean },
+): QuoteSection[] {
+  const fn = groupKeyFn(opts.by);
+  const allowed = opts.include ? new Set(opts.include) : null;
+  if (!opts.separate) {
+    const acc = accumulate(src, (m, t) => (!allowed || allowed.has(fn(m, t)) ? '' : null)).get('');
+    return acc ? [{ lines: accToLines(acc) }].filter(s => s.lines.length > 0) : [];
+  }
+  return [...accumulate(src, (m, t) => { const k = fn(m, t); return !allowed || allowed.has(k) ? k : null; }).entries()]
+    .sort(([a], [b]) => a.localeCompare(b, 'es', { numeric: true }))
+    .map(([title, acc]) => ({ title, lines: accToLines(acc) }))
+    .filter(s => s.lines.length > 0);
 }
 
 export function groupBy<T>(rows: T[], key: (r: T) => string): [string, T[]][] {

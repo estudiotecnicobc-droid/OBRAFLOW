@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  type ApuSheet, type LaborBreakdown, type PurchaseLine, WORKDAY_HOURS, groupBy,
+  type ApuSheet, type LaborBreakdown, type PurchaseLine, type QuoteSection, WORKDAY_HOURS, groupBy,
 } from './reportData';
 import { exportReportXlsx, safeFilename } from './exportXlsx';
 
@@ -96,36 +96,45 @@ export const exportPurchaseList = (ctx: DocContext, lines: PurchaseLine[]) =>
 
 // ── Pedido de cotización (sin membrete ni datos del estudio) ───────────────
 
-export const QuoteRequestDoc = ({ lines }: { lines: PurchaseLine[] }) => (
-  <div style={S.page}>
-    <Header title="Pedido de cotización" />
-    <p style={{ margin: '0 0 12px' }}>Solicito cotización de los siguientes materiales, indicando precio unitario, disponibilidad y costo de envío.</p>
-    <table style={S.table}>
-      <thead><tr>
-        <th style={{ ...S.th, width: 28 }}>N°</th><th style={S.th}>Material</th><th style={S.th}>Unidad</th>
-        <th style={{ ...S.th, ...R }}>Cantidad</th><th style={{ ...S.th, ...R, width: 90 }}>Precio unit.</th><th style={{ ...S.th, ...R, width: 90 }}>Subtotal</th>
-      </tr></thead>
-      <tbody>
-        {lines.map((l, i) => (
-          <tr key={l.id}>
-            <td style={S.td}>{i + 1}</td><td style={S.td}>{l.name}</td><td style={S.td}>{l.purchaseUnit}</td>
-            <td style={{ ...S.td, ...R, fontWeight: 700 }}>{qty(l.purchaseQty, 0)}</td><td style={S.td} /><td style={S.td} />
-          </tr>
-        ))}
-        <tr><td colSpan={5} style={{ ...S.total, ...R }}>Total</td><td style={S.total} /></tr>
-      </tbody>
-    </table>
-    <div style={{ marginTop: 18, fontSize: 11, lineHeight: 2 }}>
-      <div>Plazo de entrega: ______________________________</div>
-      <div>Costo de envío: ______________________________</div>
-      <div>Forma de pago: ______________________________</div>
-      <div>Validez de la cotización: ______________________________</div>
+export const QuoteRequestDoc = ({ sections }: { sections: QuoteSection[] }) => {
+  let n = 0;
+  return (
+    <div style={S.page}>
+      <Header title="Pedido de cotización" />
+      <p style={{ margin: '0 0 12px' }}>Solicito cotización de los siguientes materiales, indicando precio unitario, disponibilidad y costo de envío.</p>
+      <table style={S.table}>
+        <thead><tr>
+          <th style={{ ...S.th, width: 28 }}>N°</th><th style={S.th}>Material</th><th style={S.th}>Unidad</th>
+          <th style={{ ...S.th, ...R }}>Cantidad</th><th style={{ ...S.th, ...R, width: 90 }}>Precio unit.</th><th style={{ ...S.th, ...R, width: 90 }}>Subtotal</th>
+        </tr></thead>
+        <tbody>
+          {sections.map((sec, si) => (
+            <React.Fragment key={sec.title ?? si}>
+              {sec.title && <tr><td colSpan={6} style={S.group}>{sec.title}</td></tr>}
+              {sec.lines.map(l => (
+                <tr key={l.id}>
+                  <td style={S.td}>{++n}</td><td style={S.td}>{l.name}</td><td style={S.td}>{l.purchaseUnit}</td>
+                  <td style={{ ...S.td, ...R, fontWeight: 700 }}>{qty(l.purchaseQty, 0)}</td><td style={S.td} /><td style={S.td} />
+                </tr>
+              ))}
+            </React.Fragment>
+          ))}
+          <tr><td colSpan={5} style={{ ...S.total, ...R }}>Total</td><td style={S.total} /></tr>
+        </tbody>
+      </table>
+      <div style={{ marginTop: 18, fontSize: 11, lineHeight: 2 }}>
+        <div>Plazo de entrega: ______________________________</div>
+        <div>Costo de envío: ______________________________</div>
+        <div>Forma de pago: ______________________________</div>
+        <div>Validez de la cotización: ______________________________</div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
-export const exportQuoteRequest = (lines: PurchaseLine[]) =>
-  exportReportXlsx({
+export const exportQuoteRequest = (sections: QuoteSection[]) => {
+  let n = 0;
+  return exportReportXlsx({
     filename: `pedido_cotizacion_${new Date().toISOString().slice(0, 10)}`,
     title: 'Pedido de cotización',
     info: [`Fecha: ${today()}`, 'Indicar precio unitario, disponibilidad y costo de envío.'],
@@ -133,10 +142,14 @@ export const exportQuoteRequest = (lines: PurchaseLine[]) =>
       { header: 'N°', width: 6 }, { header: 'Material', width: 44 }, { header: 'Unidad', width: 16 },
       { header: 'Cantidad', width: 11, format: '#,##0' }, { header: 'Precio unitario', width: 16 }, { header: 'Subtotal', width: 16 },
     ],
-    sections: [{ rows: lines.map((l, i) => [i + 1, l.name, l.purchaseUnit, l.purchaseQty, '', '']) }],
+    sections: sections.map(sec => ({
+      ...(sec.title ? { title: sec.title } : {}),
+      rows: sec.lines.map(l => [++n, l.name, l.purchaseUnit, l.purchaseQty, '', '']),
+    })),
     total: ['', '', '', '', 'Total', ''],
     notes: ['Plazo de entrega:', 'Costo de envío:', 'Forma de pago:', 'Validez de la cotización:'],
   });
+};
 
 // ── Mano de obra ────────────────────────────────────────────────────────────
 
