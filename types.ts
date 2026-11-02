@@ -518,6 +518,7 @@ export interface MeasurementLine {
     height: number;
     count: number; // Cantidad de veces que se repite
     subtotal: number; // Calculated (L*W*H*Count) or manually overridden
+    deduct?: boolean; // La línea resta del total (puertas en zócalos, vanos en muros)
 }
 
 export interface MeasurementSheet {
