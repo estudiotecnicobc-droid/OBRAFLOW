@@ -14,7 +14,8 @@
 do $$
 declare
   v_tables text[] := array['project_price_overrides','price_suppliers','supplier_products','price_observations',
-                           'price_import_batches','price_import_rows','budget_cost_snapshots','budget_cost_snapshot_prices','budget_versions'];
+                           'price_import_batches','price_import_rows','budget_cost_snapshots','budget_cost_snapshot_prices','budget_versions',
+                           'supplier_product_mapping_history'];
   p record; v_expr text; v_tail text; v_bad text[] := '{}'; v_checked int := 0; v_exists int := 0;
   -- D1: organization_id precedido de algo que no sea "." ni carácter de identificador
   c_unqualified constant text := '(^|[^.[:alnum:]_])organization_id([^[:alnum:]_]|$)';

@@ -295,7 +295,8 @@ begin
   if (f->>'itemCount')::int <> 2 or (f->>'componentCount')::int <> 4 or (f->>'unusableCount')::int <> 0 or (f->>'nestedSkippedCount')::int <> 0
      or (f->>'materialsTotal')::numeric <> 36247.50 or (f->>'legacyMaterialsTotal')::numeric <> 33075
      or (f->>'divergence')::numeric <> 3172.50 or f->>'status' <> 'pending_reconciliation' or f->>'mode' <> 'AS_OF'
-     or not (f->'warnings') ? 'TOTALS_DIVERGE_FROM_LEGACY_ENGINE' or (f->'warnings') ? 'UNUSABLE_COMPONENT_PRICES' then
+     or not (f->'warnings') ? 'TOTALS_DIVERGE_FROM_LEGACY_ENGINE' or (f->'warnings') ? 'UNUSABLE_COMPONENT_PRICES'
+     or not (f->>'legacyDivergence')::boolean or (f->>'incomplete')::boolean or (f->>'unusableAmount')::numeric <> 0 then
     raise exception 'freeze_budget_prices P1: %', f;
   end if;
   -- cabecera
@@ -329,9 +330,41 @@ begin
   -- materialsTotal = Σ quantity × unit_price (2 decimales)
   select round(sum(p.quantity * p.unit_price), 2) into v_sum from public.get_frozen_budget_prices(v_snap) p;
   if v_sum <> 36247.50 or v_sum <> (f->>'materialsTotal')::numeric then raise exception 'Σ detalle % ≠ materialsTotal %', v_sum, f->>'materialsTotal'; end if;
-  -- unit_factor del detalle siempre 1: el conversion_factor del componente (50) no altera el costo (igual que en la 057)
-  if exists (select 1 from public.get_frozen_budget_prices(v_snap) p where p.unit_factor <> 1) then raise exception 'unit_factor ≠ 1 en el detalle'; end if;
-  raise notice 'freeze P1 OK (4 filas = cálculo manual; 36.247,50 vs legacy 33.075; divergencia 3.172,50; pending_reconciliation; AS_OF ayer)';
+  -- Factores (solo evidencia, no alteran el costo — igual que la 057):
+  --   apu_conversion_factor = COALESCE(master_task_materials.conversion_factor, 1) → 50 para Cemento (C1), 1 para Arena (C2)
+  --   supplier_unit_factor  = price_observations.unit_factor de la observación de referencia (reference_id):
+  --     las 3 observaciones de Cemento comparten observed_on y created_at (misma transacción) → el desempate por id es
+  --     aleatorio, así que se compara contra la observación referenciada (40 si tocó CEM-3 pallet, 1 si CEM-1/CEM-2).
+  if exists (select 1 from public.get_frozen_budget_prices(v_snap) p
+             where p.apu_conversion_factor <> case p.component_id when '90000000-0000-0000-0000-000000000001' then 50 else 1 end) then
+    raise exception 'apu_conversion_factor incorrecto';
+  end if;
+  if exists (select 1 from public.get_frozen_budget_prices(v_snap) p
+             join public.price_observations o on o.id = p.reference_id
+             where p.supplier_unit_factor is distinct from o.unit_factor) then
+    raise exception 'supplier_unit_factor no coincide con el unit_factor de la observación de referencia';
+  end if;
+  if exists (select 1 from public.get_frozen_budget_prices(v_snap) p where p.component_id = '90000000-0000-0000-0000-000000000002' and p.supplier_unit_factor <> 1) then
+    raise exception 'Arena: supplier_unit_factor debe ser 1';
+  end if;
+  raise notice 'freeze P1 OK (4 filas = cálculo manual; 36.247,50 vs legacy 33.075; divergencia 3.172,50; pending_reconciliation; AS_OF ayer; apu_conversion_factor 50; supplier_unit_factor = % para Cemento)',
+    (select min(p.supplier_unit_factor) from public.get_frozen_budget_prices(v_snap) p where p.component_id = '90000000-0000-0000-0000-000000000001');
+  -- Escritura directa del editor (sin RPC) en cabecera y detalle → 42501: freeze_budget_prices es la única vía
+  begin
+    insert into public.budget_cost_snapshots (project_id, organization_id, cost_date)
+      values ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', current_date);
+    raise exception 'editor insertó directo en budget_cost_snapshots';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.budget_cost_snapshot_prices (snapshot_id, organization_id, project_id, budget_item_id, master_task_id, component_id,
+      quantity, unit, unit_price, currency, source, price_status, created_by)
+    values (v_snap, '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001',
+      '80000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000001', 1, 'bolsa', 1, 'ARS', 'X', 'FROZEN', auth.uid());
+    raise exception 'editor insertó directo en budget_cost_snapshot_prices';
+  exception when insufficient_privilege then null;
+  end;
+  raise notice 'INSERT directo OK (editor → 42501 en budget_cost_snapshots y budget_cost_snapshot_prices)';
 end $$;
 
 -- --------------------------------------------------------------------------- nueva observación más cara (C2 Cemento 5000, hoy)
@@ -360,11 +393,18 @@ begin
   if r.source <> 'SUPPLIER_OBSERVED' or r.price <> 1300 or r.reference_id <> v_new or not (r.resolution->'observation_ids') ? v_new::text then
     raise exception 'CURRENT tras nueva observación: % % %', r.source, r.price, r.reference_id;
   end if;
-  -- FROZEN: sigue 1100
+  -- FROZEN: sigue 1100. Sin p_budget_item_id, C1 está en dos ítems con el mismo precio → devuelve el precio (2 frozen_price_ids)
   r := public.resolve_reference_price(v_org, p_component_id => c1, p_project_id => v_p1, p_mode => 'FROZEN', p_snapshot_id => v_snap);
   if r.source <> 'FROZEN_SNAPSHOT' or r.price <> 1100 or r.price_status <> 'FROZEN' or not r.is_usable
-     or r.resolution->>'original_source' <> 'SUPPLIER_OBSERVED' or (r.resolution->>'snapshot_id')::uuid <> v_snap then
+     or r.resolution->>'original_source' <> 'SUPPLIER_OBSERVED' or (r.resolution->>'snapshot_id')::uuid <> v_snap
+     or jsonb_array_length(r.resolution->'frozen_price_ids') <> 2 then
     raise exception 'FROZEN: % % %', r.source, r.price, r.resolution;
+  end if;
+  -- FROZEN por ítem (I2): misma fila, budget_item_id en resolution
+  r := public.resolve_reference_price(v_org, p_component_id => c1, p_project_id => v_p1, p_mode => 'FROZEN', p_snapshot_id => v_snap,
+         p_budget_item_id => 'b0000000-0000-0000-0000-000000000002');
+  if r.price <> 1100 or (r.resolution->>'budget_item_id')::uuid <> 'b0000000-0000-0000-0000-000000000002' or jsonb_array_length(r.resolution->'frozen_price_ids') <> 1 then
+    raise exception 'FROZEN por ítem: %', r.resolution;
   end if;
   -- AS_OF a la fecha del congelado (ayer): reproduce 1100 sin la observación nueva
   r := public.resolve_reference_price(v_org, p_component_id => c1, p_project_id => v_p1, p_effective_date => current_date - 1, p_mode => 'AS_OF');
@@ -373,7 +413,7 @@ begin
   end if;
   -- get_frozen_budget_prices tampoco cambió
   if exists (select 1 from public.get_frozen_budget_prices(v_snap) p where p.component_id = c1 and p.unit_price <> 1100) then raise exception 'detalle congelado mutó'; end if;
-  raise notice 'nueva observación OK (CURRENT 1300, FROZEN 1100, AS_OF ayer 1100)';
+  raise notice 'nueva observación OK (CURRENT 1300, FROZEN 1100 global y por ítem, AS_OF ayer 1100)';
 end $$;
 
 -- --------------------------------------------------------------------------- APU anidado: P2 (owner) → fila omitida en skipped y status partial
@@ -384,7 +424,8 @@ declare f jsonb; v_snap uuid; v_sk jsonb;
 begin
   f := public.freeze_budget_prices('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001');
   v_snap := (f->>'snapshotId')::uuid;
-  if f->>'status' <> 'partial' or (f->>'nestedSkippedCount')::int <> 1 or (f->>'componentCount')::int <> 1 or (f->>'itemCount')::int <> 1
+  if f->>'status' <> 'partial' or not (f->>'incomplete')::boolean or (f->>'legacyDivergence')::boolean or (f->>'unusableAmount')::numeric <> 0
+     or (f->>'nestedSkippedCount')::int <> 1 or (f->>'componentCount')::int <> 1 or (f->>'itemCount')::int <> 1
      or (f->>'materialsTotal')::numeric <> 4800 or (f->>'legacyMaterialsTotal')::numeric <> 4800 or (f->>'divergence')::numeric <> 0
      or not (f->'warnings') ? 'NESTED_APU_SKIPPED' or (f->'warnings') ? 'TOTALS_DIVERGE_FROM_LEGACY_ENGINE' or f->>'mode' <> 'CURRENT' then
     raise exception 'freeze P2 anidado: %', f;
@@ -397,7 +438,8 @@ begin
   end if;
   if (select count(*) from public.get_frozen_budget_prices(v_snap)) <> 1
      or exists (select 1 from public.get_frozen_budget_prices(v_snap) p where p.component_id <> '90000000-0000-0000-0000-000000000004'
-                or p.quantity <> 6 or p.unit_price <> 800 or p.source <> 'ORG_MASTER' or p.price_status <> 'CATALOG_UNVERIFIED' or not p.is_usable) then
+                or p.quantity <> 6 or p.unit_price <> 800 or p.source <> 'ORG_MASTER' or p.price_status <> 'CATALOG_UNVERIFIED' or not p.is_usable
+                or p.supplier_unit_factor is not null or p.apu_conversion_factor <> 1) then
     raise exception 'detalle P2 incorrecto';
   end if;
   if (select reference_pricing_status from public.budget_cost_snapshots where id = v_snap) <> 'partial' then raise exception 'cabecera P2 no es partial'; end if;

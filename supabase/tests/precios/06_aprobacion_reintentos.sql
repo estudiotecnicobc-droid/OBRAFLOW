@@ -1,5 +1,5 @@
--- approve_supplier_mapping (20261102100007): idempotencia, preservación del aprobador original,
--- conflicto de mapeo y re-decisión sin historial. Transacción revertida.
+-- approve_supplier_mapping (20261102100007 + 100010): idempotencia, preservación del aprobador original,
+-- conflicto de mapeo (H1), re-decisión bloqueada con filas raw (H2) y re-decisión trazable. Transacción revertida.
 -- La concurrencia real (dos sesiones) se prueba desde run.sh con 06b/06c/06d.
 \set ON_ERROR_STOP 1
 begin;
@@ -96,21 +96,18 @@ do $$
 declare v_org uuid := '10000000-0000-0000-0000-000000000001'; s1 uuid := '40000000-0000-0000-0000-000000000001';
   m2 uuid := '30000000-0000-0000-0000-000000000002'; v_state text; v_msg text;
 begin
-  -- 3a. Con historial (observaciones) y SIN filas pendientes: la RPC no llega a la guarda HISTORICAL_MAPPING_IMMUTABLE
-  --     porque antes exige unidad/moneda de filas pendientes → 22023 AMBIGUOUS_SKU_UNIT_OR_CURRENCY.
+  -- 3a. Con historial (observaciones) y SIN filas pendientes → 23505 HISTORICAL_MAPPING_IMMUTABLE (H1, corregido en 100010:
+  --     la guarda de inmutabilidad se evalúa antes que la de ambigüedad de unidad/moneda).
   begin
     perform public.approve_supplier_mapping(v_org, s1, 'SKU-X', m2, 1);
     raise exception 'conflicto sin pendientes aceptado';
   exception when others then
     get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text;
   end;
-  if v_state = '23505' and v_msg like 'HISTORICAL_MAPPING_IMMUTABLE%' then
-    raise notice 'conflicto sin pendientes OK (23505 HISTORICAL_MAPPING_IMMUTABLE)';
-  elsif v_state = '22023' and v_msg like 'AMBIGUOUS_SKU_UNIT_OR_CURRENCY%' then
-    raise warning 'HALLAZGO: approve_supplier_mapping con SKU ya mapeado y con historial, sin filas pendientes, responde 22023 AMBIGUOUS_SKU_UNIT_OR_CURRENCY en vez de 23505 HISTORICAL_MAPPING_IMMUTABLE: el mensaje no describe el conflicto real (no hay ambigüedad, hay un mapeo histórico inmutable)';
-  else
-    raise exception 'conflicto sin pendientes: % %', v_state, v_msg;
+  if v_state <> '23505' or v_msg not like 'HISTORICAL_MAPPING_IMMUTABLE%' then
+    raise exception 'conflicto sin pendientes: % % (se esperaba 23505 HISTORICAL_MAPPING_IMMUTABLE)', v_state, v_msg;
   end if;
+  raise notice 'conflicto sin pendientes OK (23505 HISTORICAL_MAPPING_IMMUTABLE, H1 corregido)';
   if (select master_material_id from public.supplier_products where id = current_setting('precios.sku_x')::uuid) <> '30000000-0000-0000-0000-000000000001' then
     raise exception 'el conflicto modificó el mapeo histórico';
   end if;
@@ -152,14 +149,12 @@ begin
   raise notice 'conflicto con pendientes OK (otro material o otro factor con historial → 23505 HISTORICAL_MAPPING_IMMUTABLE; mapeo intacto)';
 end $$;
 
--- --------------------------------------------------------------------------- 4. re-decisión SIN historial (SKU-Y): el UPDATE pisa approved_by
--- SKU-Y: el owner aprueba (bolsa → Cal). Antes de que el worker homologue, el editor aprueba el mismo SKU
--- hacia Cemento sobre la fila pendiente en kg (lote 2). Sin observaciones no hay guarda: ON CONFLICT DO UPDATE.
+-- --------------------------------------------------------------------------- 4. re-decisión: bloqueada con filas raw (H2), trazable sin historial
+-- SKU-Y quedó pendiente en dos unidades (bolsa en lote 1, kg en lote 2) → ambigua.
 set local role authenticated;
 set local request.jwt.claim.sub = '00000000-0000-0000-0000-00000000aaaa';
 set local request.jwt.claim.role = 'authenticated';
-do $$ declare a record; begin
-  -- quedan pendientes dos filas de SKU-Y con unidades distintas (bolsa en lote 1, kg en lote 2) → ambigua
+do $$ begin
   begin
     perform public.approve_supplier_mapping('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 'SKU-Y', '30000000-0000-0000-0000-000000000002', 1);
     raise exception 'SKU-Y ambiguo aceptado';
@@ -168,7 +163,7 @@ do $$ declare a record; begin
   end;
   raise notice 'ambigüedad OK (SKU-Y pendiente en bolsa y en kg → 22023 AMBIGUOUS_SKU_UNIT_OR_CURRENCY)';
 end $$;
--- Resolver la ambigüedad: la fila en kg se marca invalid (operador) y el owner aprueba SKU-Y en bolsa → Cal
+-- El operador descarta la fila en kg (lote 2) y el owner aprueba SKU-Y en bolsa → Cal. La fila del lote 1 queda 'raw' (aprobada, no homologada).
 reset role;
 update public.price_import_rows set processing_status = 'invalid', validation_errors = array['DESCARTADA_QA']
   where batch_id = current_setting('precios.b2')::uuid and row_number = 2;
@@ -180,7 +175,8 @@ do $$ declare a record; begin
   if a.queued_rows <> 1 then raise exception 'SKU-Y owner: %', a; end if;
   perform set_config('precios.sku_y', a.mapping_id::text, true);
 end $$;
--- Antes de homologar llega una fila pendiente de SKU-Y en kg (lote 3) y el editor re-decide: SKU-Y → Cemento, factor 50
+-- Lote 3: SKU-Y en kg (pendiente por UNIT_OR_CURRENCY_MISMATCH). El editor intenta re-decidir SKU-Y → Cemento, factor 50
+-- con la fila del lote 1 todavía en raw → 23505 MAPPING_CHANGE_BLOCKED_PENDING_ROWS (H2, corregido en 100010).
 reset role;
 select set_config('precios.b3', pg_temp.ingest_csv('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000aaaa',
   '40000000-0000-0000-0000-000000000001', 'lote3.csv',
@@ -188,35 +184,103 @@ select set_config('precios.b3', pg_temp.ingest_csv('10000000-0000-0000-0000-0000
 set local role authenticated;
 set local request.jwt.claim.sub = '00000000-0000-0000-0000-00000000aaa2';
 set local request.jwt.claim.role = 'authenticated';
-do $$ declare a record; sp record; begin
-  select * into a from public.approve_supplier_mapping('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 'SKU-Y', '30000000-0000-0000-0000-000000000001', 50);
-  select * into sp from public.supplier_products where supplier_sku = 'SKU-Y';
-  if a.mapping_id <> current_setting('precios.sku_y')::uuid or a.queued_rows <> 1 or (select count(*) from public.supplier_products where supplier_sku = 'SKU-Y') <> 1 then
-    raise exception 're-decisión SKU-Y: %', a;
+do $$ declare sp record; begin
+  begin
+    perform public.approve_supplier_mapping('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 'SKU-Y', '30000000-0000-0000-0000-000000000001', 50);
+    raise exception 're-decisión con filas raw aceptada';
+  exception when unique_violation then
+    if sqlerrm not like 'MAPPING_CHANGE_BLOCKED_PENDING_ROWS%' then raise; end if;
+  end;
+  select * into sp from public.supplier_products where id = current_setting('precios.sku_y')::uuid;
+  if sp.master_material_id <> '30000000-0000-0000-0000-000000000002' or sp.approved_by <> '00000000-0000-0000-0000-00000000aaaa' or sp.supplier_unit <> 'bolsa' then
+    raise exception 'la re-decisión bloqueada alteró la equivalencia: %', sp;
   end if;
-  if sp.master_material_id <> '30000000-0000-0000-0000-000000000001' or sp.unit_factor <> 50 or sp.supplier_unit <> 'kg' or sp.approved_by <> '00000000-0000-0000-0000-00000000aaa2' then
-    raise exception 're-decisión SKU-Y no aplicada: %', sp;
-  end if;
-  raise notice 're-decisión sin historial OK (mismo id, material/unidad/factor nuevos, approved_by pasa al editor — comportamiento esperado: no hay observaciones)';
+  if exists (select 1 from public.supplier_product_mapping_history) then raise exception 'historial escrito en una re-decisión bloqueada'; end if;
+  raise notice 're-decisión con filas raw OK (23505 MAPPING_CHANGE_BLOCKED_PENDING_ROWS; approved_by del owner intacto; sin historial)';
 end $$;
--- Consecuencia: las filas 'raw' del lote 1 (SKU-Y en bolsa, aprobadas por el owner pero aún no homologadas) se homologan contra
--- la equivalencia nueva (kg) → vuelven a pending_mapping con UNIT_OR_CURRENCY_MISMATCH. La decisión del owner se perdió sin aviso.
+-- Worker homologa el lote 1: la fila raw de SKU-Y (bolsa) crea la observación con la decisión del owner. Ahora SKU-Y tiene historial → H1.
 reset role;
 do $$ declare r record; begin
   select * into r from public.homologate_raw_price_rows(current_setting('precios.b1')::uuid);
-  if r.processed <> 1 then raise exception 'lote 1 debía tener una sola fila raw (SKU-Y): %', r; end if;
-  if r.pending = 1 and (select validation_errors from public.price_import_rows where batch_id = current_setting('precios.b1')::uuid and row_number = 3) = array['UNIT_OR_CURRENCY_MISMATCH'] then
-    raise warning 'HALLAZGO: una re-decisión de mapeo (sin historial) mientras hay filas aprobadas pero todavía no homologadas (processing_status=raw) las re-dirige a la equivalencia nueva: la fila SKU-Y/bolsa del lote 1 volvió a pending_mapping con UNIT_OR_CURRENCY_MISMATCH y la aprobación original del owner se perdió sin rastro (approved_by sobrescrito). Sugerencia para el motor: bloquear el cambio si existen filas raw del SKU, o versionar supplier_products.';
-  elsif r.mapped = 1 then
-    raise notice 'fila raw del lote 1 homologada (sin pérdida)';
-  else
-    raise exception 'lote 1 tras re-decisión: %', r;
+  if r.processed <> 1 or r.mapped <> 1 or not exists (select 1 from public.price_observations where supplier_sku = 'SKU-Y' and normalized_price = 500) then
+    raise exception 'lote 1 SKU-Y: %', r;
   end if;
-  select * into r from public.homologate_raw_price_rows(current_setting('precios.b3')::uuid);
-  if r.mapped <> 1 or not exists (select 1 from public.price_observations where supplier_sku = 'SKU-Y' and normalized_price = 20.0 / 50) then
-    raise exception 'lote 3 (kg, factor 50 → 0,4 por bolsa): %', r;
+end $$;
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-00000000aaa2';
+set local request.jwt.claim.role = 'authenticated';
+do $$ begin
+  begin
+    perform public.approve_supplier_mapping('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 'SKU-Y', '30000000-0000-0000-0000-000000000001', 50);
+    raise exception 're-decisión con historial aceptada';
+  exception when unique_violation then
+    if sqlerrm not like 'HISTORICAL_MAPPING_IMMUTABLE%' then raise; end if;
+  end;
+  raise notice 'SKU-Y con historial OK (la fila kg del lote 3 sigue pendiente; re-decisión → 23505 HISTORICAL_MAPPING_IMMUTABLE)';
+end $$;
+
+-- --------------------------------------------------------------------------- 5. re-decisión permitida (SKU-Z: sin historial ni filas raw) → supplier_product_mapping_history
+-- Lote 4: SKU-Z en bolsa. El owner aprueba SKU-Z → Cal (fila a raw). El operador descarta esa fila antes de homologar
+-- (no hay observaciones ni filas raw). Lote 5: SKU-Z en kg, pendiente. El editor re-decide SKU-Z → Cemento, factor 50:
+-- permitido, misma fila en supplier_products (pisa material/unidad/factor/approved_by) y queda el estado anterior en el historial.
+reset role;
+select set_config('precios.b4', pg_temp.ingest_csv('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000aaaa',
+  '40000000-0000-0000-0000-000000000001', 'lote4.csv',
+  '[{"row_number":1,"raw_cells":["SKU-Z","Cal","480","bolsa","ARS"]}]'::jsonb, current_date)::text, true);
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-00000000aaaa';
+set local request.jwt.claim.role = 'authenticated';
+do $$ declare a record; begin
+  select * into a from public.approve_supplier_mapping('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 'SKU-Z', '30000000-0000-0000-0000-000000000002', 1);
+  if a.queued_rows <> 1 then raise exception 'SKU-Z owner: %', a; end if;
+  perform set_config('precios.sku_z', a.mapping_id::text, true);
+  perform set_config('precios.sku_z_at', (select approved_at::text from public.supplier_products where id = a.mapping_id), true);
+end $$;
+reset role;
+update public.price_import_rows set processing_status = 'invalid', validation_errors = array['DESCARTADA_QA']
+  where batch_id = current_setting('precios.b4')::uuid and row_number = 1;
+select set_config('precios.b5', pg_temp.ingest_csv('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000aaaa',
+  '40000000-0000-0000-0000-000000000001', 'lote5.csv',
+  '[{"row_number":1,"raw_cells":["SKU-Z","Cemento a granel","20","kg","ARS"]}]'::jsonb, current_date)::text, true);
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-00000000aaa2';
+set local request.jwt.claim.role = 'authenticated';
+do $$ declare a record; sp record; h record; begin
+  select * into a from public.approve_supplier_mapping('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 'SKU-Z', '30000000-0000-0000-0000-000000000001', 50);
+  select * into sp from public.supplier_products where supplier_sku = 'SKU-Z';
+  if a.mapping_id <> current_setting('precios.sku_z')::uuid or a.queued_rows <> 1 or (select count(*) from public.supplier_products where supplier_sku = 'SKU-Z') <> 1 then
+    raise exception 're-decisión SKU-Z: %', a;
   end if;
-  raise notice 'homologación final OK (SKU-Y kg → 20/50 = 0,4 por unidad técnica)';
+  if sp.master_material_id <> '30000000-0000-0000-0000-000000000001' or sp.unit_factor <> 50 or sp.supplier_unit <> 'kg' or sp.approved_by <> '00000000-0000-0000-0000-00000000aaa2' then
+    raise exception 're-decisión SKU-Z no aplicada: %', sp;
+  end if;
+  -- historial append-only (legible por miembros): estado anterior con el aprobador original y el nuevo estado
+  if (select count(*) from public.supplier_product_mapping_history) <> 1 then raise exception 'historial: % filas', (select count(*) from public.supplier_product_mapping_history); end if;
+  select * into h from public.supplier_product_mapping_history;
+  if h.supplier_product_id <> sp.id or h.supplier_sku <> 'SKU-Z'
+     or h.master_material_id <> '30000000-0000-0000-0000-000000000002' or h.unit_factor <> 1 or h.supplier_unit <> 'bolsa' or h.expected_currency <> 'ARS'
+     or h.approved_by <> '00000000-0000-0000-0000-00000000aaaa' or h.approved_at <> current_setting('precios.sku_z_at')::timestamptz
+     or h.replaced_by <> '00000000-0000-0000-0000-00000000aaa2'
+     or h.new_master_material_id <> '30000000-0000-0000-0000-000000000001' or h.new_unit_factor <> 50 or h.new_supplier_unit <> 'kg' then
+    raise exception 'historial incompleto: %', h;
+  end if;
+  -- el historial no se escribe directo
+  begin
+    insert into public.supplier_product_mapping_history (organization_id, supplier_product_id, supplier_id, supplier_sku, master_material_id, unit_factor, supplier_unit,
+      expected_currency, status, approved_by, approved_at, replaced_by, new_master_material_id, new_unit_factor, new_supplier_unit, new_expected_currency)
+    values ('10000000-0000-0000-0000-000000000001', sp.id, sp.supplier_id, 'SKU-Z', sp.master_material_id, 1, 'x', 'ARS', 'approved', auth.uid(), now(), auth.uid(), sp.master_material_id, 1, 'x', 'ARS');
+    raise exception 'INSERT directo en el historial permitido';
+  exception when insufficient_privilege then null;
+  end;
+  raise notice 're-decisión trazable OK (SKU-Z: mismo id, nuevos valores, approved_by → editor; historial con approved_by original del owner; INSERT directo 42501)';
+end $$;
+reset role;
+do $$ declare r record; begin
+  select * into r from public.homologate_raw_price_rows(current_setting('precios.b5')::uuid);
+  if r.mapped <> 1 or not exists (select 1 from public.price_observations where supplier_sku = 'SKU-Z' and normalized_price = 20.0 / 50) then
+    raise exception 'lote 5 (kg, factor 50 → 0,4 por bolsa): %', r;
+  end if;
+  raise notice 'homologación final OK (SKU-Z kg → 20/50 = 0,4 por unidad técnica)';
 end $$;
 
 rollback;
