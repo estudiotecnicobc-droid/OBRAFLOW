@@ -6,7 +6,7 @@ import { officialRubro } from '../budgets/rubroMap';
 
 const EMPTY_DIMS: Record<string, string> = {};
 import {
-  calculateTask, consolidateMaterials, getCategories,
+  calculateTask, consolidateMaterials, getCategories, buildCatalogPriceIndex,
   mapMaterialToReal, consolidateResolved, convertToCommercial,
   computeDerivedOutputs, DerivedOutputResult,
   ChandiasAddedItem, ManualMaterial, OrgMaterialLookup, ResolvedMaterial,
@@ -21,6 +21,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useERP } from '../../../context/ERPContext';
 import { useMasterTasks } from '../../../hooks/useMasterTasks';
 import { useUnifiedMaterials } from '../../../hooks/useUnifiedMaterials';
+import { useObraFlowReferencePrices } from '../../../hooks/useObraFlowReferencePrices';
 import { masterTasksService, MasterTaskInput } from '../../../services/masterTasksSupabaseService';
 import { MasterTaskMaterial, APUSourceMetadata } from '../../../types';
 import { ReportPreviewModal, ReportMode } from './ReportPreviewModal';
@@ -638,10 +639,10 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
     setMatDropdown(false);
     setNWalls(init?.nWalls ?? 1);
     setOpenings(init?.openings ?? []);
-    setShowAdvanced(false);
+    setShowAdvanced(true);
     setNRooms(init?.nRooms ?? 1);
     setFloorSectors(init?.floorSectors ?? []);
-    setShowFloorAdvanced(false);
+    setShowFloorAdvanced(true);
     if (init) {
       // Restaurar config de vigas desde el borrador
       setBeamNBeams(init.beamNBeams);
@@ -671,7 +672,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
       setBeamNBeams(BEAM_CONFIG_DEFAULTS.nBeams);
       setBeamSteelDiameter(BEAM_CONFIG_DEFAULTS.steelDiameterMm);
     }
-    setShowBeamAdvanced(init ? (init.beamNBeams > 1 || init.beamWaste !== BEAM_CONFIG_DEFAULTS.wastePercent || init.beamSteelRatio !== BEAM_CONFIG_DEFAULTS.steelRatio) : (task.structuralConfig?.defaultPanelOpen ?? false));
+    setShowBeamAdvanced(true);
     prevTaskId.current = task.id;
   }
 
@@ -799,7 +800,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
   const resolvedMaterials = useMemo((): ResolvedMaterial[] => {
     if (!calcResult || !task) return [];
     return calcResult.materiales.map((m, i) =>
-      mapMaterialToReal({ ...m, code: task.materiales[i]?.code }, orgMaterialsEffective),
+      mapMaterialToReal({ ...m, code: task.materiales[i]?.ref ?? task.materiales[i]?.code }, orgMaterialsEffective),
     );
   }, [calcResult, task, orgMaterialsEffective]);
 
@@ -999,7 +1000,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
           {/* ── Configuración avanzada de muro / paño (Mampostería · Revoques · Revestimientos) ── */}
           {isWallFamily && (() => {
             const isMam = task.categoria === 'Mampostería';
-            const wallLabel  = isMam ? 'Configuración de muro'  : 'Configuración de paño';
+            const wallLabel  = isMam ? 'Muros iguales y aberturas' : 'Paños iguales y aberturas';
             const nWallLabel = isMam ? 'Muros iguales' : 'Paños iguales';
             return (
               <div className="mt-4 border border-slate-200 rounded-xl overflow-hidden">
@@ -1118,7 +1119,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
               >
                 <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
                   <Layers size={13} />
-                  Configuración de piso
+                  Ambientes iguales y sectores
                   {(nRooms > 1 || floorSectors.length > 0) && (
                     <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-100 text-emerald-600 rounded-full">
                       {[
@@ -1210,7 +1211,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
               >
                 <span className="flex items-center gap-1.5 text-xs font-semibold text-stone-700">
                   <Settings2 size={13} />
-                  Parámetros de cómputo
+                  Elementos iguales, desperdicio y armadura
                   {(() => {
                     const activeFaceCount = [beamFondo, beamLat1, beamLat2, beamLat3].filter(Boolean).length;
                     const defaultFaceCount = task?.structuralConfig
@@ -1574,7 +1575,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
         </div>
 
         {totalCount === 0 ? (
-          <p className="text-xs text-slate-400 text-center py-6 italic">Sin materiales definidos</p>
+          <p className="text-xs text-slate-400 text-center py-6 italic">Sin materiales: es una tarea de mano de obra o equipo</p>
         ) : (
           <table className="w-full text-xs">
             <thead>
@@ -1623,7 +1624,17 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
                   <td className="px-3 py-2.5 text-right">
                     {m.matchedBy === 'missing'
                       ? <span className="text-amber-500 text-[10px]">sin precio</span>
-                      : <span className="text-slate-600">${fmtCost(m.unitCost)}</span>
+                      : (
+                        <span className="inline-flex flex-col items-end leading-tight">
+                          <span className="text-slate-600">${fmtCost(m.unitCost)}</span>
+                          {m.priceSource && (
+                            <span className={`text-[9px] ${m.priceSource === 'empresa' ? 'text-emerald-600' : 'text-slate-400'}`}
+                              title={m.priceSource === 'empresa' ? 'Precio cargado en tu empresa' : 'Precio de referencia del Catálogo ObraFlow (AMBA, octubre 2026)'}>
+                              {m.priceSource === 'empresa' ? 'tu empresa' : 'ObraFlow'}
+                            </span>
+                          )}
+                        </span>
+                      )
                     }
                   </td>
                   <td className="px-3 py-2.5 text-right font-semibold">
@@ -1766,6 +1777,11 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
               )}
             </tbody>
           </table>
+        )}
+        {totalCount > 0 && (
+          <p className="px-4 py-1.5 text-[10px] text-slate-400 border-t border-slate-100">
+            Precios de referencia del Catálogo ObraFlow (AMBA, octubre 2026). Si tu empresa tiene ese mismo material con precio, se usa el tuyo.
+          </p>
         )}
 
         {/* ── Formulario inline: agregar material ────────────────────────────── */}
@@ -2345,7 +2361,12 @@ export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }
   const { list: unifiedList }            = useUnifiedMaterials(orgId);
   // Fallback: si unifiedList todavía está vacío (Supabase aún cargando),
   // usar los materiales del proyecto ya disponibles en ERPContext.
-  const orgMaterials: OrgMaterialLookup[] = unifiedList.length > 0 ? unifiedList : erpMaterials;
+  const orgMaterialsBase: OrgMaterialLookup[] = unifiedList.length > 0 ? unifiedList : erpMaterials;
+  const referencePrices = useObraFlowReferencePrices();
+  const orgMaterials = useMemo(
+    () => [...buildCatalogPriceIndex(CHANDIAS_CATALOG, referencePrices, orgMaterialsBase), ...orgMaterialsBase],
+    [referencePrices, orgMaterialsBase],
+  );
 
   // Set de nombres existentes para el check de duplicados en el modal
   const existingNames = useMemo(
@@ -2619,6 +2640,8 @@ export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }
     if (noAPUPayloads.length > 0) {
       parts.push(`${noAPUPayloads.length} sin APU (costo = 0)`);
     }
+    const sinPrecio = consolidateResolved(withManualMerged(items), orgMaterials).filter(m => m.matchedBy === 'missing').length;
+    if (sinPrecio > 0) parts.push(`${sinPrecio} material${sinPrecio > 1 ? 'es' : ''} del cómputo sin precio`);
     return parts.join(' · ') + repeatedMsg;
   }, [
     items, projectId, project?.id, orgId, masterTasks, orgMaterials,
@@ -2633,9 +2656,16 @@ export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }
     const budgetTaskIds = new Set((project?.items ?? []).map(bi => bi.taskId));
     const byName = new Map(CHANDIAS_CATALOG.map(t => [t.nombre.trim().toLowerCase(), t.id]));
     const catalogIds = new Set(CHANDIAS_CATALOG.map(t => t.id));
+    // Un APU ObraFlow puede ser el equivalente de varias tareas (por ejemplo, cerámicos 30 y 45).
+    const byApu = new Map<string, string[]>();
+    for (const t of CHANDIAS_CATALOG) {
+      if (t.apu) byApu.set(t.apu, [...(byApu.get(t.apu) ?? []), t.id]);
+    }
     for (const t of projectTasks) {
       if (!budgetTaskIds.has(t.id)) continue;
-      if (t.code && catalogIds.has(t.code)) ids.add(t.code);
+      const code = t.code?.trim();
+      if (code && catalogIds.has(code)) ids.add(code);
+      if (code) byApu.get(code)?.forEach(id => ids.add(id));
       const byN = byName.get(t.name.trim().toLowerCase());
       if (byN) ids.add(byN);
     }

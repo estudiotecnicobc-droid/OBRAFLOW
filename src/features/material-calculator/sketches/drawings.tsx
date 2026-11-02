@@ -1058,7 +1058,7 @@ function Pipe(s: Spec<'pipe'>, c: SketchCtx) {
         <rect x={176} y={36} width={26} height={90} fill="#ffffff" stroke={GHOST} strokeDasharray="3 2" />
         <T x={189} y={46} anchor="middle" size={7} color={SOFT}>cámara</T>
         <T x={20} y={124} size={7.5} color={INK}>pendiente 1:20 a 1:60</T>
-        <Leader x={130} y={102} tx={110} ty={136} text="cama de arena (aparte)" ghost />
+        <Leader x={130} y={102} tx={110} ty={136} text="cama de arena fina" />
         <DimH x1={14} x2={176} y={148} label={c.lbl(0)} below />
         <Inset title="Sección">
           <circle cx={265} cy={80} r={32} fill="#ffffff" stroke={ACC} strokeWidth="2.4" />
