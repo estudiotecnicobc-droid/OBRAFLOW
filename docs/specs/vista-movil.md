@@ -12,3 +12,13 @@ En celulares (≈360–430 px) el menú lateral ocupaba 256 px fijos, quedaba po
 
 ## Fuera de alcance
 Rediseño de Planificación/Gantt y de la grilla de presupuesto para móvil (requieren vista específica); ERPContext no se toca.
+
+# Tanda 2 — Presupuesto y Planificación
+
+Relevado en producción a 390 px (CASA CIRO, solo lectura).
+
+- **Ítems y presupuesto** (`BudgetEditor`): el panel "Etapas de Obra" (288 px fijos) dejaba la grilla en una franja de ~40 px. En móvil pasa arriba como desplegable ("N rubros activos · tocar para elegir"), cerrado por defecto; encabezado y botones con wrap; menú Reportes limitado al ancho de pantalla; paddings menores.
+- **Pestañas del módulo** (`BudgetModule`): una sola fila con scroll horizontal en vez de tres filas.
+- **Cómputos** (`MeasurementSheet`): lista + detalle lado a lado → en móvil, lista a pantalla completa; al elegir un ítem se abre el detalle con "← Ítems de obra".
+- **Grilla de costos** (`BudgetGrid`): la tarjeta de encabezado desbordaba (total y "Exportar PDF" cortados) → wrap.
+- **Planificación** (`Planning`): la tarjeta de tabla/Gantt quedaba con una franja mínima → alto 80dvh en móvil; botones con wrap; el Gantt arranca oculto en móvil y, si se abre, la tabla no ocupa más del 55 % del ancho.
