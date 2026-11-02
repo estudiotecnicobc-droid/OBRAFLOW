@@ -2257,7 +2257,7 @@ type WorkMode = 'elegir' | 'medir' | 'revisar';
 type NarrowTab = 'tareas' | 'medir' | 'resumen';
 
 /** Ancho del calculador por debajo del cual se trabaja con pestañas. */
-const WIDE_MIN_PX = 1200;
+const WIDE_MIN_PX = 1000;
 
 const WORK_MODES: { key: WorkMode; label: string; hint: string; icon: React.ReactNode }[] = [
   { key: 'elegir',  label: 'Elegir tarea',     hint: 'Lista de tareas amplia, con dibujos',          icon: <List size={13} /> },
@@ -2716,7 +2716,7 @@ export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }
             <span className="text-[11px] font-semibold [writing-mode:vertical-rl] rotate-180">Tareas{selectedTask ? ` · ${selectedTask.id}` : ''}</span>
           </button>
         ) : (wide || narrowTab === 'tareas') && (
-          <div className={wide ? 'w-[30%] min-w-[280px] max-w-[420px] shrink-0 overflow-hidden' : 'flex-1 min-w-0 overflow-hidden'}>
+          <div className={wide ? 'w-[28%] min-w-[260px] max-w-[420px] shrink-0 overflow-hidden' : 'flex-1 min-w-0 overflow-hidden'}>
             <Sidebar selectedId={selectedTaskId} onSelect={handleSelectTask} inBudgetIds={inBudgetIds} />
           </div>
         )}
@@ -2737,7 +2737,7 @@ export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }
         {/* Resumen del cómputo */}
         {(wide || narrowTab === 'resumen') && (
           <div className={wide
-            ? (mode === 'revisar' ? 'w-[46%] min-w-[420px] shrink-0 overflow-hidden' : 'w-[26%] min-w-[300px] max-w-[400px] shrink-0 overflow-hidden')
+            ? (mode === 'revisar' ? 'w-[46%] min-w-[420px] shrink-0 overflow-hidden' : 'w-[26%] min-w-[280px] max-w-[400px] shrink-0 overflow-hidden')
             : 'flex-1 min-w-0 overflow-hidden'}>
             <RightPanel
               items={items} orgMaterials={orgMaterials}
