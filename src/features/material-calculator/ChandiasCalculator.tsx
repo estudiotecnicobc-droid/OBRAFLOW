@@ -1,7 +1,10 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Search, Plus, Trash2, RefreshCcw, Download, Package, X, AlertTriangle, CheckCircle2, BookPlus, Loader2, Layers, ChevronDown, Settings2, ShoppingCart, FileText, BookOpen, Save, Ruler, MinusCircle } from 'lucide-react';
+import { Search, Plus, Trash2, RefreshCcw, Download, Package, X, AlertTriangle, CheckCircle2, BookPlus, Loader2, Layers, ChevronDown, Settings2, ShoppingCart, FileText, BookOpen, Save, Ruler, MinusCircle, Image as ImageIcon, List, ClipboardList } from 'lucide-react';
 import { CHANDIAS_CATALOG, ChandiasTask } from './catalog/chandiasCatalog';
 import { TaskSketch } from './TaskSketch';
+import { officialRubro } from '../budgets/rubroMap';
+
+const EMPTY_DIMS: Record<string, string> = {};
 import {
   calculateTask, consolidateMaterials, getCategories,
   mapMaterialToReal, consolidateResolved, convertToCommercial,
@@ -408,35 +411,41 @@ const CreateAPUModal: React.FC<CreateAPUModalProps> = ({
 interface SidebarProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
+  inBudgetIds: Set<string>;
 }
-const Sidebar: React.FC<SidebarProps> = ({ selectedId, onSelect }) => {
+const Sidebar: React.FC<SidebarProps> = ({ selectedId, onSelect, inBudgetIds }) => {
   const [search, setSearch] = useState('');
+  const [onlyInBudget, setOnlyInBudget] = useState(false);
+  const [showThumbs, setShowThumbs] = useState(true);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return CHANDIAS_CATALOG;
     return CHANDIAS_CATALOG.filter(t =>
-      t.nombre.toLowerCase().includes(q) ||
-      t.id.toLowerCase().includes(q) ||
-      t.categoria.toLowerCase().includes(q),
+      (!onlyInBudget || inBudgetIds.has(t.id)) &&
+      (!q ||
+        t.nombre.toLowerCase().includes(q) ||
+        t.id.toLowerCase().includes(q) ||
+        t.categoria.toLowerCase().includes(q)),
     );
-  }, [search]);
+  }, [search, onlyInBudget, inBudgetIds]);
 
-  const categories = useMemo(() => getCategories(filtered), [filtered]);
-  const byCategory: Record<string, ChandiasTask[]> = {};
-  for (const t of filtered) {
-    if (!byCategory[t.categoria]) byCategory[t.categoria] = [];
-    byCategory[t.categoria].push(t);
-  }
+  const groups = useMemo(() => {
+    const map = new Map<string, ChandiasTask[]>();
+    for (const t of filtered) {
+      const r = officialRubro(t.categoria, t.nombre);
+      map.set(r, [...(map.get(r) ?? []), t]);
+    }
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b, 'es', { numeric: true }));
+  }, [filtered]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden border-r border-slate-100">
-      <div className="p-2 border-b border-slate-100 shrink-0">
+      <div className="p-2 border-b border-slate-100 shrink-0 space-y-1.5">
         <div className="relative">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar rubro…"
+            placeholder="Buscar tarea o código…"
             className="w-full pl-8 pr-7 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
           />
           {search && (
@@ -446,31 +455,65 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedId, onSelect }) => {
             </button>
           )}
         </div>
+        <div className="flex items-center gap-1">
+          <div className="flex rounded-md border border-slate-200 overflow-hidden text-[10px] font-semibold">
+            <button onClick={() => setOnlyInBudget(false)}
+              className={`px-2 py-1 ${!onlyInBudget ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
+              Todas
+            </button>
+            <button onClick={() => setOnlyInBudget(true)}
+              title="Solo las tareas que ya están en el presupuesto de esta obra"
+              className={`px-2 py-1 ${onlyInBudget ? 'bg-emerald-700 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
+              En esta obra ({inBudgetIds.size})
+            </button>
+          </div>
+          <button onClick={() => setShowThumbs(v => !v)} aria-pressed={showThumbs}
+            title={showThumbs ? 'Ocultar los dibujos de la lista' : 'Mostrar un dibujo de cada tarea'}
+            className={`ml-auto p-1 rounded-md border transition-colors ${showThumbs ? 'border-blue-300 bg-blue-50 text-blue-600' : 'border-slate-200 text-slate-400 hover:text-slate-600'}`}>
+            <ImageIcon size={13} />
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto py-1">
-        {categories.length === 0 && (
-          <p className="text-xs text-slate-400 text-center py-8">Sin resultados</p>
+        {groups.length === 0 && (
+          <p className="text-xs text-slate-400 text-center py-8 px-3">
+            {onlyInBudget && inBudgetIds.size === 0 ? 'Todavía no hay tareas del cómputo en el presupuesto de esta obra.' : 'Sin resultados'}
+          </p>
         )}
-        {categories.map(cat => (
-          <div key={cat}>
-            <p className="px-3 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{cat}</p>
-            {byCategory[cat].map(t => (
+        {groups.map(([rubro, tasks]) => (
+          <div key={rubro}>
+            <p className="px-3 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{rubro}</p>
+            {tasks.map(t => (
               <button key={t.id} onClick={() => onSelect(t.id)}
-                className={`w-full text-left px-3 py-2 border-l-2 transition-all text-xs
+                className={`w-full text-left px-2.5 py-1.5 border-l-2 transition-all text-xs flex items-center gap-2
                   ${selectedId === t.id
                     ? 'border-blue-500 bg-blue-50 text-blue-800'
                     : 'border-transparent hover:bg-slate-50 hover:border-slate-200 text-slate-700'}`}
               >
-                <span className="font-mono text-[10px] text-slate-400 mr-1">{t.id}</span>
-                {t.nombre}
-                <span className="float-right text-[10px] text-slate-400">{t.unidad}</span>
+                {showThumbs && (
+                  <span className="w-14 shrink-0 rounded-md bg-slate-50 border border-slate-100 overflow-hidden">
+                    <TaskSketch task={t} dimValues={EMPTY_DIMS} thumbnail />
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="font-mono text-[10px] text-slate-400 mr-1">{t.id}</span>
+                  {t.nombre}
+                </span>
+                <span className="shrink-0 flex flex-col items-end gap-0.5">
+                  <span className="text-[10px] text-slate-400">{t.unidad}</span>
+                  {inBudgetIds.has(t.id) && (
+                    <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1" title="Esta tarea ya está en el presupuesto de la obra">
+                      en obra
+                    </span>
+                  )}
+                </span>
               </button>
             ))}
           </div>
         ))}
       </div>
       <div className="px-3 py-2 border-t border-slate-100 text-[10px] text-slate-400 shrink-0">
-        {CHANDIAS_CATALOG.length} rubros · Metodología Chandías
+        {CHANDIAS_CATALOG.length} tareas · Metodología Chandías
       </div>
     </div>
   );
@@ -2208,20 +2251,19 @@ const RightPanel: React.FC<RightPanelProps> = ({
   );
 };
 
-// ─── Layout presets y escala tipográfica ─────────────────────────────────────
+// ─── Modos de trabajo ────────────────────────────────────────────────────────
 
-type FontScale = 'sm' | 'md' | 'lg';
+type WorkMode = 'elegir' | 'medir' | 'revisar';
+type NarrowTab = 'tareas' | 'medir' | 'resumen';
 
-const clampW = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
+/** Ancho del calculador por debajo del cual se trabaja con pestañas. */
+const WIDE_MIN_PX = 1200;
 
-const LAYOUT_PRESETS = [
-  { key: 'catalog',     label: 'Catálogo',    left: 360, right: 340 },
-  { key: 'balanced',    label: 'Balanceada',  left: 290, right: 290 },
-  { key: 'calc',        label: 'Cálculo',     left: 200, right: 200 },
-  { key: 'composition', label: 'Composición', left: 200, right: 420 },
-] as const;
-
-const FONT_ZOOM: Record<FontScale, number> = { sm: 0.875, md: 1, lg: 1.125 };
+const WORK_MODES: { key: WorkMode; label: string; hint: string; icon: React.ReactNode }[] = [
+  { key: 'elegir',  label: 'Elegir tarea',     hint: 'Lista de tareas amplia, con dibujos',          icon: <List size={13} /> },
+  { key: 'medir',   label: 'Medir',            hint: 'Esquema y medidas a todo el ancho',            icon: <Ruler size={13} /> },
+  { key: 'revisar', label: 'Revisar cómputo',  hint: 'Resumen amplio: tareas, materiales y compras', icon: <ClipboardList size={13} /> },
+];
 
 // ─── Draft persistence (localStorage) ────────────────────────────────────────
 
@@ -2382,33 +2424,23 @@ export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }
     setDraftBanner(null);
   };
 
-  // ── Panel resize ──────────────────────────────────────────────────────────
-  const [leftW,  setLeftW]  = useState(360);  // preset "Catálogo" por defecto
-  const [rightW, setRightW] = useState(340);
+  // ── Modos de trabajo y ancho disponible ───────────────────────────────────
+  const [mode, setMode] = useState<WorkMode>('elegir');
+  const [narrowTab, setNarrowTab] = useState<NarrowTab>('tareas');
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const [layoutW, setLayoutW] = useState(WIDE_MIN_PX);
+  useEffect(() => {
+    const el = layoutRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => setLayoutW(entries[0].contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const wide = layoutW >= WIDE_MIN_PX;
 
-  // ── Tipografía ────────────────────────────────────────────────────────────
-  const [fontScale, setFontScale] = useState<FontScale>('md');
-
-  // ── Drag resize — captura startX y startW en mousedown, sin closure stale ─
-  const startDrag = useCallback((
-    side: 'left' | 'right',
-    startX: number,
-    startW: number,
-  ) => {
-    const onMove = (e: MouseEvent) => {
-      const delta = e.clientX - startX;
-      if (side === 'left') {
-        setLeftW(clampW(startW + delta, 160, 400));
-      } else {
-        setRightW(clampW(startW - delta, 160, 440));
-      }
-    };
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+  const handleSelectTask = useCallback((id: string) => {
+    setSelectedTaskId(id);
+    setNarrowTab('medir');
   }, []);
 
   const selectedTask = useMemo(
@@ -2595,8 +2627,20 @@ export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }
     addTaskYield, addTaskLaborYield, addTaskToolYield, addBudgetItem, updateBudgetItem, project?.items, projectTasks,
   ]);
 
-  // ── Preset activo (coincidencia exacta de anchos) ─────────────────────────
-  const activePreset = LAYOUT_PRESETS.find(p => p.left === leftW && p.right === rightW)?.key ?? null;
+  // ── Tareas del catálogo que ya están en el presupuesto de la obra ─────────
+  const inBudgetIds = useMemo(() => {
+    const ids = new Set<string>();
+    const budgetTaskIds = new Set((project?.items ?? []).map(bi => bi.taskId));
+    const byName = new Map(CHANDIAS_CATALOG.map(t => [t.nombre.trim().toLowerCase(), t.id]));
+    const catalogIds = new Set(CHANDIAS_CATALOG.map(t => t.id));
+    for (const t of projectTasks) {
+      if (!budgetTaskIds.has(t.id)) continue;
+      if (t.code && catalogIds.has(t.code)) ids.add(t.code);
+      const byN = byName.get(t.name.trim().toLowerCase());
+      if (byN) ids.add(byN);
+    }
+    return ids;
+  }, [project?.items, projectTasks]);
 
   return (
     <div
@@ -2628,97 +2672,85 @@ export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }
         </div>
       )}
 
-      {/* ── Barra de controles ─────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-3 py-1.5 border-b border-slate-100 bg-slate-50/80 shrink-0 flex-wrap">
-
-        {/* Vistas predeterminadas */}
-        <div className="flex items-center gap-1">
-          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mr-0.5 select-none">
-            Vista
-          </span>
-          {LAYOUT_PRESETS.map(p => (
-            <button
-              key={p.key}
-              onClick={() => { setLeftW(p.left); setRightW(p.right); }}
-              className={`px-2 py-1 text-[10px] font-medium rounded border transition-colors select-none
-                ${activePreset === p.key
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50'
-                }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="w-px h-4 bg-slate-200 shrink-0" />
-
-        {/* Escala tipográfica */}
-        <div className="flex items-center gap-1">
-          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mr-0.5 select-none">
-            Tipo
-          </span>
-          {(['sm', 'md', 'lg'] as FontScale[]).map((s, i) => (
-            <button
-              key={s}
-              onClick={() => setFontScale(s)}
-              style={{ fontSize: [10, 12, 14][i] }}
-              className={`px-2 py-1 font-bold leading-none rounded border transition-colors select-none
-                ${fontScale === s
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50'
-                }`}
-            >
-              A
-            </button>
-          ))}
-        </div>
+      {/* ── Barra de modos (ancho) o pestañas (angosto) ────────────────────────── */}
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-100 bg-slate-50/80 shrink-0">
+        {wide ? (
+          <>
+            <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-white" role="tablist" aria-label="Modo de trabajo">
+              {WORK_MODES.map(m => (
+                <button key={m.key} role="tab" aria-selected={mode === m.key} title={m.hint}
+                  onClick={() => setMode(m.key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors select-none
+                    ${mode === m.key ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'}`}>
+                  {m.icon}{m.label}
+                </button>
+              ))}
+            </div>
+            <span className="text-[11px] text-slate-400 truncate">{WORK_MODES.find(m => m.key === mode)?.hint}</span>
+          </>
+        ) : (
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-white w-full" role="tablist" aria-label="Secciones del cómputo">
+            {([
+              ['tareas', 'Tareas', <List size={13} key="i" />],
+              ['medir', selectedTask ? `Medir · ${selectedTask.id}` : 'Medir', <Ruler size={13} key="i" />],
+              ['resumen', `Resumen (${items.length})`, <ClipboardList size={13} key="i" />],
+            ] as [NarrowTab, string, React.ReactNode][]).map(([key, label, icon]) => (
+              <button key={key} role="tab" aria-selected={narrowTab === key}
+                onClick={() => setNarrowTab(key)}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-semibold transition-colors select-none
+                  ${narrowTab === key ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'}`}>
+                {icon}<span className="truncate">{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* ── Paneles ───────────────────────────────────────────────────────────── */}
-      <div
-        className="flex flex-1 overflow-hidden"
-        style={fontScale !== 'md' ? { zoom: FONT_ZOOM[fontScale] } : undefined}
-      >
-        {/* Panel izquierdo — catálogo */}
-        <div style={{ width: leftW }} className="shrink-0 overflow-hidden">
-          <Sidebar selectedId={selectedTaskId} onSelect={setSelectedTaskId} />
-        </div>
+      {/* ── Columnas ─────────────────────────────────────────────────────────── */}
+      <div ref={layoutRef} className="flex flex-1 overflow-hidden min-w-0">
+        {/* Lista de tareas */}
+        {wide && mode !== 'elegir' ? (
+          <button onClick={() => setMode('elegir')} title="Mostrar la lista de tareas"
+            className="w-10 shrink-0 border-r border-slate-100 bg-slate-50 hover:bg-blue-50 flex flex-col items-center gap-2 pt-3 text-slate-500 hover:text-blue-700 transition-colors">
+            <List size={15} />
+            <span className="text-[11px] font-semibold [writing-mode:vertical-rl] rotate-180">Tareas{selectedTask ? ` · ${selectedTask.id}` : ''}</span>
+          </button>
+        ) : (wide || narrowTab === 'tareas') && (
+          <div className={wide ? 'w-[30%] min-w-[280px] max-w-[420px] shrink-0 overflow-hidden' : 'flex-1 min-w-0 overflow-hidden'}>
+            <Sidebar selectedId={selectedTaskId} onSelect={handleSelectTask} inBudgetIds={inBudgetIds} />
+          </div>
+        )}
 
-        {/* Separador arrastreable L */}
-        <div
-          className="w-1.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-200 active:bg-blue-400 transition-colors"
-          onMouseDown={e => { e.preventDefault(); startDrag('left', e.clientX, leftW); }}
-        />
+        {/* Esquema, medidas y composición */}
+        {(wide || narrowTab === 'medir') && (
+          <div className="flex-1 min-w-0 flex overflow-hidden border-r border-slate-100">
+            <DetailPanel
+              task={selectedTask}
+              orgMaterials={orgMaterials}
+              onAdd={handleAdd}
+              onPanelStateChange={handlePanelStateChange}
+              initialPanelState={initialPanelState}
+            />
+          </div>
+        )}
 
-        {/* Panel central — detalle / cálculo */}
-        <DetailPanel
-          task={selectedTask}
-          orgMaterials={orgMaterials}
-          onAdd={handleAdd}
-          onPanelStateChange={handlePanelStateChange}
-          initialPanelState={initialPanelState}
-        />
-
-        {/* Separador arrastreable R */}
-        <div
-          className="w-1.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-200 active:bg-blue-400 transition-colors"
-          onMouseDown={e => { e.preventDefault(); startDrag('right', e.clientX, rightW); }}
-        />
-
-        {/* Panel derecho — resumen */}
-        <div style={{ width: rightW }} className="shrink-0 overflow-hidden">
-          <RightPanel
-            items={items} orgMaterials={orgMaterials}
-            organizationId={orgId} projectId={projectId} existingNames={existingNames}
-            onRemove={handleRemove} onClear={handleClear} onExportCSV={handleExportCSV}
-            onSaveComputation={handleSaveComputation}
-            onSendToPresupuesto={handleSendToPresupuesto}
-            restoredAt={restoredAt}
-            onAPUCreated={refetchMasterTasks}
-            onViewInBudget={onNavigate ? () => onNavigate('budget') : undefined}
-          />
-        </div>
+        {/* Resumen del cómputo */}
+        {(wide || narrowTab === 'resumen') && (
+          <div className={wide
+            ? (mode === 'revisar' ? 'w-[46%] min-w-[420px] shrink-0 overflow-hidden' : 'w-[26%] min-w-[300px] max-w-[400px] shrink-0 overflow-hidden')
+            : 'flex-1 min-w-0 overflow-hidden'}>
+            <RightPanel
+              items={items} orgMaterials={orgMaterials}
+              organizationId={orgId} projectId={projectId} existingNames={existingNames}
+              onRemove={handleRemove} onClear={handleClear} onExportCSV={handleExportCSV}
+              onSaveComputation={handleSaveComputation}
+              onSendToPresupuesto={handleSendToPresupuesto}
+              restoredAt={restoredAt}
+              onAPUCreated={refetchMasterTasks}
+              onViewInBudget={onNavigate ? () => onNavigate('budget') : undefined}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

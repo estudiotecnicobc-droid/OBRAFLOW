@@ -60,7 +60,7 @@ const LayerStack: React.FC<{
             <rect x={x} y={ly} width={w} height={l.t} fill={l.fill} stroke={stroke}
               strokeWidth={l.target ? 1.3 : 0.7} strokeDasharray={dash} opacity={l.ghost ? 0.7 : 1} />
             {l.label && (
-              <g>
+              <g className="sk-lead">
                 <polyline points={`${x + w - 3},${ly + l.t / 2} ${lx - 4},${ty}`} fill="none" stroke={l.target ? ACC : SOFT} strokeWidth="0.6" />
                 <circle cx={x + w - 3} cy={ly + l.t / 2} r="1.2" fill={l.target ? ACC : MID} />
                 <T x={lx} y={ty} size={7.2} color={l.target ? ACC : l.ghost ? SOFT : MID} bold={l.target}>{l.label}</T>
@@ -726,7 +726,7 @@ function Skirting(_s: Spec<'skirting'>, c: SketchCtx) {
       })}
       <line x1={x0} y1={fy} x2={x1} y2={fy} stroke={INK} strokeWidth="1.3" />
       <DimH x1={x0} x2={x1} y={fy + 14} label={c.lbl(0)} below />
-      <T x={x0} y={22} size={7.5}>Vista del paramento · se descuentan las puertas</T>
+      <T x={x0} y={22} size={7.5}>Vista del paramento · sin zócalo en las puertas</T>
       <Inset title="Corte">
         <rect x={270} y={24} width={30} height={110} fill={c.p('brick')} stroke={SOFT} strokeWidth="0.7" />
         <rect x={222} y={134} width={84} height={14} fill={c.p('concrete')} stroke={SOFT} strokeWidth="0.7" />
@@ -747,7 +747,7 @@ function SlopedSection({ c, children, label }: { c: SketchCtx; children: React.R
       <rect x={12} y={112} width={10} height={40} fill="#f8fafc" stroke={GHOST} strokeDasharray="3 2" />
       <rect x={186} y={52} width={10} height={100} fill="#f8fafc" stroke={GHOST} strokeDasharray="3 2" />
       {children}
-      <DimH x1={14} x2={194} y={160} label={`proyección: ${c.lbl(0)}`} />
+      <DimH x1={14} x2={194} y={160} label={`proyección: ${c.lbl(0)} × ${c.lbl(1)}`} />
       <line x1={14} y1={114} x2={58} y2={114} stroke={SOFT} strokeWidth="0.6" />
       <path d="M50 114 A 36 36 0 0 0 48.3 103" fill="none" stroke={MID} strokeWidth="0.8" />
       <T x={62} y={110} size={7}>pendiente</T>
@@ -825,9 +825,10 @@ function Membrane(_s: Spec<'membrane'>, c: SketchCtx) {
       <polyline points="6,107 180,99" fill="none" stroke="#1f2937" strokeWidth="0.9" />
       <polyline points="6,104 177,96 177,72" fill="none" stroke={ACC} strokeWidth="2.6" />
       <Leader x={50} y={112} tx={30} ty={150} text="carpeta de pendiente (aparte)" ghost />
-      <Leader x={110} y={102} tx={80} ty={70} text="imprimación" />
-      <Leader x={140} y={97} tx={120} ty={48} text="membrana 4 mm" strong />
-      <Leader x={177} y={80} tx={150} ty={22} text="babeta 20 cm" />
+      <Leader x={110} y={102} tx={80} ty={70} text="imprimación" anchor="end" />
+      <Leader x={140} y={97} tx={124} ty={48} text="membrana 4 mm" strong anchor="end" />
+      <Leader x={177} y={80} tx={168} ty={22} text="babeta 20 cm" anchor="end" />
+      <T x={8} y={14} size={7.5} color={INK}>Superficie: {c.lbl(0)} × {c.lbl(1)}</T>
       <Inset title="Solape">
         <rect x={226} y={70} width={60} height={14} fill={ACC_FILL} stroke={ACC} strokeWidth="1" />
         <rect x={262} y={78} width={46} height={14} fill="#bfdbfe" stroke={ACC} strokeWidth="1" />
@@ -948,6 +949,7 @@ function Ceiling(s: Spec<'ceiling'>, c: SketchCtx) {
         <Leader x={80} y={70} tx={100} ty={64} text="cuelgues (aparte)" ghost />
         <Leader x={140} y={100} tx={150} ty={84} text="perfiles" />
         <Leader x={60} y={111} tx={40} ty={140} text="placa de yeso 12,5 mm" strong />
+        <T x={8} y={160} size={7.5} color={INK}>Superficie: {c.lbl(0)} × {c.lbl(1)}</T>
         <Inset title="Junta">
           <rect x={226} y={60} width={82} height={8} fill="#e5e7eb" stroke={MID} strokeWidth="0.8" />
           <rect x={226} y={70} width={40} height={8} fill="#ffffff" stroke={ACC} strokeWidth="1.1" />
@@ -968,6 +970,7 @@ function Ceiling(s: Spec<'ceiling'>, c: SketchCtx) {
       {Array.from({ length: 13 }, (_, i) => <line key={i} x1={8 + i * 15} y1={80} x2={8 + i * 15} y2={88} stroke="#b08968" strokeWidth="0.7" />)}
       <Leader x={88} y={50} tx={110} ty={30} text="tirantes (aparte)" ghost />
       <Leader x={60} y={86} tx={40} ty={130} text="machimbre de pino" strong />
+      <T x={8} y={160} size={7.5} color={INK}>Superficie: {c.lbl(0)} × {c.lbl(1)}</T>
       <Inset title="Encastre">
         <path d="M224 70 L262 70 L262 75 L270 75 L270 81 L262 81 L262 86 L224 86 Z" fill="#f5e1c0" stroke={ACC} strokeWidth="1" />
         <path d="M264 70 L308 70 L308 86 L264 86 L264 81 L272 81 L272 75 L264 75 Z" fill="#efd3a6" stroke={ACC} strokeWidth="1" />

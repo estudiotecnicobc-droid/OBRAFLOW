@@ -103,21 +103,33 @@ export const DimH: React.FC<{ x1: number; x2: number; y: number; label: string; 
     </g>
   );
 
+/** Ancho aproximado de un texto de 8 px, para que las cotas no se salgan del dibujo. */
+const textW = (s: string) => s.length * 4.4;
+
 export const DimV: React.FC<{ x: number; y1: number; y2: number; label: string; right?: boolean }> =
-  ({ x, y1, y2, label, right }) => (
+  ({ x, y1, y2, label, right: rightWanted }) => {
+    const right = !!rightWanted;
+    const rotate = !right && x - 4 - textW(label) < 1;
+    const ym = (y1 + y2) / 2;
+    return (
     <g>
       <line x1={x} y1={y1} x2={x} y2={y2} stroke={SOFT} strokeWidth="0.7" />
       <line x1={x - 2} y1={y1 + 2} x2={x + 2} y2={y1 - 2} stroke={MID} strokeWidth="0.9" />
       <line x1={x - 2} y1={y2 + 2} x2={x + 2} y2={y2 - 2} stroke={MID} strokeWidth="0.9" />
-      {label && <T x={right ? x + 4 : x - 4} y={(y1 + y2) / 2} anchor={right ? 'start' : 'end'} color={INK}>{label}</T>}
+      {label && !rotate && <T x={right ? x + 4 : x - 4} y={ym} anchor={right ? 'start' : 'end'} color={INK}>{label}</T>}
+      {label && rotate && (
+        <text x={x - 5} y={ym} transform={`rotate(-90 ${x - 5} ${ym})`} textAnchor="middle" fontSize={8}
+          fill={INK} fontFamily="system-ui, sans-serif">{label}</text>
+      )}
     </g>
-  );
+    );
+  };
 
 export const Leader: React.FC<{
   x: number; y: number; tx: number; ty: number; text: string;
   anchor?: 'start' | 'end'; strong?: boolean; ghost?: boolean;
 }> = ({ x, y, tx, ty, text, anchor = 'start', strong, ghost }) => (
-  <g>
+  <g className="sk-lead">
     <circle cx={x} cy={y} r="1.3" fill={strong ? ACC : MID} />
     <polyline points={`${x},${y} ${tx},${ty} ${anchor === 'start' ? tx + 3 : tx - 3},${ty}`}
       fill="none" stroke={strong ? ACC : SOFT} strokeWidth="0.7" />

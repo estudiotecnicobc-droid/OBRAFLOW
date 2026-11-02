@@ -699,7 +699,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'RVE-003', nombre: 'Zócalo cerámico h=10cm', categoria: 'Revestimientos',
     unidad: 'ml', descripcion: 'Cenefa / rodapié cerámico',
     condiciones: {
-      medicion: 'Longitud de zócalo, descontando las puertas.',
+      medicion: 'Longitud de zócalo: perímetro del local menos el ancho de las puertas.',
       incluye: 'Piezas de 10 × 30 cm con 5 % de desperdicio, adhesivo y pastina.',
       noIncluye: 'Piezas especiales de esquina ni sellado contra el piso.',
     },
@@ -768,7 +768,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   },
   {
     id: 'CUB-003', nombre: 'Membrana asfáltica 4mm APP', categoria: 'Cubiertas',
-    unidad: 'm²', descripcion: 'Membrana impermeabilizante termofusible, 2 capas',
+    unidad: 'm²', descripcion: 'Membrana impermeabilizante de 4 mm soldada con soplete',
     condiciones: {
       medicion: 'Superficie a impermeabilizar (largo × ancho). Sumá el desarrollo de las babetas.',
       incluye: 'Imprimación asfáltica y membrana de 4 mm soldada con soplete, con solapes de 10 cm.',
