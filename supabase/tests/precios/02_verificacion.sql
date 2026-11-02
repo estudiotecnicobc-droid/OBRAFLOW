@@ -14,7 +14,7 @@ begin
     end if;
   end loop;
   foreach f in array array[
-    'public.resolve_reference_price(uuid,uuid,uuid,uuid,uuid,date,text,text,text,uuid)',
+    'public.resolve_reference_price(uuid,uuid,uuid,uuid,uuid,date,text,text,text,uuid,uuid)',
     'public.resolve_observed_price(uuid,uuid,date,text,text,boolean,text,integer)',
     'public.publish_price_observations(uuid,uuid[],text,boolean,text)',
     'public.invalidate_price_observation(uuid,uuid,text)',
@@ -36,9 +36,21 @@ begin
   if to_regprocedure('public.price_import_claim(uuid)') is not null then
     missing := missing || 'price_import_claim(uuid) debería haber sido eliminada por 20261102100004';
   end if;
-  if to_regprocedure('public.resolve_reference_price(uuid,uuid,uuid,uuid,uuid,date,text,text,text)') is not null then
-    missing := missing || 'resolve_reference_price de 9 args debería haber sido eliminada por 20261102100008';
+  if to_regprocedure('public.resolve_reference_price(uuid,uuid,uuid,uuid,uuid,date,text,text,text)') is not null
+     or to_regprocedure('public.resolve_reference_price(uuid,uuid,uuid,uuid,uuid,date,text,text,text,uuid)') is not null then
+    missing := missing || 'resolve_reference_price de 9/10 args debería haber sido eliminada por 20261102100008';
   end if;
+  if to_regclass('public.supplier_product_mapping_history') is null then missing := missing || 'tabla supplier_product_mapping_history'; end if;
+  if not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                 where n.nspname = 'public' and p.proname = 'freeze_budget_prices' and p.prosecdef) then
+    missing := missing || 'freeze_budget_prices debe ser SECURITY DEFINER';
+  end if;
+  foreach t in array array['supplier_unit_factor','apu_conversion_factor'] loop
+    if not exists (select 1 from information_schema.columns where table_schema = 'public'
+                   and table_name = 'budget_cost_snapshot_prices' and column_name = t) then
+      missing := missing || ('columna budget_cost_snapshot_prices.' || t);
+    end if;
+  end loop;
   if to_regtype('public.resolved_reference_price') is null then missing := missing || 'tipo resolved_reference_price'; end if;
   foreach t in array array['observation_count','price_status','resolution'] loop
     if not exists (select 1 from pg_attribute where attrelid = 'public.resolved_reference_price'::regclass
@@ -71,9 +83,14 @@ begin
     missing := missing || 'trigger price_observations_guard_curation';
   end if;
   if exists (select 1 from information_schema.role_table_grants where table_schema = 'public'
-             and table_name = 'budget_cost_snapshot_prices' and grantee = 'authenticated'
-             and privilege_type in ('UPDATE','DELETE')) then
-    missing := missing || 'budget_cost_snapshot_prices no debe conceder UPDATE/DELETE a authenticated';
+             and table_name in ('budget_cost_snapshot_prices','supplier_product_mapping_history') and grantee = 'authenticated'
+             and privilege_type in ('INSERT','UPDATE','DELETE')) then
+    missing := missing || 'budget_cost_snapshot_prices / supplier_product_mapping_history: authenticated solo SELECT';
+  end if;
+  if exists (select 1 from information_schema.role_table_grants where table_schema = 'public'
+             and table_name = 'budget_cost_snapshots' and grantee = 'authenticated' and privilege_type = 'INSERT')
+     or exists (select 1 from pg_policies where tablename = 'budget_cost_snapshots' and policyname = 'bcs_insert') then
+    missing := missing || 'budget_cost_snapshots no debe admitir INSERT directo de authenticated';
   end if;
   if exists (select 1 from information_schema.role_table_grants where table_schema = 'public'
              and table_name = 'price_observations' and grantee = 'authenticated'

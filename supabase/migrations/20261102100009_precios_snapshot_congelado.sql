@@ -1,15 +1,18 @@
 -- Motor de precios — snapshot congelado por componente (contrato 2.4 + 2bis-4/7).
 --   * budget_cost_snapshots: la migración 018 NO está aplicada en producción y no se puede
 --     aplicar tal cual (get_budget_for_calculator compara tasks.master_task_id uuid con '').
---     Aquí se crea la tabla con la misma definición de la 018 (IF NOT EXISTS, políticas
---     guardadas) para que esta migración funcione con o sin 018. No se crean las funciones
---     de la 018. Se agrega reference_pricing_status (revisión GPT).
---   * budget_cost_snapshot_prices: detalle inmutable por (snapshot, ítem, componente).
+--     Aquí se crea la tabla con la misma definición de la 018 (IF NOT EXISTS) para que esta
+--     migración funcione con o sin 018, pero SIN INSERT directo para authenticated: la cabecera
+--     y el detalle se escriben solo desde freeze_budget_prices (SECURITY DEFINER).
+--     No se crean las funciones de la 018. Se agrega reference_pricing_status (revisión GPT).
+--   * budget_cost_snapshot_prices: detalle inmutable por (snapshot, ítem, componente), con los
+--     dos factores de conversión documentados (supplier_unit_factor / apu_conversion_factor).
 --   * freeze_budget_prices: una sola transacción. Arma la cabecera con el mismo `result` que
 --     snapshot_budget_costs (calculate_consolidated_resources, 057) más el bloque
---     reference_pricing, en un único INSERT: la 018 no concede UPDATE sobre snapshots y no se
---     abre aquí (inmutabilidad). Luego inserta el detalle resuelto con resolve_reference_price.
---   * get_frozen_budget_prices: lectura con verificación de membresía.
+--     reference_pricing, en un único INSERT (sin UPDATE: inmutabilidad). Luego inserta el detalle
+--     resuelto con resolve_reference_price (SECURITY INVOKER: evalúa auth.uid() del llamador).
+--     Cualquier error del resolvedor aborta la operación completa.
+--   * get_frozen_budget_prices: lectura (SECURITY INVOKER, respeta RLS) con verificación de membresía.
 --   * Trigger BEFORE DELETE: un snapshot con detalle congelado no se elimina.
 -- Depende de 20261102100008 y de calculate_consolidated_resources(jsonb,text,date) (057).
 BEGIN;
@@ -54,13 +57,6 @@ BEGIN
                                  WHERE user_id = auth.uid()));
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public'
-                 AND tablename = 'budget_cost_snapshots' AND policyname = 'bcs_insert') THEN
-    CREATE POLICY "bcs_insert" ON public.budget_cost_snapshots
-      FOR INSERT TO authenticated
-      WITH CHECK (organization_id IN (SELECT organization_id FROM public.organization_members
-                                      WHERE user_id = auth.uid()));
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public'
                  AND tablename = 'budget_cost_snapshots' AND policyname = 'bcs_delete') THEN
     CREATE POLICY "bcs_delete" ON public.budget_cost_snapshots
       FOR DELETE TO authenticated
@@ -68,11 +64,13 @@ BEGIN
                                  WHERE om.user_id = auth.uid() AND om.role IN ('owner','admin')));
   END IF;
 END $pol$;
+-- La 018 permitía INSERT a cualquier miembro; ahora la cabecera se escribe solo desde la RPC.
+DROP POLICY IF EXISTS "bcs_insert" ON public.budget_cost_snapshots;
 
--- Sin UPDATE: los snapshots son inmutables (regla de la 018).
+-- Sin INSERT/UPDATE directos: los snapshots son inmutables y los crea freeze_budget_prices.
 REVOKE ALL ON public.budget_cost_snapshots FROM PUBLIC, anon;
-REVOKE UPDATE ON public.budget_cost_snapshots FROM authenticated;
-GRANT SELECT, INSERT, DELETE ON public.budget_cost_snapshots TO authenticated;
+REVOKE INSERT, UPDATE ON public.budget_cost_snapshots FROM authenticated;
+GRANT SELECT, DELETE ON public.budget_cost_snapshots TO authenticated;
 
 ALTER TABLE public.budget_cost_snapshots
   ADD COLUMN IF NOT EXISTS reference_pricing_status text;
@@ -86,12 +84,14 @@ COMMENT ON COLUMN public.budget_cost_snapshots.reference_pricing_status IS
   'Estado de conciliación entre el motor de precios de referencia (budget_cost_snapshot_prices) '
   'y el motor legacy (result.totals). NULL: snapshot anterior al motor, sin detalle congelado. '
   'Alcance: solo precios de MATERIALES congelados (scope materials_only); mano de obra, equipos y '
-  'APU anidados quedan fuera. reconciled: los totales de materiales coinciden (±0,01) y todos los '
-  'componentes son usables — certifica los precios de materiales congelados, NO un presupuesto '
-  'completo validado. '
-  'pending_reconciliation: los totales divergen en más de 0,01 — el snapshot NO es un '
-  'presupuesto definitivo hasta revisar la diferencia. '
-  'partial: hay componentes sin precio usable o anidados no congelados. '
+  'APU anidados quedan fuera. Prioridad: partial > pending_reconciliation > reconciled. '
+  'partial: hay componentes sin precio usable o APU anidados no congelados (incomplete=true); '
+  'puede además divergir del legacy (ver bandera legacyDivergence en result.reference_pricing). '
+  'pending_reconciliation: todos los componentes usables pero el total de materiales difiere del '
+  'legacy en más de 0,01 — el snapshot NO es un presupuesto definitivo hasta revisar la diferencia. '
+  'reconciled: todos usables y totales coincidentes (±0,01) — certifica únicamente los precios de '
+  'materiales congelados, NO un presupuesto completo validado. '
+  'Las banderas independientes legacyDivergence e incomplete se guardan en result.reference_pricing. '
   'Un error del resolvedor (autorización, aislamiento) aborta el congelado completo.';
 
 -- ---------------------------------------------------------------------------
@@ -117,16 +117,24 @@ CREATE TABLE IF NOT EXISTS public.budget_cost_snapshot_prices (
   reference_id uuid,
   price_status text NOT NULL,
   effective_date date,
-  unit_factor numeric(20,8) NOT NULL DEFAULT 1,
+  -- Factor comercial→técnico ya aplicado por la homologación al calcular normalized_price
+  -- (price_observations.unit_factor de la observación de referencia). NULL si la fuente no es
+  -- SUPPLIER_OBSERVED. Solo evidencia: unit_price ya está en la unidad técnica del material.
+  supplier_unit_factor numeric(20,8),
+  -- master_task_materials.conversion_factor (COALESCE 1). Solo evidencia: NO se aplica al costo,
+  -- igual que calculate_consolidated_resources (057) no lo aplica. Nunca aplicar un factor dos veces.
+  apu_conversion_factor numeric(20,8) NOT NULL DEFAULT 1,
   warnings text[] NOT NULL DEFAULT '{}',
   is_usable boolean NOT NULL DEFAULT false,
   observation_count integer,
   resolution jsonb,
   resolved_at timestamptz NOT NULL DEFAULT now(),
-  created_by uuid NOT NULL DEFAULT auth.uid(),
+  created_by uuid NOT NULL,
   UNIQUE (snapshot_id, budget_item_id, component_id),
   CHECK (unit_price IS NOT NULL OR source = 'NO_PRICE'),
-  CHECK (NOT is_usable OR unit_price > 0)
+  CHECK (NOT is_usable OR unit_price > 0),
+  CHECK (supplier_unit_factor IS NULL OR supplier_unit_factor > 0),
+  CHECK (apu_conversion_factor > 0)
 );
 CREATE INDEX IF NOT EXISTS bcsp_snapshot_component_idx
   ON public.budget_cost_snapshot_prices (snapshot_id, component_id);
@@ -135,28 +143,14 @@ CREATE INDEX IF NOT EXISTS bcsp_org_project_idx
 
 ALTER TABLE public.budget_cost_snapshot_prices ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.budget_cost_snapshot_prices FROM PUBLIC, anon, authenticated;
--- Sin UPDATE/DELETE para authenticated: el detalle congelado es inmutable.
-GRANT SELECT, INSERT ON public.budget_cost_snapshot_prices TO authenticated;
+-- Solo lectura para authenticated: el detalle lo escribe únicamente freeze_budget_prices.
+GRANT SELECT ON public.budget_cost_snapshot_prices TO authenticated;
 
 DROP POLICY IF EXISTS bcsp_select ON public.budget_cost_snapshot_prices;
 CREATE POLICY bcsp_select ON public.budget_cost_snapshot_prices
   FOR SELECT TO authenticated
   USING (public.is_org_member(budget_cost_snapshot_prices.organization_id));
-
 DROP POLICY IF EXISTS bcsp_insert ON public.budget_cost_snapshot_prices;
-CREATE POLICY bcsp_insert ON public.budget_cost_snapshot_prices
-  FOR INSERT TO authenticated
-  WITH CHECK (
-    budget_cost_snapshot_prices.created_by = (SELECT auth.uid())
-    AND public.is_org_member_with_role(budget_cost_snapshot_prices.organization_id,
-                                       ARRAY['owner','admin','editor']::text[])
-    AND EXISTS (
-      SELECT 1 FROM public.budget_cost_snapshots s
-      WHERE s.id = budget_cost_snapshot_prices.snapshot_id
-        AND s.organization_id = budget_cost_snapshot_prices.organization_id
-        AND s.project_id = budget_cost_snapshot_prices.project_id
-    )
-  );
 
 -- Un snapshot con detalle congelado no se elimina (ni en cascada desde el proyecto).
 CREATE OR REPLACE FUNCTION public.budget_cost_snapshots_block_frozen_delete()
@@ -174,14 +168,14 @@ CREATE TRIGGER budget_cost_snapshots_block_frozen_delete
   FOR EACH ROW EXECUTE FUNCTION public.budget_cost_snapshots_block_frozen_delete();
 
 -- ---------------------------------------------------------------------------
--- 3. freeze_budget_prices
+-- 3. freeze_budget_prices (SECURITY DEFINER: única vía de escritura)
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.freeze_budget_prices(
   p_project_id uuid,
   p_organization_id uuid,
   p_cost_date date DEFAULT current_date
 ) RETURNS jsonb
-LANGUAGE plpgsql VOLATILE SECURITY INVOKER
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path = pg_catalog, public
 AS $fn$
 DECLARE
@@ -198,6 +192,7 @@ DECLARE
   v_comp record;
   v_res public.resolved_reference_price;
   v_qty numeric;
+  v_supplier_factor numeric;
   v_item_count integer := 0;
   v_component_count integer := 0;
   v_unusable integer := 0;
@@ -205,13 +200,19 @@ DECLARE
   v_labor_rows integer := 0;
   v_equipment_rows integer := 0;
   v_total numeric := 0;
+  v_unusable_amount numeric := 0;
   v_divergence numeric;
+  v_legacy_divergence boolean;
+  v_incomplete boolean;
   v_status text;
   v_warnings text[] := '{}';
   v_block jsonb;
 BEGIN
-  IF v_uid IS NULL OR NOT public.is_org_member_with_role(
-       p_organization_id, ARRAY['owner','admin','editor']::text[]) THEN
+  -- Autorización explícita: la función corre con privilegios del propietario.
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'FORBIDDEN: authentication required' USING ERRCODE = '42501';
+  END IF;
+  IF NOT public.is_org_member_with_role(p_organization_id, ARRAY['owner','admin','editor']::text[]) THEN
     RAISE EXCEPTION 'FORBIDDEN: organization not accessible' USING ERRCODE = '42501';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.projects p
@@ -237,6 +238,7 @@ BEGIN
     JOIN public.tasks t ON t.id = bi.task_id AND t.master_task_id IS NOT NULL
     JOIN public.master_tasks mt ON mt.id = t.master_task_id AND mt.is_active
     WHERE bi.project_id = p_project_id
+      AND bi.organization_id = p_organization_id
       AND bi.quantity > 0
       AND t.organization_id = p_organization_id
     GROUP BY mt.id, mt.name
@@ -255,6 +257,7 @@ BEGIN
     JOIN public.tasks t ON t.id = bi.task_id AND t.master_task_id IS NOT NULL
     JOIN public.master_tasks mt ON mt.id = t.master_task_id AND mt.is_active
     WHERE bi.project_id = p_project_id
+      AND bi.organization_id = p_organization_id
       AND bi.quantity > 0
       AND t.organization_id = p_organization_id
     ORDER BY bi.sort_order NULLS LAST, bi.created_at, bi.id
@@ -274,7 +277,8 @@ BEGIN
 
     FOR v_comp IN
       SELECT c.id, c.master_material_id, c.resource_id, c.sub_master_task_id, c.unit,
-             c.quantity, COALESCE(c.waste_percent, 0) AS waste_percent
+             c.quantity, COALESCE(c.waste_percent, 0) AS waste_percent,
+             COALESCE(c.conversion_factor, 1) AS conversion_factor
       FROM public.master_task_materials c
       WHERE c.master_task_id = v_item.master_task_id
       ORDER BY c.id
@@ -289,11 +293,13 @@ BEGIN
       END IF;
 
       -- Misma regla que calculate_consolidated_resources: qty_pu = quantity × (1 + waste/100).
+      -- conversion_factor NO se aplica (la 057 tampoco): queda como evidencia en el detalle.
       v_qty := v_comp.quantity * (1 + v_comp.waste_percent / 100.0) * v_item.item_qty;
       v_component_count := v_component_count + 1;
 
       -- Cualquier error del resolvedor (42501, 22023, ...) aborta todo el congelado:
       -- solo la ausencia de precio (NO_PRICE devuelto normalmente) genera fila no usable.
+      -- resolve_reference_price es SECURITY INVOKER: evalúa auth.uid() del llamador.
       v_res := public.resolve_reference_price(
         p_organization_id := p_organization_id,
         p_component_id := v_comp.id,
@@ -301,11 +307,20 @@ BEGIN
         p_effective_date := v_date,
         p_mode := v_mode);
 
-      IF NOT COALESCE(v_res.is_usable, false) THEN
-        v_unusable := v_unusable + 1;
+      v_supplier_factor := NULL;
+      IF v_res.source = 'SUPPLIER_OBSERVED' AND v_res.reference_id IS NOT NULL THEN
+        SELECT o.unit_factor INTO v_supplier_factor
+        FROM public.price_observations o
+        WHERE o.id = v_res.reference_id AND o.organization_id = p_organization_id;
       END IF;
-      IF v_res.price IS NOT NULL THEN
+
+      IF COALESCE(v_res.is_usable, false) THEN
         v_total := v_total + v_qty * v_res.price;
+      ELSE
+        v_unusable := v_unusable + 1;
+        IF v_res.price IS NOT NULL THEN
+          v_unusable_amount := v_unusable_amount + v_qty * v_res.price;
+        END IF;
       END IF;
 
       v_rows := v_rows || jsonb_build_object(
@@ -322,6 +337,8 @@ BEGIN
         'reference_id', v_res.reference_id,
         'price_status', COALESCE(v_res.price_status, 'SIN_PRECIO'),
         'effective_date', v_res.effective_date,
+        'supplier_unit_factor', v_supplier_factor,
+        'apu_conversion_factor', v_comp.conversion_factor,
         'warnings', to_jsonb(COALESCE(v_res.warnings, '{}'::text[])),
         'is_usable', COALESCE(v_res.is_usable, false),
         'observation_count', v_res.observation_count,
@@ -330,15 +347,15 @@ BEGIN
   END LOOP;
 
   v_total := round(v_total, 2);
+  v_unusable_amount := round(v_unusable_amount, 2);
   v_divergence := round(v_total - v_legacy_total, 2);
-  IF abs(v_divergence) > 0.01 THEN
-    v_warnings := v_warnings || 'TOTALS_DIVERGE_FROM_LEGACY_ENGINE'::text;
-    v_status := 'pending_reconciliation';
-  ELSIF v_unusable > 0 OR v_nested > 0 THEN
-    v_status := 'partial';
-  ELSE
-    v_status := 'reconciled';
-  END IF;
+  v_legacy_divergence := abs(v_divergence) > 0.01;
+  v_incomplete := v_unusable > 0 OR v_nested > 0;
+  -- Prioridad: partial > pending_reconciliation > reconciled; las banderas no se colapsan.
+  v_status := CASE WHEN v_incomplete THEN 'partial'
+                   WHEN v_legacy_divergence THEN 'pending_reconciliation'
+                   ELSE 'reconciled' END;
+  IF v_legacy_divergence THEN v_warnings := v_warnings || 'TOTALS_DIVERGE_FROM_LEGACY_ENGINE'::text; END IF;
   IF v_unusable > 0 THEN v_warnings := v_warnings || 'UNUSABLE_COMPONENT_PRICES'::text; END IF;
   IF v_nested > 0 THEN v_warnings := v_warnings || 'NESTED_APU_SKIPPED'::text; END IF;
 
@@ -348,11 +365,14 @@ BEGIN
     'mode', v_mode,
     'costDate', v_date,
     'status', v_status,
+    'legacyDivergence', v_legacy_divergence,
+    'incomplete', v_incomplete,
     'itemCount', v_item_count,
     'componentCount', v_component_count,
     'unusableCount', v_unusable,
     'nestedSkippedCount', v_nested,
     'materialsTotal', v_total,
+    'unusableAmount', v_unusable_amount,
     'legacyMaterialsTotal', v_legacy_total,
     'divergence', v_divergence,
     'warnings', to_jsonb(v_warnings),
@@ -370,17 +390,19 @@ BEGIN
   INSERT INTO public.budget_cost_snapshot_prices (
     snapshot_id, organization_id, project_id, budget_item_id, master_task_id, component_id,
     master_material_id, resource_id, quantity, unit, unit_price, currency, source, reference_id,
-    price_status, effective_date, unit_factor, warnings, is_usable, observation_count, resolution,
-    created_by
+    price_status, effective_date, supplier_unit_factor, apu_conversion_factor, warnings, is_usable,
+    observation_count, resolution, created_by
   )
   SELECT v_snapshot_id, p_organization_id, p_project_id, r.budget_item_id, r.master_task_id,
          r.component_id, r.master_material_id, r.resource_id, r.quantity, r.unit, r.unit_price,
-         r.currency, r.source, r.reference_id, r.price_status, r.effective_date, 1,
+         r.currency, r.source, r.reference_id, r.price_status, r.effective_date,
+         r.supplier_unit_factor, r.apu_conversion_factor,
          COALESCE(r.warnings, '{}'::text[]), r.is_usable, r.observation_count, r.resolution, v_uid
   FROM jsonb_to_recordset(v_rows) AS r(
     budget_item_id uuid, master_task_id uuid, component_id uuid, master_material_id uuid,
     resource_id uuid, quantity numeric, unit text, unit_price numeric, currency text,
-    source text, reference_id uuid, price_status text, effective_date date, warnings text[],
+    source text, reference_id uuid, price_status text, effective_date date,
+    supplier_unit_factor numeric, apu_conversion_factor numeric, warnings text[],
     is_usable boolean, observation_count integer, resolution jsonb);
 
   RETURN jsonb_build_object(
@@ -390,22 +412,25 @@ BEGIN
     'scope', 'materials_only',
     'mode', v_mode,
     'status', v_status,
+    'legacyDivergence', v_legacy_divergence,
+    'incomplete', v_incomplete,
     'itemCount', v_item_count,
     'componentCount', v_component_count,
     'unusableCount', v_unusable,
     'nestedSkippedCount', v_nested,
     'materialsTotal', v_total,
+    'unusableAmount', v_unusable_amount,
     'legacyMaterialsTotal', v_legacy_total,
     'divergence', v_divergence,
     'legacyTotals', v_legacy->'totals',
     'warnings', to_jsonb(v_warnings));
 END
 $fn$;
-REVOKE ALL ON FUNCTION public.freeze_budget_prices(uuid,uuid,date) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.freeze_budget_prices(uuid,uuid,date) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.freeze_budget_prices(uuid,uuid,date) TO authenticated;
 
 -- ---------------------------------------------------------------------------
--- 4. get_frozen_budget_prices
+-- 4. get_frozen_budget_prices (SECURITY INVOKER: respeta RLS)
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_frozen_budget_prices(p_snapshot_id uuid)
 RETURNS SETOF public.budget_cost_snapshot_prices

@@ -1,6 +1,6 @@
 # Harness local del motor de precios
 
-Aplica las migraciones `20261102100001..09_precios_*.sql` sobre una base descartable con el
+Aplica las migraciones `20261102100001..10_precios_*.sql` sobre una base descartable con el
 esquema de producción (snapshot del harness RLS, al 31/10/2026 incl. 072) y verifica que los
 objetos existan y que las RPC principales funcionen con datos sintéticos. No toca Supabase cloud.
 
@@ -34,7 +34,7 @@ Variables opcionales: `PRECIOS_TEST_DB` (default `obraflow_precios_test`), `PGBI
 4. `057_fix_resources_commercial_columns.sql` — prerrequisito de la 100009 que el snapshot no incluye
    (`calculate_consolidated_resources`, sí presente en producción). La 018 (`budget_cost_snapshots`) no se
    aplica: no está en producción y falla contra el esquema actual; la 100009 crea la tabla con `IF NOT EXISTS`.
-5. Migraciones `20261102100001..09` en orden, con `ON_ERROR_STOP`. Los `CREATE EXTENSION` de la 02
+5. Migraciones `20261102100001..10` en orden, con `ON_ERROR_STOP`. Los `CREATE EXTENSION` de la 02
    están envueltos en `DO ... EXCEPTION` y solo emiten NOTICE si la extensión no está disponible.
 6. `02_verificacion.sql` — tablas, RLS, funciones, tipo, cola, bucket, políticas y triggers esperados.
 7. `03_humo.sql` — resolvedor (ORG_MASTER, override, cross-org denegado), ingesta (enqueue idempotente,
@@ -45,7 +45,12 @@ Variables opcionales: `PRECIOS_TEST_DB` (default `obraflow_precios_test`), `PGBI
    `CATALOG_UNVERIFIED`; `AS_OF` histórico (incluida una observación invalidada después de la fecha);
    `freeze_budget_prices` (cabecera + detalle, componente repetido en dos ítems, `TOTALS_DIVERGE_FROM_LEGACY_ENGINE`,
    `pending_reconciliation`); observación nueva no altera `FROZEN` pero sí `CURRENT`; `FROZEN_PRICE_MISSING`;
-   `get_frozen_budget_prices` cross-org → 42501; componente con material ajeno aborta `freeze_budget_prices` (42501, sin snapshot); `DELETE` del snapshot congelado bloqueado. Transacción revertida.
+   `get_frozen_budget_prices` cross-org → 42501; componente con material ajeno aborta `freeze_budget_prices` (42501, sin snapshot); `DELETE` del snapshot congelado bloqueado; FROZEN por `budget_item_id` y 22023 si el componente repetido tiene
+   precios distintos; editor sin INSERT directo en cabecera/detalle (42501); `unusableAmount`, `legacyDivergence`,
+   `incomplete`, `supplier_unit_factor`/`apu_conversion_factor`. Transacción revertida.
+9. `04b_aprobacion_trazable.sql` — `approve_supplier_mapping` (100010): H1 `HISTORICAL_MAPPING_IMMUTABLE` antes de la
+   ambigüedad, H2 `MAPPING_CHANGE_BLOCKED_PENDING_ROWS` con filas raw, re-decisión sin historial ni raw deja el aprobador
+   original en `supplier_product_mapping_history` (INSERT directo 42501). Transacción revertida.
 
 ## Límites
 

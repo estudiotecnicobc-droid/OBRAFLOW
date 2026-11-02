@@ -5,13 +5,15 @@
 begin;
 
 -- --------------------------------------------------------------------------- datos base
-insert into auth.users (id) values ('00000000-0000-0000-0000-00000000aaaa'), ('00000000-0000-0000-0000-00000000bbbb');
+insert into auth.users (id) values ('00000000-0000-0000-0000-00000000aaaa'), ('00000000-0000-0000-0000-00000000bbbb'), ('00000000-0000-0000-0000-00000000cccc');
 insert into public.organizations (id, name) values ('10000000-0000-0000-0000-000000000001', 'Org A'), ('10000000-0000-0000-0000-000000000002', 'Org B');
 insert into public.organization_members (organization_id, user_id, role) values
   ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000aaaa', 'owner'),
-  ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000bbbb', 'owner');
-insert into public.projects (id, organization_id, name, start_date, currency)
-  values ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Obra', current_date, 'ARS');
+  ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000bbbb', 'owner'),
+  ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000cccc', 'editor');
+insert into public.projects (id, organization_id, name, start_date, currency) values
+  ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Obra', current_date, 'ARS'),
+  ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Obra 2', current_date, 'ARS');
 -- M1: tres proveedores; M2: observación vieja; M3: solo pendiente; M4: publicada e invalidada después
 insert into public.master_materials (id, organization_id, name, unit, unit_price, currency) values
   ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Cemento', 'bolsa', 1000, 'ARS'),
@@ -67,11 +69,18 @@ insert into public.master_task_materials (id, master_task_id, master_material_id
   ('90000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'Cemento', 'bolsa', 2, 10),
   ('90000000-0000-0000-0000-000000000002', '80000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000003', 'Arena', 'm3', 1, 0),
   ('90000000-0000-0000-0000-000000000003', '80000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002', 'Cal', 'bolsa', 1, 0);
-insert into public.tasks (id, organization_id, master_task_id, name, unit)
-  values ('a0000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000001', 'Mampostería', 'm2');
+-- APU T2 (Obra 2): Cal (M2, bolsa) pedida en 'kg' → UNIT_MISMATCH; más un componente anidado
+insert into public.master_task_materials (id, master_task_id, master_material_id, material_name, unit, quantity, waste_percent, sub_master_task_id) values
+  ('90000000-0000-0000-0000-000000000004', '80000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002', 'Cal', 'kg', 1, 0, null),
+  ('90000000-0000-0000-0000-000000000005', '80000000-0000-0000-0000-000000000002', null, 'Sub APU', 'm2', 1, 0, '80000000-0000-0000-0000-000000000001');
+delete from public.master_task_materials where id = '90000000-0000-0000-0000-000000000003';
+insert into public.tasks (id, organization_id, master_task_id, name, unit) values
+  ('a0000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000001', 'Mampostería', 'm2'),
+  ('a0000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000002', 'Otra tarea', 'm2');
 insert into public.budget_items (id, project_id, organization_id, task_id, quantity) values
   ('b0000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 10),
-  ('b0000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 5);
+  ('b0000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 5),
+  ('b0000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 2);
 
 -- --------------------------------------------------------------------------- publicación (usuario A)
 set local role authenticated;
@@ -225,6 +234,7 @@ begin
   if (f->>'itemCount')::int <> 2 or (f->>'componentCount')::int <> 4 or (f->>'unusableCount')::int <> 0
      or (f->>'materialsTotal')::numeric <> 46800 or (f->>'legacyMaterialsTotal')::numeric <> 43500
      or (f->>'divergence')::numeric <> 3300 or f->>'status' <> 'pending_reconciliation'
+     or not (f->>'legacyDivergence')::boolean or (f->>'incomplete')::boolean or (f->>'unusableAmount')::numeric <> 0
      or not (f->'warnings') ? 'TOTALS_DIVERGE_FROM_LEGACY_ENGINE' or f->>'scope' <> 'materials_only' then
     raise exception 'freeze_budget_prices: %', f;
   end if;
@@ -243,10 +253,34 @@ begin
   if (select count(*) from public.get_frozen_budget_prices(v_snap)) <> 4 then raise exception 'detalle incompleto'; end if;
   if exists (select 1 from public.get_frozen_budget_prices(v_snap) p where p.component_id = '90000000-0000-0000-0000-000000000001'
              and (p.unit_price <> 1100 or p.source <> 'SUPPLIER_OBSERVED' or p.resolution->>'method' <> 'median_by_supplier'
-                  or p.quantity not in (22, 11))) then
+                  or p.quantity not in (22, 11) or p.supplier_unit_factor <> 1 or p.apu_conversion_factor <> 1)) then
     raise exception 'detalle congelado de C1 incorrecto';
   end if;
-  raise notice 'freeze_budget_prices OK (cabecera + 4 filas, componente repetido, TOTALS_DIVERGE, pending_reconciliation)';
+  if exists (select 1 from public.get_frozen_budget_prices(v_snap) p where p.component_id = '90000000-0000-0000-0000-000000000002'
+             and (p.source <> 'ORG_MASTER' or p.supplier_unit_factor is not null)) then
+    raise exception 'supplier_unit_factor debe ser NULL fuera de SUPPLIER_OBSERVED';
+  end if;
+  -- Obra 2: UNIT_MISMATCH (no usable, no suma) + anidado → partial, incomplete y además divergencia
+  f := public.freeze_budget_prices('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001');
+  -- Cal: 2 × 650 (observación) no usable → unusableAmount 1300, materialsTotal 0; legacy 2 × 600 = 1200
+  if (f->>'componentCount')::int <> 1 or (f->>'unusableCount')::int <> 1 or (f->>'nestedSkippedCount')::int <> 1
+     or (f->>'materialsTotal')::numeric <> 0 or (f->>'unusableAmount')::numeric <> 1300
+     or (f->>'legacyMaterialsTotal')::numeric <> 1200 or f->>'status' <> 'partial'
+     or not (f->>'incomplete')::boolean or not (f->>'legacyDivergence')::boolean
+     or not (f->'warnings') ? 'UNUSABLE_COMPONENT_PRICES' or not (f->'warnings') ? 'NESTED_APU_SKIPPED'
+     or not (f->'warnings') ? 'TOTALS_DIVERGE_FROM_LEGACY_ENGINE' then
+    raise exception 'freeze Obra 2: %', f;
+  end if;
+  if (select reference_pricing_status from public.budget_cost_snapshots where id = (f->>'snapshotId')::uuid) <> 'partial'
+     or (select result->'reference_pricing'->>'unusableAmount' from public.budget_cost_snapshots where id = (f->>'snapshotId')::uuid)::numeric <> 1300 then
+    raise exception 'cabecera Obra 2 inconsistente';
+  end if;
+  if not exists (select 1 from public.get_frozen_budget_prices((f->>'snapshotId')::uuid) p
+                 where p.component_id = '90000000-0000-0000-0000-000000000004' and not p.is_usable
+                   and 'UNIT_MISMATCH' = any(p.warnings) and p.unit_price = 650) then
+    raise exception 'detalle Obra 2: falta la fila UNIT_MISMATCH';
+  end if;
+  raise notice 'freeze_budget_prices OK (cabecera + 4 filas, componente repetido, factores, pending_reconciliation; Obra 2 partial con UNIT_MISMATCH, anidado y divergencia)';
 end $$;
 
 -- Nueva observación más cara de S2 (hoy): CURRENT cambia (1000, 1300, 5000 → 1300); FROZEN no.
@@ -268,12 +302,25 @@ begin
         p_component_id => '90000000-0000-0000-0000-000000000001', p_project_id => '20000000-0000-0000-0000-000000000001',
         p_mode => 'FROZEN', p_snapshot_id => v_snap);
   if r.source <> 'FROZEN_SNAPSHOT' or r.price <> 1100 or r.price_status <> 'FROZEN' or not r.is_usable
-     or r.resolution->>'original_source' <> 'SUPPLIER_OBSERVED' then
+     or r.resolution->>'original_source' <> 'SUPPLIER_OBSERVED'
+     or jsonb_array_length(r.resolution->'frozen_price_ids') <> 2 then
     raise exception 'FROZEN: % % % %', r.source, r.price, r.price_status, r.resolution;
   end if;
+  -- con cada budget_item_id devuelve su fila
+  r := public.resolve_reference_price('10000000-0000-0000-0000-000000000001',
+        p_component_id => '90000000-0000-0000-0000-000000000001', p_project_id => '20000000-0000-0000-0000-000000000001',
+        p_mode => 'FROZEN', p_snapshot_id => v_snap, p_budget_item_id => 'b0000000-0000-0000-0000-000000000002');
+  if r.price <> 1100 or (r.resolution->>'budget_item_id')::uuid <> 'b0000000-0000-0000-0000-000000000002'
+     or jsonb_array_length(r.resolution->'frozen_price_ids') <> 1 then
+    raise exception 'FROZEN por ítem: %', r.resolution;
+  end if;
+  r := public.resolve_reference_price('10000000-0000-0000-0000-000000000001',
+        p_component_id => '90000000-0000-0000-0000-000000000001', p_mode => 'FROZEN', p_snapshot_id => v_snap,
+        p_budget_item_id => gen_random_uuid());
+  if r.source <> 'NO_PRICE' or not ('FROZEN_PRICE_MISSING' = any(r.warnings)) then raise exception 'FROZEN ítem inexistente'; end if;
   -- componente que no está en el snapshot → NO_PRICE + FROZEN_PRICE_MISSING, nunca precio actual
   r := public.resolve_reference_price('10000000-0000-0000-0000-000000000001',
-        p_component_id => '90000000-0000-0000-0000-000000000003', p_mode => 'FROZEN', p_snapshot_id => v_snap);
+        p_component_id => '90000000-0000-0000-0000-000000000004', p_mode => 'FROZEN', p_snapshot_id => v_snap);
   if r.source <> 'NO_PRICE' or r.price is not null or not ('FROZEN_PRICE_MISSING' = any(r.warnings)) or r.price_status <> 'SIN_PRECIO' then
     raise exception 'FROZEN faltante: % % %', r.source, r.price, r.warnings;
   end if;
@@ -290,7 +337,59 @@ begin
     raise exception 'DELETE del snapshot congelado no falló';
   exception when object_in_use then null;
   end;
-  raise notice 'FROZEN OK (no cambia con observación nueva, CURRENT sí, faltante → FROZEN_PRICE_MISSING, DELETE bloqueado)';
+  raise notice 'FROZEN OK (no cambia con observación nueva, CURRENT sí, por ítem, faltante → FROZEN_PRICE_MISSING, DELETE bloqueado)';
+end $$;
+
+-- Filas del mismo componente con precios distintos (simulado como superusuario): sin budget_item_id → 22023
+reset role;
+update public.budget_cost_snapshot_prices set unit_price = 1150
+  where snapshot_id = current_setting('precios.snapshot_id')::uuid and component_id = '90000000-0000-0000-0000-000000000001'
+    and budget_item_id = 'b0000000-0000-0000-0000-000000000002';
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-00000000aaaa';
+set local request.jwt.claim.role = 'authenticated';
+do $$
+declare r public.resolved_reference_price; v_snap uuid := current_setting('precios.snapshot_id')::uuid;
+begin
+  begin
+    perform public.resolve_reference_price('10000000-0000-0000-0000-000000000001',
+      p_component_id => '90000000-0000-0000-0000-000000000001', p_mode => 'FROZEN', p_snapshot_id => v_snap);
+    raise exception 'FROZEN ambiguo no falló';
+  exception when invalid_parameter_value then
+    if sqlerrm not like 'FROZEN_AMBIGUOUS_COMPONENT%' then raise; end if;
+  end;
+  r := public.resolve_reference_price('10000000-0000-0000-0000-000000000001',
+        p_component_id => '90000000-0000-0000-0000-000000000001', p_mode => 'FROZEN', p_snapshot_id => v_snap,
+        p_budget_item_id => 'b0000000-0000-0000-0000-000000000002');
+  if r.price <> 1150 then raise exception 'FROZEN por ítem tras divergencia: %', r.price; end if;
+  raise notice 'FROZEN ambiguo OK (22023 sin budget_item_id; por ítem resuelve)';
+end $$;
+
+-- Editor de Org A: sin INSERT directo en cabecera ni detalle; get_frozen_budget_prices (INVOKER) sí lee
+reset role;
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-00000000cccc';
+set local request.jwt.claim.role = 'authenticated';
+do $$
+declare v_snap uuid := current_setting('precios.snapshot_id')::uuid;
+begin
+  begin
+    insert into public.budget_cost_snapshots (project_id, organization_id, cost_date)
+      values ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', current_date);
+    raise exception 'INSERT directo en budget_cost_snapshots no falló';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.budget_cost_snapshot_prices (snapshot_id, organization_id, project_id, budget_item_id, master_task_id, component_id,
+      quantity, unit, unit_price, currency, source, price_status, created_by)
+      values (v_snap, '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', gen_random_uuid(),
+      '80000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000001', 1, 'bolsa', 1, 'ARS', 'X', 'FROZEN', auth.uid());
+    raise exception 'INSERT directo en budget_cost_snapshot_prices no falló';
+  exception when insufficient_privilege then null;
+  end;
+  if (select count(*) from public.get_frozen_budget_prices(v_snap)) <> 4 then raise exception 'editor no lee el detalle congelado'; end if;
+  if (select count(*) from public.budget_cost_snapshot_prices where snapshot_id = v_snap) <> 4 then raise exception 'RLS SELECT editor'; end if;
+  raise notice 'editor OK (INSERT directo 42501 en cabecera y detalle; lectura por RPC y RLS)';
 end $$;
 
 -- Componente con material de otra org: el resolvedor lanza 42501 y el congelado se aborta sin dejar snapshot

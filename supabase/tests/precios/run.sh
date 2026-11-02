@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Aplica las migraciones del motor de precios (20261102100001..9) sobre una base descartable
+# Aplica las migraciones del motor de precios (20261102100001..10) sobre una base descartable
 # con el esquema de producción (snapshot del harness RLS) y stubs de pgmq / pg_cron / pg_net / storage.
 # Uso: PGHOST=... PGPORT=... PGUSER=postgres PGPASSWORD=... supabase/tests/precios/run.sh
 #      (sin servidor: PRECIOS_LOCAL_PG=1 supabase/tests/precios/run.sh levanta un cluster en /tmp/pg_precios, puerto 5433)
@@ -41,7 +41,7 @@ for f in "$MIG_DIR"/057_fix_resources_commercial_columns.sql; do
   psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f"
 done
 
-for f in "$MIG_DIR"/202611021000{01,02,03,04,05,06,07,08,09}_*.sql; do
+for f in "$MIG_DIR"/202611021000{01,02,03,04,05,06,07,08,09,10}_*.sql; do
   echo "== $(basename "$f")"
   psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f"
 done
@@ -52,4 +52,6 @@ echo "== prueba de humo"
 psql -v ON_ERROR_STOP=1 -q -t -d "$DB" -f 03_humo.sql >/dev/null
 echo "== motor (observaciones, mediana, AS_OF, congelado)"
 psql -v ON_ERROR_STOP=1 -q -t -d "$DB" -f 04_motor.sql >/dev/null
+echo "== aprobación trazable (H1/H2, historial)"
+psql -v ON_ERROR_STOP=1 -q -t -d "$DB" -f 04b_aprobacion_trazable.sql >/dev/null
 echo "OK: migraciones de precios aplicadas en $DB"

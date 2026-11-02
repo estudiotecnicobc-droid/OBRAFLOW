@@ -8,7 +8,8 @@
 --   * resolved_reference_price gana observation_count / price_status / resolution (2bis-5).
 --   * resolve_reference_price: fuente SUPPLIER_OBSERVED (prioridad 2), CATALOG_UNVERIFIED,
 --     OBSERVATION_STALE y modo FROZEN leyendo budget_cost_snapshot_prices (2bis-7), con el
---     nuevo parámetro final p_snapshot_id. La firma cambia: se elimina la versión de 9 args.
+--     nuevos parámetros finales p_snapshot_id y p_budget_item_id (desambigua un componente
+--     repetido en varios ítems). La firma cambia: se elimina la versión de 9 args.
 -- Depende de 20261102100001 y 20261102100005. budget_cost_snapshot_prices se crea en
 -- 20261102100009 (plpgsql resuelve el nombre en tiempo de ejecución).
 BEGIN;
@@ -365,10 +366,12 @@ END
 $type$;
 
 -- ---------------------------------------------------------------------------
--- 5. resolve_reference_price con SUPPLIER_OBSERVED y FROZEN (firma de 10 args)
+-- 5. resolve_reference_price con SUPPLIER_OBSERVED y FROZEN (firma de 11 args)
 -- ---------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.resolve_reference_price(
   uuid,uuid,uuid,uuid,uuid,date,text,text,text);
+DROP FUNCTION IF EXISTS public.resolve_reference_price(
+  uuid,uuid,uuid,uuid,uuid,date,text,text,text,uuid);
 
 CREATE OR REPLACE FUNCTION public.resolve_reference_price(
     p_organization_id uuid,
@@ -380,7 +383,8 @@ CREATE OR REPLACE FUNCTION public.resolve_reference_price(
     p_mode text DEFAULT 'CURRENT',
     p_required_unit text DEFAULT NULL,
     p_expected_currency text DEFAULT 'ARS',
-    p_snapshot_id uuid DEFAULT NULL
+    p_snapshot_id uuid DEFAULT NULL,
+    p_budget_item_id uuid DEFAULT NULL
 )
 RETURNS public.resolved_reference_price
 LANGUAGE plpgsql
@@ -407,6 +411,8 @@ DECLARE
     v_date date := COALESCE(p_effective_date, CURRENT_DATE);
     v_snapshot_project uuid;
     v_frozen record;
+    v_frozen_ids uuid[];
+    v_frozen_variants integer;
     v_obs record;
     v_obs_region text := 'AMBA';
     v_obs_vat boolean := false;
@@ -499,12 +505,27 @@ BEGIN
             RAISE EXCEPTION 'FORBIDDEN: snapshot not accessible'
                 USING ERRCODE = '42501';
         END IF;
+        -- Un componente repetido en varios ítems tiene varias filas: con p_budget_item_id se
+        -- toma la suya; sin él, solo si todas coinciden en (unit_price, currency, unit, source).
+        SELECT count(DISTINCT (f.unit_price, f.currency, f.unit, f.source)),
+               array_agg(f.id ORDER BY f.budget_item_id, f.id)
+          INTO v_frozen_variants, v_frozen_ids
+        FROM public.budget_cost_snapshot_prices f
+        WHERE f.snapshot_id = p_snapshot_id
+          AND f.component_id = p_component_id
+          AND f.organization_id = p_organization_id
+          AND (p_budget_item_id IS NULL OR f.budget_item_id = p_budget_item_id);
+        IF COALESCE(v_frozen_variants, 0) > 1 THEN
+            RAISE EXCEPTION 'FROZEN_AMBIGUOUS_COMPONENT: pass p_budget_item_id'
+                USING ERRCODE = '22023';
+        END IF;
         SELECT f.* INTO v_frozen
         FROM public.budget_cost_snapshot_prices f
         WHERE f.snapshot_id = p_snapshot_id
           AND f.component_id = p_component_id
           AND f.organization_id = p_organization_id
-        ORDER BY f.resolved_at DESC, f.id
+          AND (p_budget_item_id IS NULL OR f.budget_item_id = p_budget_item_id)
+        ORDER BY f.budget_item_id, f.id
         LIMIT 1;
         IF NOT FOUND THEN
             v_result.price := NULL;
@@ -519,7 +540,8 @@ BEGIN
             v_result.price_status := 'SIN_PRECIO';
             v_result.resolution := jsonb_build_object(
                 'method', 'frozen_snapshot', 'snapshot_id', p_snapshot_id,
-                'project_id', v_snapshot_project, 'found', false);
+                'project_id', v_snapshot_project, 'budget_item_id', p_budget_item_id,
+                'found', false);
             RETURN v_result;
         END IF;
         v_result.price := v_frozen.unit_price;
@@ -535,7 +557,9 @@ BEGIN
         v_result.resolution := jsonb_build_object(
             'method', 'frozen_snapshot', 'snapshot_id', p_snapshot_id,
             'project_id', v_snapshot_project, 'found', true,
+            'budget_item_id', v_frozen.budget_item_id,
             'frozen_price_id', v_frozen.id,
+            'frozen_price_ids', to_jsonb(v_frozen_ids),
             'original_source', v_frozen.source,
             'original_price_status', v_frozen.price_status,
             'original_resolution', v_frozen.resolution,
@@ -757,10 +781,10 @@ $fn$;
 
 -- No publicar la función para visitantes sin sesión.
 REVOKE ALL ON FUNCTION public.resolve_reference_price(
-    uuid,uuid,uuid,uuid,uuid,date,text,text,text,uuid
+    uuid,uuid,uuid,uuid,uuid,date,text,text,text,uuid,uuid
 ) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.resolve_reference_price(
-    uuid,uuid,uuid,uuid,uuid,date,text,text,text,uuid
+    uuid,uuid,uuid,uuid,uuid,date,text,text,text,uuid,uuid
 ) TO authenticated;
 
 COMMIT;
