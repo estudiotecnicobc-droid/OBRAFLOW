@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { buildApuSheets, buildLaborBreakdown, buildPurchaseList, type ReportSource, WORKDAY_HOURS } from '../reportData';
+import {
+  buildApuSheets, buildLaborBreakdown, buildPurchaseList, buildQuoteSections, quoteGroupOptions, type ReportSource, WORKDAY_HOURS,
+} from '../reportData';
 import type { Task } from '../../../../types';
 
 const task = (id: string, category: string, dailyYield: number, laborCost = 0): Task =>
@@ -86,5 +88,39 @@ describe('Reportes · fichas de APU', () => {
     expect(tab.budgetQty).toBe(100);
     expect(tab.labor.reduce((s, r) => s + r.subtotal, 0)).toBeCloseTo(tab.laborCost, 2);
     expect(tab.materials.reduce((s, r) => s + r.subtotal, 0)).toBeCloseTo(tab.materialCost, 2);
+  });
+});
+
+describe('Reportes · pedido de cotización por grupos', () => {
+  it('lista los grupos disponibles con su cantidad de materiales', () => {
+    expect(quoteGroupOptions(src, 'material')).toEqual([
+      { key: 'Masillas', materials: 1 }, { key: 'Otros materiales', materials: 1 }, { key: 'Placas', materials: 1 },
+    ]);
+    expect(quoteGroupOptions(src, 'rubro').map(g => g.key)).toEqual(['06 MAMPOSTERÍA', '13 CIELORRASOS']);
+    expect(quoteGroupOptions(src, 'tarea').map(g => g.key)).toEqual(['Tarea cie', 'Tarea tab']);
+  });
+
+  it('filtra por tipo de material', () => {
+    const secs = buildQuoteSections(src, { by: 'material', include: ['Placas'], separate: true });
+    expect(secs).toHaveLength(1);
+    expect(secs[0].title).toBe('Placas');
+    expect(secs[0].lines.map(l => [l.id, l.purchaseQty])).toEqual([['placa', 80]]);
+  });
+
+  it('por rubro, cada sección lleva solo la cantidad que usa ese rubro', () => {
+    const secs = buildQuoteSections(src, { by: 'rubro', separate: true });
+    const placaPorRubro = Object.fromEntries(secs.map(s => [s.title, s.lines.find(l => l.id === 'placa')?.purchaseQty]));
+    expect(placaPorRubro).toEqual({ '06 MAMPOSTERÍA': 72, '13 CIELORRASOS': 8 });
+  });
+
+  it('sin separar, suma los grupos elegidos en una sola lista', () => {
+    const secs = buildQuoteSections(src, { by: 'rubro', include: ['06 MAMPOSTERÍA', '13 CIELORRASOS'], separate: false });
+    expect(secs).toHaveLength(1);
+    expect(secs[0].title).toBeUndefined();
+    expect(secs[0].lines.find(l => l.id === 'placa')?.purchaseQty).toBe(80);
+  });
+
+  it('sin grupos elegidos no hay líneas', () => {
+    expect(buildQuoteSections(src, { by: 'material', include: [], separate: true })).toEqual([]);
   });
 });

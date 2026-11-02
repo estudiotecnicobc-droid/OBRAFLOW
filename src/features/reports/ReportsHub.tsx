@@ -10,7 +10,10 @@ import { APUSummaryReport } from './APUSummaryReport';
 import { BudgetBreakdownReport } from './BudgetBreakdownReport';
 import { ConsolidatedProjectReport } from './ConsolidatedProjectReport';
 import { YieldsErrorBanner, useYieldsBlocked } from '../../../components/YieldsErrorBanner';
-import { buildApuSheets, buildLaborBreakdown, buildPurchaseList, type ReportSource } from './reportData';
+import {
+  buildApuSheets, buildLaborBreakdown, buildPurchaseList, buildQuoteSections, quoteGroupOptions,
+  type QuoteGrouping, type ReportSource,
+} from './reportData';
 import {
   ApuSheetsDoc, LaborDoc, PurchaseListDoc, QuoteRequestDoc, type DocContext,
   exportApuSheets, exportLabor, exportPurchaseList, exportQuoteRequest,
@@ -179,6 +182,68 @@ export const ReportsHub: React.FC<{ onNavigate: (tab: string) => void }> = ({ on
   );
 };
 
+const GROUPINGS: { id: QuoteGrouping; label: string; hint: string }[] = [
+  { id: 'material', label: 'Tipo de material', hint: 'Áridos, cementos, sanitarios… según la categoría de cada material' },
+  { id: 'rubro', label: 'Rubro', hint: 'Según el rubro del presupuesto (mampostería, pintura…)' },
+  { id: 'tarea', label: 'Tarea', hint: 'Según cada tarea del presupuesto' },
+];
+
+const QuoteFilters: React.FC<{
+  by: QuoteGrouping;
+  onBy: (b: QuoteGrouping) => void;
+  options: { key: string; materials: number }[];
+  include: string[] | null;
+  onInclude: (v: string[] | null) => void;
+  separate: boolean;
+  onSeparate: (v: boolean) => void;
+  count: number;
+}> = ({ by, onBy, options, include, onInclude, separate, onSeparate, count }) => {
+  const isOn = (k: string) => !include || include.includes(k);
+  const toggle = (k: string) => {
+    const current = include ?? options.map(o => o.key);
+    const next = current.includes(k) ? current.filter(x => x !== k) : [...current, k];
+    onInclude(next.length === options.length ? null : next);
+  };
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 print:hidden">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-bold text-slate-500 uppercase">Armar por</span>
+        <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+          {GROUPINGS.map(g => (
+            <button key={g.id} onClick={() => onBy(g.id)} title={g.hint}
+              className={`px-3 py-1.5 text-xs font-semibold ${by === g.id ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
+              {g.label}
+            </button>
+          ))}
+        </div>
+        <label className="ml-auto flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+          <input type="checkbox" checked={separate} onChange={e => onSeparate(e.target.checked)} />
+          Separar por grupo
+        </label>
+      </div>
+      <div>
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-xs font-bold text-slate-500 uppercase">Qué pedir</span>
+          <button onClick={() => onInclude(null)} className="text-xs text-blue-600 hover:underline">Todos</button>
+          <button onClick={() => onInclude([])} className="text-xs text-blue-600 hover:underline">Ninguno</button>
+          <span className="ml-auto text-xs text-slate-500">{count} {count === 1 ? 'línea' : 'líneas'} en el pedido</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {options.map(o => (
+            <button key={o.key} onClick={() => toggle(o.key)} aria-pressed={isOn(o.key)}
+              className={`px-2.5 py-1 rounded-full text-xs border ${isOn(o.key) ? 'bg-blue-50 border-blue-300 text-blue-800 font-semibold' : 'bg-white border-slate-200 text-slate-400'}`}>
+              {o.key} <span className="opacity-60">({o.materials})</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-[11px] text-slate-400">
+        Con «Separar por grupo», cada grupo lleva su subtítulo y la cantidad que usa. Sin separar, los grupos elegidos se suman en una sola lista.
+      </p>
+    </div>
+  );
+};
+
 const ReportViewer: React.FC<{ report: HubReportId; organizationId: string; onBack: () => void }> = ({ report, organizationId, onBack }) => {
   const erp = useERP();
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -200,6 +265,17 @@ const ReportViewer: React.FC<{ report: HubReportId; organizationId: string; onBa
 
   const ctx: DocContext = { projectName: project.name, client: project.client, address: project.address };
   const purchase = useMemo(() => (report === 'compras' || report === 'cotizacion' ? buildPurchaseList(src) : []), [report, src]);
+
+  // Pedido de cotización: se arma por tipo de material, rubro o tarea, y se eligen los grupos a pedir.
+  const [quoteBy, setQuoteBy] = useState<QuoteGrouping>('material');
+  const [quoteInclude, setQuoteInclude] = useState<string[] | null>(null); // null = todos
+  const [quoteSeparate, setQuoteSeparate] = useState(true);
+  const quoteOptions = useMemo(() => (report === 'cotizacion' ? quoteGroupOptions(src, quoteBy) : []), [report, src, quoteBy]);
+  const quoteSections = useMemo(
+    () => (report === 'cotizacion' ? buildQuoteSections(src, { by: quoteBy, include: quoteInclude ?? undefined, separate: quoteSeparate }) : []),
+    [report, src, quoteBy, quoteInclude, quoteSeparate],
+  );
+  const quoteCount = quoteSections.reduce((a, sec) => a + sec.lines.length, 0);
   const labor = useMemo(() => (report === 'mano-obra' ? buildLaborBreakdown(src) : null), [report, src]);
   const sheets = useMemo(() => (report === 'fichas-apu' ? buildApuSheets(src) : []), [report, src]);
 
@@ -212,7 +288,7 @@ const ReportViewer: React.FC<{ report: HubReportId; organizationId: string; onBa
   };
   const excel = () => {
     if (report === 'compras') exportPurchaseList(ctx, purchase);
-    if (report === 'cotizacion') exportQuoteRequest(purchase);
+    if (report === 'cotizacion') exportQuoteRequest(quoteSections);
     if (report === 'mano-obra' && labor) exportLabor(ctx, labor);
     if (report === 'fichas-apu') exportApuSheets(ctx, sheets);
   };
@@ -229,7 +305,7 @@ const ReportViewer: React.FC<{ report: HubReportId; organizationId: string; onBa
         </button>
         <h1 className="text-xl font-black text-slate-800 tracking-tight">{TITLES[report]}</h1>
         <div className="basis-full"><YieldsErrorBanner /></div>
-        {printable && !empty && !yieldsBlocked && (
+        {printable && !empty && !yieldsBlocked && !(report === 'cotizacion' && quoteCount === 0) && (
           <div className="ml-auto flex items-center gap-2">
             <button onClick={excel} className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50">
               <FileSpreadsheet size={16} /> Excel
@@ -247,14 +323,34 @@ const ReportViewer: React.FC<{ report: HubReportId; organizationId: string; onBa
             No hay datos para este reporte: revisá que las tareas del presupuesto tengan sus APU con materiales y mano de obra.
           </div>
         ) : (
+          <>
+          {report === 'cotizacion' && (
+            <QuoteFilters
+              by={quoteBy}
+              onBy={b => { setQuoteBy(b); setQuoteInclude(null); }}
+              options={quoteOptions}
+              include={quoteInclude}
+              onInclude={setQuoteInclude}
+              separate={quoteSeparate}
+              onSeparate={setQuoteSeparate}
+              count={quoteCount}
+            />
+          )}
+          {report === 'cotizacion' && quoteCount === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-500">
+              Elegí al menos un grupo para armar el pedido.
+            </div>
+          ) : (
           <div className="bg-slate-100 rounded-xl p-4 md:p-8 overflow-x-auto">
             <div ref={sheetRef} className="bg-white shadow-sm mx-auto p-8 md:p-12" style={{ maxWidth: 820 }}>
               {report === 'compras' && <PurchaseListDoc ctx={ctx} lines={purchase} />}
-              {report === 'cotizacion' && <QuoteRequestDoc lines={purchase} />}
+              {report === 'cotizacion' && <QuoteRequestDoc sections={quoteSections} />}
               {report === 'mano-obra' && labor && <LaborDoc ctx={ctx} data={labor} />}
               {report === 'fichas-apu' && <ApuSheetsDoc ctx={ctx} sheets={sheets} />}
             </div>
           </div>
+          )}
+          </>
         )
       ) : !organizationId ? (
         <div className="text-center py-12 text-slate-400 text-sm">Organización no disponible. Recargá la página.</div>
