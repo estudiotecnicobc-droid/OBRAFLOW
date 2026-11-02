@@ -16,6 +16,8 @@ export interface ChandiasTaskMaterial {
   unit: string;
   coef: number;    // cantidad por unidad del rubro
   code?: string;   // código de material en la base org (opcional, mejora el matching)
+  /** Código del recurso en el Catálogo ObraFlow (OF-M-…): de ahí sale el precio de referencia. */
+  ref?: string;
 }
 
 /**
@@ -113,6 +115,8 @@ export interface ChandiasTask {
   condiciones?: ChandiasTaskConditions;
   /** Esquema técnico propio; si falta, se usa el genérico del rubro. */
   sketch?: TaskSketchSpec;
+  /** APU equivalente del Catálogo ObraFlow (OF-…), fuente de la composición. */
+  apu?: string;
   dims: ChandiasTaskDim[];
   formula: string;      // expresión JS que usa los ids de dims[]
   materiales: ChandiasTaskMaterial[];
@@ -135,7 +139,8 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     sketch: { kind: 'excavation', mode: 'pit' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }, { id: 'profundidad', label: 'Profundidad', unit: 'm' }],
     formula: 'largo*ancho*profundidad',
-    materiales: [{ nombre: 'Puntas y barretas (amortiz.)', unit: 'kg', coef: 0.05 }],
+    materiales: [],
+    apu: 'OF-EXC-102',
   },
   {
     id: 'EXC-002', nombre: 'Excavación de zanjas para fundaciones', categoria: 'Movimiento de Suelos',
@@ -148,7 +153,8 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     sketch: { kind: 'excavation', mode: 'trench' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }, { id: 'profundidad', label: 'Profundidad', unit: 'm' }],
     formula: 'largo*ancho*profundidad',
-    materiales: [{ nombre: 'Puntas y barretas (amortiz.)', unit: 'kg', coef: 0.05 }],
+    materiales: [],
+    apu: 'OF-EXC-001',
   },
   {
     id: 'EXC-003', nombre: 'Relleno y compactación con material propio', categoria: 'Movimiento de Suelos',
@@ -161,7 +167,8 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     sketch: { kind: 'fill' },
     dims: [{ id: 'volumen', label: 'Volumen', unit: 'm³' }],
     formula: 'volumen',
-    materiales: [{ nombre: 'Agua para compactación', unit: 'm³', coef: 0.12 }],
+    materiales: [],
+    apu: 'OF-EXC-004',
   },
   {
     id: 'EXC-004', nombre: 'Nivelación y emparejamiento de terreno', categoria: 'Movimiento de Suelos',
@@ -188,11 +195,11 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 7.5 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.025 },
-      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.037 },
-      { nombre: 'Agua', unit: 'm³', coef: 0.007 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 10, ref: 'OF-M-CEM' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.03, ref: 'OF-M-ARG' },
+      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.04, ref: 'OF-M-PIE' },
     ],
+    apu: 'OF-FUN-001',
   },
 
   // ── HORMIGONES ───────────────────────────────────────────────────────────
@@ -208,11 +215,11 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Sección ancho', unit: 'm' }, { id: 'alto', label: 'Sección alto', unit: 'm' }],
     formula: 'largo*ancho*alto',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 150 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.55 },
-      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.85 },
-      { nombre: 'Agua', unit: 'm³', coef: 0.18 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 200, ref: 'OF-M-CEM' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.6, ref: 'OF-M-ARG' },
+      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.8, ref: 'OF-M-PIE' },
     ],
+    apu: 'OF-HOR-101',
   },
   {
     id: 'HOR-002', nombre: 'Hormigón H-13 (dosaje 1:2:4)', categoria: 'Hormigones',
@@ -226,11 +233,11 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'volumen', label: 'Volumen', unit: 'm³' }],
     formula: 'volumen',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 200 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.55 },
-      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.85 },
-      { nombre: 'Agua', unit: 'm³', coef: 0.18 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 250, ref: 'OF-M-CEM' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.7, ref: 'OF-M-ARG' },
+      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.8, ref: 'OF-M-PIE' },
     ],
+    apu: 'OF-HOR-102',
   },
   {
     id: 'HOR-003', nombre: 'Hormigón H-17 (dosaje 1:2:3)', categoria: 'Hormigones',
@@ -244,11 +251,11 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'volumen', label: 'Volumen', unit: 'm³' }],
     formula: 'volumen',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 250 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.55 },
-      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.85 },
-      { nombre: 'Agua', unit: 'm³', coef: 0.18 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 300, ref: 'OF-M-CEM' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.68, ref: 'OF-M-ARG' },
+      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.78, ref: 'OF-M-PIE' },
     ],
+    apu: 'OF-HOR-103',
   },
   {
     id: 'HOR-004', nombre: 'Hormigón H-21 (dosaje 1:1.5:3)', categoria: 'Hormigones',
@@ -262,12 +269,11 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'volumen', label: 'Volumen', unit: 'm³' }],
     formula: 'volumen',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 300 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.55 },
-      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.85 },
-      { nombre: 'Agua', unit: 'm³', coef: 0.18 },
-      { nombre: 'Acero ADN 420 ø10mm', unit: 'kg', coef: 50 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 350, ref: 'OF-M-CEM' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.65, ref: 'OF-M-ARG' },
+      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.75, ref: 'OF-M-PIE' },
     ],
+    apu: 'OF-HOR-104',
   },
   {
     id: 'HOR-005', nombre: 'Losa de hormigón armado e=12cm', categoria: 'Hormigones',
@@ -281,10 +287,10 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 36 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.079 },
-      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.12 },
-      { nombre: 'Acero ADN 420 ø8mm', unit: 'kg', coef: 8 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 36, ref: 'OF-M-CEM' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.084, ref: 'OF-M-ARG' },
+      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.096, ref: 'OF-M-PIE' },
+      { nombre: 'Acero ADN 420 ø8mm', unit: 'kg', coef: 8, ref: 'OF-M-ACE' },
       { nombre: 'Agua', unit: 'm³', coef: 0.022 },
     ],
   },
@@ -300,11 +306,11 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Longitud total', unit: 'm' }],
     formula: 'largo',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 15 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.033 },
-      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.05 },
-      { nombre: 'Acero ADN 420 ø12mm', unit: 'kg', coef: 3.6 },
-      { nombre: 'Alambre de atar N°18', unit: 'kg', coef: 0.07 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 15, ref: 'OF-M-CEM' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.033, ref: 'OF-M-ARG' },
+      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.05, ref: 'OF-M-PIE' },
+      { nombre: 'Acero ADN 420 ø12mm', unit: 'kg', coef: 3.6, ref: 'OF-M-ACE' },
+      { nombre: 'Alambre de atar', unit: 'kg', coef: 0.07, ref: 'OF-M-ALA' },
     ],
   },
   {
@@ -319,18 +325,18 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Altura total', unit: 'm' }],
     formula: 'largo',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 15.6 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.034 },
-      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.052 },
-      { nombre: 'Acero ADN 420 ø12mm', unit: 'kg', coef: 5.2 },
-      { nombre: 'Alambre de atar N°18', unit: 'kg', coef: 0.10 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 15.6, ref: 'OF-M-CEM' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.034, ref: 'OF-M-ARG' },
+      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.052, ref: 'OF-M-PIE' },
+      { nombre: 'Acero ADN 420 ø12mm', unit: 'kg', coef: 5.2, ref: 'OF-M-ACE' },
+      { nombre: 'Alambre de atar', unit: 'kg', coef: 0.1, ref: 'OF-M-ALA' },
     ],
   },
 
   // ── MAMPOSTERÍA ──────────────────────────────────────────────────────────
   {
     id: 'MAM-001', nombre: 'Muro ladrillo común 6x12x24 e=0.15m (1 pie)', categoria: 'Mampostería',
-    unidad: 'm²', descripcion: 'Muro portante de 1 pie, junta normal 1.5cm, mortero 1:1:6',
+    unidad: 'm²', descripcion: 'Muro de 12 cm (medio ladrillo), junta 1,5 cm, mortero de cal',
     condiciones: {
       medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro». Muro de 12 cm, unos 15 cm revocado.',
       incluye: 'Ladrillos comunes y mortero de asiento de cemento, cal y arena, con juntas de 1,5 cm.',
@@ -340,15 +346,16 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Ladrillo común 6x12x24', code: 'LAD-COM', unit: 'un', coef: 70 },
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 12 },
-      { nombre: 'Cal hidratada', code: 'CAL-HID', unit: 'kg', coef: 8 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.040 },
+      { nombre: 'Ladrillo común', unit: 'un', coef: 63, ref: 'OF-M-LC' },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 3.15, ref: 'OF-M-CEM' },
+      { nombre: 'Cal hidratada', unit: 'kg', coef: 5.4, ref: 'OF-M-CAL' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.0473, ref: 'OF-M-ARG' },
     ],
+    apu: 'OF-MAM-101',
   },
   {
     id: 'MAM-002', nombre: 'Muro ladrillo común 6x12x24 e=0.30m (2 pies)', categoria: 'Mampostería',
-    unidad: 'm²', descripcion: 'Muro de cerramiento doble, junta normal',
+    unidad: 'm²', descripcion: 'Muro de 24 cm (un ladrillo), junta 1,5 cm, mortero de cal',
     condiciones: {
       medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro». Muro de 24 cm, unos 30 cm revocado.',
       incluye: 'Ladrillos comunes trabados en el espesor y mortero de asiento de cemento, cal y arena.',
@@ -358,83 +365,84 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Ladrillo común 6x12x24', code: 'LAD-COM', unit: 'un', coef: 35 },
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 6 },
-      { nombre: 'Cal hidratada', code: 'CAL-HID', unit: 'kg', coef: 4 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.020 },
+      { nombre: 'Ladrillo común', unit: 'un', coef: 126, ref: 'OF-M-LC' },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 7, ref: 'OF-M-CEM' },
+      { nombre: 'Cal hidratada', unit: 'kg', coef: 12, ref: 'OF-M-CAL' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.105, ref: 'OF-M-ARG' },
     ],
+    apu: 'OF-MAM-102',
   },
   {
     id: 'MAM-003', nombre: 'Muro ladrillo hueco e=0.20m', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Cerramiento con ladrillo hueco 18×18×33cm',
     condiciones: {
       medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro».',
-      incluye: 'Ladrillos cerámicos huecos de 18 × 18 × 33 cm y mortero de asiento de cemento, cal y arena.',
+      incluye: 'Ladrillos cerámicos huecos de 18 × 18 × 33 cm y mortero de cemento de albañilería y arena.',
       noIncluye: 'Revoques, encadenados, dinteles ni andamios.',
     },
     sketch: { kind: 'hollowWall', block: 18 },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Ladrillo hueco 18x18x33', code: 'LAD-H18', unit: 'un', coef: 13 },
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 5 },
-      { nombre: 'Cal hidratada', code: 'CAL-HID', unit: 'kg', coef: 3 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.020 },
+      { nombre: 'Ladrillo cerámico hueco 18x18x33', unit: 'un', coef: 16.3, ref: 'OF-M-LH18' },
+      { nombre: 'Cemento de albañilería', unit: 'kg', coef: 6.25, ref: 'OF-M-CAB' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.0275, ref: 'OF-M-ARG' },
     ],
+    apu: 'OF-MAM-002',
   },
   {
     id: 'MAM-004', nombre: 'Muro ladrillo hueco e=0.15m', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Muro intermedio con ladrillo hueco 12×18×33cm',
     condiciones: {
       medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro».',
-      incluye: 'Ladrillos cerámicos huecos de 12 × 18 × 33 cm y mortero de asiento de cemento, cal y arena.',
+      incluye: 'Ladrillos cerámicos huecos de 12 × 18 × 33 cm y mortero de cemento de albañilería y arena.',
       noIncluye: 'Revoques, encadenados, dinteles ni andamios.',
     },
     sketch: { kind: 'hollowWall', block: 12 },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Ladrillo hueco 12x18x33', code: 'LAD-H12', unit: 'un', coef: 18 },
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 4 },
-      { nombre: 'Cal hidratada', code: 'CAL-HID', unit: 'kg', coef: 2.5 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.015 },
+      { nombre: 'Ladrillo cerámico hueco 12x18x33', unit: 'un', coef: 16.3, ref: 'OF-M-LH12' },
+      { nombre: 'Cemento de albañilería', unit: 'kg', coef: 4.5, ref: 'OF-M-CAB' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.0198, ref: 'OF-M-ARG' },
     ],
+    apu: 'OF-MAM-105',
   },
   {
     id: 'MAM-005', nombre: 'Tabique ladrillo cerámico 8x18x33 e=0.08m', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Tabique divisorio ceramico simple, e=8cm, 1 hoja',
     condiciones: {
       medicion: 'Superficie de tabique (largo × alto). Los vanos se descuentan en «Configuración de muro».',
-      incluye: 'Tabique no portante de ladrillos huecos de 8 × 18 × 33 cm y mortero de asiento.',
+      incluye: 'Tabique no portante de ladrillos huecos de 8 × 18 × 33 cm y mortero de cemento de albañilería y arena.',
       noIncluye: 'Revoques, dinteles, refuerzos para mesadas o muebles ni andamios.',
     },
     sketch: { kind: 'hollowWall', block: 8 },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Ladrillo hueco 8x18x33', code: 'LAD-H8', unit: 'un', coef: 20 },
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 3 },
-      { nombre: 'Cal hidratada', code: 'CAL-HID', unit: 'kg', coef: 2 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.012 },
+      { nombre: 'Ladrillo cerámico hueco 8x18x33', unit: 'un', coef: 16.3, ref: 'OF-M-LH8' },
+      { nombre: 'Cemento de albañilería', unit: 'kg', coef: 3, ref: 'OF-M-CAB' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.0132, ref: 'OF-M-ARG' },
     ],
+    apu: 'OF-MAM-104',
   },
   {
     id: 'MAM-006', nombre: 'Muro ladrillo ceramico 18x18x33 e=0.18m', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Muro exterior ceramico, e=18cm, mortero 1:1:6',
     condiciones: {
       medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro».',
-      incluye: 'Ladrillos cerámicos huecos de 18 × 18 × 33 cm y mortero de asiento de cemento, cal y arena.',
+      incluye: 'Ladrillos cerámicos huecos de 18 × 18 × 33 cm y mortero de cemento de albañilería y arena.',
       noIncluye: 'Revoques, encadenados, dinteles ni andamios.',
     },
     sketch: { kind: 'hollowWall', block: 18 },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Ladrillo ceramico 18x18x33', code: 'LAD-C18', unit: 'un', coef: 16 },
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 4 },
-      { nombre: 'Cal hidratada', code: 'CAL-HID', unit: 'kg', coef: 3 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.018 },
+      { nombre: 'Ladrillo cerámico hueco 18x18x33', unit: 'un', coef: 16.3, ref: 'OF-M-LH18' },
+      { nombre: 'Cemento de albañilería', unit: 'kg', coef: 6.25, ref: 'OF-M-CAB' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.0275, ref: 'OF-M-ARG' },
     ],
+    apu: 'OF-MAM-002',
   },
 
   // ── REVOQUES ─────────────────────────────────────────────────────────────
@@ -450,10 +458,11 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 4.5 },
-      { nombre: 'Cal hidratada', code: 'CAL-HID', unit: 'kg', coef: 5 },
-      { nombre: 'Arena fina cernida', unit: 'm³', coef: 0.030 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 1.4, ref: 'OF-M-CEM' },
+      { nombre: 'Cal hidratada', unit: 'kg', coef: 2.4, ref: 'OF-M-CAL' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.021, ref: 'OF-M-ARG' },
     ],
+    apu: 'OF-REV-008',
   },
   {
     id: 'REV-002', nombre: 'Revoque fino a la cal (enlucido)', categoria: 'Revoques',
@@ -467,9 +476,11 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Yeso común para construcción', unit: 'kg', coef: 8 },
-      { nombre: 'Cal hidratada', code: 'CAL-HID', unit: 'kg', coef: 2 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 0.24, ref: 'OF-M-CEM' },
+      { nombre: 'Cal hidratada', unit: 'kg', coef: 1.02, ref: 'OF-M-CAL' },
+      { nombre: 'Arena fina', unit: 'm³', coef: 0.006, ref: 'OF-M-ARF' },
     ],
+    apu: 'OF-REV-011',
   },
   {
     id: 'REV-003', nombre: 'Revoque exterior hidrófugo', categoria: 'Revoques',
@@ -483,14 +494,15 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 7 },
-      { nombre: 'Arena media lavada', unit: 'm³', coef: 0.030 },
-      { nombre: 'Hidrófugo líquido integral', unit: 'l', coef: 0.20 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 2.8, ref: 'OF-M-CEM' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.0077, ref: 'OF-M-ARG' },
+      { nombre: 'Hidrófugo inorgánico', unit: 'kg', coef: 0.28, ref: 'OF-M-HID' },
     ],
+    apu: 'OF-REV-005',
   },
   {
     id: 'REV-004', nombre: 'Revoque grueso exterior (1:3)', categoria: 'Revoques',
-    unidad: 'm²', descripcion: 'Mezcla cemento-arena, para exteriores no hidrófugos',
+    unidad: 'm²', descripcion: 'Mezcla de cemento, cal y arena, sobre azotado hidrófugo',
     condiciones: {
       medicion: 'Superficie revocada (largo × alto). Los vanos se descuentan en «Configuración de paño».',
       incluye: 'Revoque grueso exterior sobre el azotado hidrófugo, fratasado como base para el fino.',
@@ -500,10 +512,11 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 6 },
-      { nombre: 'Cal hidratada', code: 'CAL-HID', unit: 'kg', coef: 3 },
-      { nombre: 'Arena media lavada', unit: 'm³', coef: 0.030 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 1.4, ref: 'OF-M-CEM' },
+      { nombre: 'Cal hidratada', unit: 'kg', coef: 2.4, ref: 'OF-M-CAL' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.021, ref: 'OF-M-ARG' },
     ],
+    apu: 'OF-REV-007',
   },
   {
     id: 'REV-005', nombre: 'Enlucido bajo azulejo / porcelanato (1:4)', categoria: 'Revoques',
@@ -517,9 +530,11 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 8 },
-      { nombre: 'Arena fina cernida', unit: 'm³', coef: 0.025 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 1.26, ref: 'OF-M-CEM' },
+      { nombre: 'Cal hidratada', unit: 'kg', coef: 2.16, ref: 'OF-M-CAL' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.0189, ref: 'OF-M-ARG' },
     ],
+    apu: 'OF-REV-101',
   },
 
   // ── CONTRAPISOS Y PISOS ──────────────────────────────────────────────────
@@ -528,17 +543,19 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     unidad: 'm²', descripcion: 'Base con cascote de ladrillo triturado, e=12cm',
     condiciones: {
       medicion: 'Superficie en planta (largo × ancho), con 12 cm de espesor.',
-      incluye: 'Cascote de ladrillo con mortero de cemento y arena, apisonado sobre el terreno.',
+      incluye: 'Cascote de ladrillo con mortero de cemento, cal y arena, apisonado sobre el terreno.',
       noIncluye: 'Compactación del terreno, film o aislación hidrófuga ni carpeta.',
     },
     sketch: { kind: 'screed', type: 'cascote', thickness: '12 cm' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Cascote de ladrillo', unit: 'm³', coef: 0.12 },
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 6 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.025 },
+      { nombre: 'Cascote', unit: 'm³', coef: 0.12, ref: 'OF-M-CAS' },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 7.2, ref: 'OF-M-CEM' },
+      { nombre: 'Cal hidratada', unit: 'kg', coef: 14.4, ref: 'OF-M-CAL' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.048, ref: 'OF-M-ARG' },
     ],
+    apu: 'OF-CON-003',
   },
   {
     id: 'PIS-002', nombre: 'Contrapiso hormigón pobre (e=10cm)', categoria: 'Contrapisos y Pisos',
@@ -552,9 +569,9 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 22 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.050 },
-      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.075 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 15, ref: 'OF-M-CEM' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.055, ref: 'OF-M-ARG' },
+      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.08, ref: 'OF-M-PIE' },
     ],
   },
   {
@@ -562,15 +579,16 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     unidad: 'm²', descripcion: 'Mortero 1:3 cemento-arena, alisado con paleta',
     condiciones: {
       medicion: 'Superficie en planta (largo × ancho), con 3 cm de espesor.',
-      incluye: 'Carpeta de cemento y arena terminada alisada a la llana.',
+      incluye: 'Carpeta de cemento y arena con hidrófugo, terminada alisada a la llana.',
       noIncluye: 'Contrapiso, juntas de dilatación ni endurecedor.',
     },
     sketch: { kind: 'screed', type: 'alisado', thickness: '3 cm' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 9 },
-      { nombre: 'Arena fina cernida', unit: 'm³', coef: 0.030 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 12, ref: 'OF-M-CEM' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.033, ref: 'OF-M-ARG' },
+      { nombre: 'Hidrófugo inorgánico', unit: 'kg', coef: 0.27, ref: 'OF-M-HID' },
     ],
   },
   {
@@ -585,10 +603,10 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Mosaico calcáreo 20×20cm', unit: 'un', coef: 25 },
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 5 },
-      { nombre: 'Arena fina cernida', unit: 'm³', coef: 0.015 },
-      { nombre: 'Pastina cementicia', unit: 'kg', coef: 0.3 },
+      { nombre: 'Mosaico calcáreo 20×20cm', unit: 'un', coef: 26.3 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 5, ref: 'OF-M-CEM' },
+      { nombre: 'Arena fina', unit: 'm³', coef: 0.015, ref: 'OF-M-ARF' },
+      { nombre: 'Pastina', unit: 'kg', coef: 0.3, ref: 'OF-M-PAS' },
     ],
   },
   {
@@ -596,67 +614,72 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     unidad: 'm²', descripcion: 'Cerámica esmaltada, pegado con cemento cola',
     condiciones: {
       medicion: 'Superficie de piso (largo × ancho).',
-      incluye: 'Cerámicas de 30 × 30 cm con 5 % de desperdicio, adhesivo cementicio y pastina.',
+      incluye: 'Cerámicas con 8 % de desperdicio (se compran por m²), adhesivo cementicio y pastina.',
       noIncluye: 'Carpeta niveladora, zócalos ni cortes en diagonal.',
     },
     sketch: { kind: 'tileFloor', cm: 30, finish: 'ceramico' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Cerámica 30×30cm (c/5% desp.)', unit: 'un', coef: 11.7 },
-      { nombre: 'Cemento cola (bolsa 25kg)', unit: 'kg', coef: 5 },
-      { nombre: 'Pastina cementicia', unit: 'kg', coef: 0.5 },
+      { nombre: 'Cerámica para piso', unit: 'm²', coef: 1.08, ref: 'OF-M-CRS' },
+      { nombre: 'Adhesivo cerámico', unit: 'kg', coef: 5, ref: 'OF-M-ADC' },
+      { nombre: 'Pastina', unit: 'kg', coef: 0.3, ref: 'OF-M-PAS' },
     ],
+    apu: 'OF-PIS-101',
   },
   {
     id: 'PIS-006', nombre: 'Piso cerámico 45×45cm', categoria: 'Contrapisos y Pisos',
     unidad: 'm²', descripcion: 'Cerámica de alto tránsito, adhesivo gris',
     condiciones: {
       medicion: 'Superficie de piso (largo × ancho).',
-      incluye: 'Cerámicas de 45 × 45 cm con 5 % de desperdicio, adhesivo cementicio y pastina.',
+      incluye: 'Cerámicas con 8 % de desperdicio (se compran por m²), adhesivo cementicio y pastina.',
       noIncluye: 'Carpeta niveladora, zócalos ni cortes en diagonal.',
     },
     sketch: { kind: 'tileFloor', cm: 45, finish: 'ceramico' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Cerámica 45×45cm (c/5% desp.)', unit: 'un', coef: 5.5 },
-      { nombre: 'Cemento cola (bolsa 25kg)', unit: 'kg', coef: 4.5 },
-      { nombre: 'Pastina cementicia', unit: 'kg', coef: 0.4 },
+      { nombre: 'Cerámica para piso', unit: 'm²', coef: 1.08, ref: 'OF-M-CRS' },
+      { nombre: 'Adhesivo cerámico', unit: 'kg', coef: 5, ref: 'OF-M-ADC' },
+      { nombre: 'Pastina', unit: 'kg', coef: 0.3, ref: 'OF-M-PAS' },
     ],
+    apu: 'OF-PIS-101',
   },
   {
     id: 'PIS-007', nombre: 'Piso porcelanato 60×60cm', categoria: 'Contrapisos y Pisos',
     unidad: 'm²', descripcion: 'Porcelanato rectificado, adhesivo flexible',
     condiciones: {
       medicion: 'Superficie de piso (largo × ancho).',
-      incluye: 'Porcelanato rectificado de 60 × 60 cm con 5 % de desperdicio, adhesivo flexible y pastina.',
-      noIncluye: 'Carpeta niveladora, sistema nivelador de piezas ni zócalos.',
+      incluye: 'Porcelanato rectificado de 60 × 60 cm con 8 % de desperdicio, adhesivo impermeable, pastina y sistema nivelador de piezas.',
+      noIncluye: 'Carpeta niveladora ni zócalos.',
     },
     sketch: { kind: 'tileFloor', cm: 60, finish: 'porcelanato' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Porcelanato 60×60cm (c/5% desp.)', unit: 'un', coef: 2.94 },
-      { nombre: 'Cemento cola flexible', unit: 'kg', coef: 4 },
-      { nombre: 'Pastina epoxi / cementicia', unit: 'kg', coef: 0.3 },
+      { nombre: 'Porcelanato para piso', unit: 'm²', coef: 1.08, ref: 'OF-M-POR' },
+      { nombre: 'Adhesivo impermeable para porcelanato', unit: 'kg', coef: 6, ref: 'OF-M-ADP' },
+      { nombre: 'Pastina', unit: 'kg', coef: 0.25, ref: 'OF-M-PAS' },
+      { nombre: 'Sistema nivelador de piezas (clip y cuña)', unit: 'un', coef: 10, ref: 'OF-M-NIV' },
     ],
+    apu: 'OF-PIS-102',
   },
   {
     id: 'PIS-008', nombre: 'Solado de hormigón visto (e=8cm)', categoria: 'Contrapisos y Pisos',
     unidad: 'm²', descripcion: 'Hormigón 1:2:4 para solados exteriores, e=8cm',
     condiciones: {
       medicion: 'Superficie en planta (largo × ancho), con 8 cm de espesor.',
-      incluye: 'Hormigón colado en obra para solado exterior, terminado a la llana o peinado.',
-      noIncluye: 'Malla o fibras, juntas de dilatación, endurecedor ni base compactada.',
+      incluye: 'Hormigón colado en obra con malla sima, terminado a la llana o peinado.',
+      noIncluye: 'Juntas de dilatación, endurecedor ni base compactada.',
     },
     sketch: { kind: 'screed', type: 'visto', thickness: '8 cm' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 18 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.040 },
-      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.065 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 18, ref: 'OF-M-CEM' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.04, ref: 'OF-M-ARG' },
+      { nombre: 'Piedra partida 6/20', unit: 'm³', coef: 0.065, ref: 'OF-M-PIE' },
+      { nombre: 'Malla sima 15x15 Ø 4,2', unit: 'm²', coef: 1.1, ref: 'OF-M-MSI' },
     ],
   },
 
@@ -666,50 +689,53 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     unidad: 'm²', descripcion: 'Azulejo cerámico para baños y cocinas',
     condiciones: {
       medicion: 'Superficie revestida (largo × alto). Los vanos se descuentan en «Configuración de paño».',
-      incluye: 'Azulejos de 15 × 15 cm con 4 % de desperdicio, adhesivo y pastina.',
+      incluye: 'Azulejos de 15 × 15 cm (1,10 m² por m², con cortes), adhesivo y pastina.',
       noIncluye: 'Revoque bajo revestimiento, guardacantos ni cortes para accesorios.',
     },
     sketch: { kind: 'wallTile', w: 15, h: 15 },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Azulejo 15×15cm (c/4% desp.)', unit: 'un', coef: 46 },
-      { nombre: 'Cemento cola blanca', unit: 'kg', coef: 4 },
-      { nombre: 'Pastina blanca fina', unit: 'kg', coef: 0.4 },
+      { nombre: 'Cerámica para pared', unit: 'm²', coef: 1.1, ref: 'OF-M-CRP' },
+      { nombre: 'Adhesivo cerámico', unit: 'kg', coef: 5, ref: 'OF-M-ADC' },
+      { nombre: 'Pastina', unit: 'kg', coef: 0.3, ref: 'OF-M-PAS' },
     ],
+    apu: 'OF-RVE-101',
   },
   {
     id: 'RVE-002', nombre: 'Revestimiento porcelanato 30×60cm', categoria: 'Revestimientos',
     unidad: 'm²', descripcion: 'Porcelanato pared, adhesivo blanco flexible',
     condiciones: {
       medicion: 'Superficie revestida (largo × alto). Los vanos se descuentan en «Configuración de paño».',
-      incluye: 'Porcelanato de 30 × 60 cm con 5 % de desperdicio, adhesivo flexible y pastina.',
-      noIncluye: 'Revoque bajo revestimiento, guardacantos ni sistema nivelador.',
+      incluye: 'Porcelanato de 30 × 60 cm (1,10 m² por m², con cortes), adhesivo impermeable, pastina y sistema nivelador.',
+      noIncluye: 'Revoque bajo revestimiento ni guardacantos.',
     },
     sketch: { kind: 'wallTile', w: 60, h: 30 },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Porcelanato 30×60cm (c/5% desp.)', unit: 'un', coef: 5.9 },
-      { nombre: 'Cemento cola blanca flexible', unit: 'kg', coef: 5 },
-      { nombre: 'Pastina cementicia blanca', unit: 'kg', coef: 0.5 },
+      { nombre: 'Porcelanato para pared', unit: 'm²', coef: 1.1, ref: 'OF-M-PORP' },
+      { nombre: 'Adhesivo impermeable para porcelanato', unit: 'kg', coef: 6, ref: 'OF-M-ADP' },
+      { nombre: 'Pastina', unit: 'kg', coef: 0.25, ref: 'OF-M-PAS' },
+      { nombre: 'Sistema nivelador de piezas (clip y cuña)', unit: 'un', coef: 10, ref: 'OF-M-NIV' },
     ],
+    apu: 'OF-RVE-102',
   },
   {
     id: 'RVE-003', nombre: 'Zócalo cerámico h=10cm', categoria: 'Revestimientos',
     unidad: 'ml', descripcion: 'Cenefa / rodapié cerámico',
     condiciones: {
       medicion: 'Longitud de zócalo: perímetro del local menos el ancho de las puertas.',
-      incluye: 'Piezas de 10 × 30 cm con 5 % de desperdicio, adhesivo y pastina.',
+      incluye: 'Zócalo cerámico cortado (1,05 ml por ml), adhesivo y pastina.',
       noIncluye: 'Piezas especiales de esquina ni sellado contra el piso.',
     },
     sketch: { kind: 'skirting' },
     dims: [{ id: 'largo', label: 'Longitud', unit: 'm' }],
     formula: 'largo',
     materiales: [
-      { nombre: 'Zócalo cerámico 10×30cm (c/5%)', unit: 'un', coef: 3.5 },
-      { nombre: 'Cemento cola', unit: 'kg', coef: 0.5 },
-      { nombre: 'Pastina', unit: 'kg', coef: 0.05 },
+      { nombre: 'Zócalo cerámico o porcelanato (pieza cortada)', unit: 'ml', coef: 1.05, ref: 'OF-M-ZCE' },
+      { nombre: 'Adhesivo cerámico', unit: 'kg', coef: 0.5, ref: 'OF-M-ADC' },
+      { nombre: 'Pastina', unit: 'kg', coef: 0.05, ref: 'OF-M-PAS' },
     ],
   },
   {
@@ -717,16 +743,16 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     unidad: 'm²', descripcion: 'Laja de piedra sobre mortero 1:4',
     condiciones: {
       medicion: 'Superficie revestida (largo × alto). Los vanos se descuentan en «Configuración de paño».',
-      incluye: 'Laja de piedra natural asentada con mortero de cemento y arena, con juntas tomadas.',
+      incluye: 'Laja de piedra natural (1,10 m² por m²) asentada con mortero de cemento y arena, con juntas tomadas.',
       noIncluye: 'Revoque de base, sellador ni hidrorrepelente.',
     },
     sketch: { kind: 'stoneWall' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Laja de piedra (prov.)', unit: 'm³', coef: 0.12 },
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 8 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.025 },
+      { nombre: 'Laja o piedra para senderos', unit: 'm²', coef: 1.1, ref: 'OF-M-LAJ' },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 8, ref: 'OF-M-CEM' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.025, ref: 'OF-M-ARG' },
     ],
   },
 
@@ -736,33 +762,34 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     unidad: 'm²', descripcion: 'Chapa galvanizada C25, solape lateral y longitudinal',
     condiciones: {
       medicion: 'Superficie en proyección horizontal (largo × ancho). La chapa real es mayor según la pendiente.',
-      incluye: 'Chapa sinusoidal galvanizada C25 con solapes, tornillos autoperforantes, burlete de cierre y sellador.',
+      incluye: 'Chapa sinusoidal C25 con solapes, tornillos autoperforantes con arandela, burlete de cierre y sellador.',
       noIncluye: 'Estructura, correas, aislación, zinguería ni canaletas.',
     },
     sketch: { kind: 'sheetRoof' },
     dims: [{ id: 'largo', label: 'Largo (proyección)', unit: 'm' }, { id: 'ancho', label: 'Ancho (proyección)', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Chapa sinusoidal galv. C25', unit: 'm²', coef: 1.15 },
-      { nombre: 'Tornillos autoperforantes ø6×75mm', unit: 'un', coef: 7 },
+      { nombre: 'Chapa sinusoidal galv. C25', unit: 'm²', coef: 1.12, ref: 'OF-M-CHP' },
+      { nombre: 'Tornillo autoperforante con arandela', unit: 'un', coef: 6, ref: 'OF-M-TAU' },
       { nombre: 'Burlete cierre de caballete', unit: 'ml', coef: 0.5 },
-      { nombre: 'Sellador siliconado neutro', unit: 'l', coef: 0.03 },
+      { nombre: 'Sellador poliuretánico (cartucho)', unit: 'un', coef: 0.02, ref: 'OF-M-SEL' },
     ],
+    apu: 'OF-CUB-010',
   },
   {
     id: 'CUB-002', nombre: 'Cubierta de teja cerámica s/torta de barro', categoria: 'Cubiertas',
     unidad: 'm²', descripcion: 'Teja francesa o española sobre torta de barro+cal',
     condiciones: {
       medicion: 'Superficie en proyección horizontal (largo × ancho). La cubierta real es mayor según la pendiente.',
-      incluye: 'Tejas cerámicas asentadas sobre torta de barro y cal.',
+      incluye: 'Tejas cerámicas coloniales (canal y cobija) asentadas sobre torta de barro y cal.',
       noIncluye: 'Estructura, entablonado o clavaderas, aislación ni cumbreras.',
     },
     sketch: { kind: 'tileRoof' },
     dims: [{ id: 'largo', label: 'Largo (proyección)', unit: 'm' }, { id: 'ancho', label: 'Ancho (proyección)', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Teja cerámica curva', unit: 'un', coef: 16 },
-      { nombre: 'Barro negro amasado', unit: 'm³', coef: 0.030 },
+      { nombre: 'Teja cerámica colonial (canal y cobija)', unit: 'un', coef: 28, ref: 'OF-M-TCE' },
+      { nombre: 'Barro negro amasado', unit: 'm³', coef: 0.03 },
       { nombre: 'Cal viva', unit: 'kg', coef: 2 },
     ],
   },
@@ -778,10 +805,11 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Membrana asfáltica APP 4mm', unit: 'm²', coef: 1.10 },
-      { nombre: 'Imprimación asfáltica (fondo)', unit: 'l', coef: 0.35 },
-      { nombre: 'Sikaflex / sellador juntas', unit: 'l', coef: 0.05 },
+      { nombre: 'Imprimación asfáltica', unit: 'l', coef: 0.3, ref: 'OF-M-IMP' },
+      { nombre: 'Membrana asfáltica 4 mm con aluminio', unit: 'm²', coef: 1.15, ref: 'OF-M-MEM' },
+      { nombre: 'Gas para soplete (garrafa 10 kg)', unit: 'un', coef: 0.02, ref: 'OF-M-GAR' },
     ],
+    apu: 'OF-CUB-002',
   },
   {
     id: 'CUB-004', nombre: 'Losa con viguetas pretensadas y bloques', categoria: 'Cubiertas',
@@ -795,12 +823,13 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Vigueta pretensada 20cm', unit: 'ml', coef: 1.4 },
-      { nombre: 'Bloque cerámico 20×20×25cm', unit: 'un', coef: 4 },
-      { nombre: 'Cemento Portland CPN 40', code: 'CEM-PORT', unit: 'kg', coef: 18 },
-      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.040 },
-      { nombre: 'Acero ADN ø6mm (malla)', unit: 'kg', coef: 1.5 },
+      { nombre: 'Vigueta pretensada', unit: 'ml', coef: 2.2, ref: 'OF-M-VIG' },
+      { nombre: 'Ladrillo cerámico para losa', unit: 'un', coef: 8.5, ref: 'OF-M-LLO' },
+      { nombre: 'Hormigón elaborado H-21', unit: 'm³', coef: 0.06, ref: 'OF-M-H21' },
+      { nombre: 'Malla sima 15x15 Ø 4,2', unit: 'm²', coef: 1.1, ref: 'OF-M-MSI' },
+      { nombre: 'Alambre de atar', unit: 'kg', coef: 0.02, ref: 'OF-M-ALA' },
     ],
+    apu: 'OF-CUB-017',
   },
 
   // ── AISLACIONES ──────────────────────────────────────────────────────────
@@ -816,8 +845,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Pintura asfáltica al solvente', unit: 'l', coef: 0.50 },
-      { nombre: 'Aguarrás mineral', unit: 'l', coef: 0.08 },
+      { nombre: 'Pintura asfáltica (2 manos)', unit: 'l', coef: 0.5, ref: 'OF-M-IMP' },
     ],
   },
   {
@@ -832,10 +860,11 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Lana de vidrio 50mm c/kraft', unit: 'm²', coef: 1.05 },
-      { nombre: 'Cinta de sellado papel kraft', unit: 'ml', coef: 0.20 },
+      { nombre: 'Lana de vidrio 50 mm c/kraft', unit: 'm²', coef: 1.05, ref: 'OF-M-LV' },
+      { nombre: 'Cinta de embalar', unit: 'un', coef: 0.02, ref: 'OF-M-CIP' },
       { nombre: 'Grampas / fijadores', unit: 'un', coef: 4 },
     ],
+    apu: 'OF-CIE-106',
   },
   {
     id: 'AIS-003', nombre: 'Barrera de vapor film polietileno 200µ', categoria: 'Aislaciones',
@@ -849,9 +878,10 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Film polietileno 200µ', unit: 'm²', coef: 1.10 },
-      { nombre: 'Cinta adhesiva doble faz', unit: 'ml', coef: 0.20 },
+      { nombre: 'Film de polietileno 200 µm', unit: 'm²', coef: 1.15, ref: 'OF-M-POL' },
+      { nombre: 'Cinta de embalar', unit: 'un', coef: 0.02, ref: 'OF-M-CIP' },
     ],
+    apu: 'OF-AIS-002',
   },
 
   // ── CIELORRASOS ──────────────────────────────────────────────────────────
@@ -867,46 +897,53 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Yeso común para cielorraso', unit: 'kg', coef: 8 },
-      { nombre: 'Cal hidratada', code: 'CAL-HID', unit: 'kg', coef: 2 },
-      { nombre: 'Arena fina cernida', unit: 'm³', coef: 0.015 },
+      { nombre: 'Cemento Portland', unit: 'kg', coef: 1.05, ref: 'OF-M-CEM' },
+      { nombre: 'Cal hidratada', unit: 'kg', coef: 1.8, ref: 'OF-M-CAL' },
+      { nombre: 'Arena gruesa', unit: 'm³', coef: 0.0158, ref: 'OF-M-ARG' },
+      { nombre: 'Yeso de obra', unit: 'kg', coef: 3, ref: 'OF-M-YES' },
     ],
+    apu: 'OF-CIE-003',
   },
   {
     id: 'CIE-002', nombre: 'Cielorraso suspendido en seco (Durlock)', categoria: 'Cielorrasos',
     unidad: 'm²', descripcion: 'Placa de yeso 12.5mm sobre estructura de perfiles',
     condiciones: {
       medicion: 'Superficie de cielorraso en planta (largo × ancho).',
-      incluye: 'Placa de yeso de 12,5 mm atornillada a perfiles galvanizados, con masilla y cinta en las juntas.',
-      noIncluye: 'Cuelgues, aislación, buñas ni pintura.',
+      incluye: 'Placa de yeso de 12,5 mm sobre estructura de montantes de 34 mm y soleras de 35 mm, fijaciones a la losa, masilla y cinta en las juntas.',
+      noIncluye: 'Aislación, buñas ni pintura.',
     },
     sketch: { kind: 'ceiling', type: 'suspendido' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Placa de yeso 12.5mm', unit: 'm²', coef: 1.10 },
-      { nombre: 'Perfil montante 70mm (par)', unit: 'ml', coef: 1.2 },
-      { nombre: 'Perfil solera 70mm', unit: 'ml', coef: 0.8 },
-      { nombre: 'Tornillos autoperforantes 3.5×25mm', unit: 'un', coef: 12 },
-      { nombre: 'Masilla para juntas (bolsa 20kg)', unit: 'kg', coef: 0.35 },
-      { nombre: 'Cinta de papel microperforada', unit: 'ml', coef: 0.8 },
+      { nombre: 'Placa de yeso 12,5 mm estándar', unit: 'm²', coef: 1.05, ref: 'OF-M-PY' },
+      { nombre: 'Montante 34 mm', unit: 'ml', coef: 2.8, ref: 'OF-M-M35' },
+      { nombre: 'Solera 35 mm', unit: 'ml', coef: 0.9, ref: 'OF-M-S35' },
+      { nombre: 'Tornillo T2 punta aguja', unit: 'un', coef: 18, ref: 'OF-M-T2' },
+      { nombre: 'Tornillo T1 punta aguja', unit: 'un', coef: 8, ref: 'OF-M-T1' },
+      { nombre: 'Fijación tarugo + tornillo N°8', unit: 'un', coef: 2, ref: 'OF-M-FIJ' },
+      { nombre: 'Masilla para placa de yeso', unit: 'kg', coef: 0.35, ref: 'OF-M-MAS' },
+      { nombre: 'Cinta de papel microperforada', unit: 'ml', coef: 1.5, ref: 'OF-M-CIN' },
     ],
+    apu: 'OF-CIE-002',
   },
   {
     id: 'CIE-003', nombre: 'Cielorraso madera machimbrada', categoria: 'Cielorrasos',
     unidad: 'm²', descripcion: 'Tablones machimbrados de pino 1a clavados a viguería',
     condiciones: {
       medicion: 'Superficie de cielorraso en planta (largo × ancho).',
-      incluye: 'Machimbre de pino con 10 % de desperdicio, clavado a la estructura existente.',
-      noIncluye: 'Tirantes o clavaderas, aislación, barniz ni molduras.',
+      incluye: 'Machimbre de pino con 8 % de desperdicio, clavaderas de 2 × 2 y clavos.',
+      noIncluye: 'Tirantes de la estructura, aislación, barniz ni molduras.',
     },
     sketch: { kind: 'ceiling', type: 'machimbre' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Machimbre pino (c/10% desp.)', unit: 'm²', coef: 1.15 },
-      { nombre: 'Clavos de acero 2½" (tipo cielorraso)', unit: 'kg', coef: 0.02 },
+      { nombre: 'Machimbre de pino 1/2 x 4', unit: 'm²', coef: 1.08, ref: 'OF-M-MAC' },
+      { nombre: 'Clavadera de pino 2x2', unit: 'ml', coef: 2.5, ref: 'OF-M-CLV' },
+      { nombre: 'Clavos', unit: 'kg', coef: 0.1, ref: 'OF-M-CLA' },
     ],
+    apu: 'OF-CIE-104',
   },
 
   // ── PINTURAS ─────────────────────────────────────────────────────────────
@@ -922,11 +959,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Pintura látex vinílico interior', unit: 'l', coef: 0.30 },
-      { nombre: 'Sellador acrílico fijador', unit: 'l', coef: 0.08 },
-      { nombre: 'Enduído plástico interior', unit: 'kg', coef: 0.15 },
-      { nombre: 'Lija al agua N°150', unit: 'un', coef: 0.10 },
+      { nombre: 'Fijador sellador', unit: 'l', coef: 0.1, ref: 'OF-M-FIX' },
+      { nombre: 'Enduido plástico interior', unit: 'l', coef: 0.15, ref: 'OF-M-ENP' },
+      { nombre: 'Látex interior', unit: 'l', coef: 0.24, ref: 'OF-M-LXI' },
+      { nombre: 'Lija', unit: 'un', coef: 0.1, ref: 'OF-M-LIJ' },
     ],
+    apu: 'OF-PIN-104',
   },
   {
     id: 'PIN-002', nombre: 'Pintura látex exterior (2 manos)', categoria: 'Pinturas',
@@ -940,24 +978,27 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Pintura látex acrílico exterior', unit: 'l', coef: 0.35 },
-      { nombre: 'Fijador acrílico para exteriores', unit: 'l', coef: 0.10 },
+      { nombre: 'Fijador sellador', unit: 'l', coef: 0.1, ref: 'OF-M-FIX' },
+      { nombre: 'Látex exterior', unit: 'l', coef: 0.24, ref: 'OF-M-LXE' },
+      { nombre: 'Lija', unit: 'un', coef: 0.05, ref: 'OF-M-LIJ' },
     ],
+    apu: 'OF-PIN-115',
   },
   {
     id: 'PIN-003', nombre: 'Pintura al cal (2 manos)', categoria: 'Pinturas',
     unidad: 'm²', descripcion: 'Lechada de cal para paredes de obra gruesa',
     condiciones: {
       medicion: 'Superficie a pintar (largo × alto). Los vanos se descuentan en «Configuración de paño».',
-      incluye: 'Lechada de cal en 2 manos sobre revoque.',
-      noIncluye: 'Fijador, pigmentos ni reparación de revoques.',
+      incluye: 'Cal para pintar con fijador incorporado, en 2 manos sobre revoque.',
+      noIncluye: 'Pigmentos ni reparación de revoques.',
     },
     sketch: { kind: 'paint', type: 'cal' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
-      { nombre: 'Cal hidratada en polvo', code: 'CAL-AER', unit: 'kg', coef: 0.15 },
+      { nombre: 'Cal para pintar con fijador', unit: 'kg', coef: 0.5, ref: 'OF-M-CAL3' },
     ],
+    apu: 'OF-PIN-118',
   },
   {
     id: 'PIN-004', nombre: 'Esmalte sintético s/carpintería de madera (2 manos)', categoria: 'Pinturas',
@@ -971,10 +1012,9 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     dims: [{ id: 'largo', label: 'Largo (desarrollo)', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
-      { nombre: 'Esmalte sintético brillante', unit: 'l', coef: 0.20 },
-      { nombre: 'Fondo anticorrosivo / sellador madera', unit: 'l', coef: 0.08 },
-      { nombre: 'Aguarrás mineral', unit: 'l', coef: 0.05 },
-      { nombre: 'Lija al agua N°180', unit: 'un', coef: 0.20 },
+      { nombre: 'Fondo sellador para madera', unit: 'l', coef: 0.1, ref: 'OF-M-FIX' },
+      { nombre: 'Esmalte sintético', unit: 'l', coef: 0.2, ref: 'OF-M-ESM' },
+      { nombre: 'Lija', unit: 'un', coef: 0.2, ref: 'OF-M-LIJ' },
     ],
   },
 
@@ -982,7 +1022,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   // APU base volumétrico (m³). Encofrado calculado paramétricamente (derivedOutputs).
   {
     id: 'FUN-001', nombre: 'Bases de Hormigón Armado H-21', categoria: 'Fundaciones',
-    unidad: 'm³', descripcion: 'Base aislada o corrida de H.A. H-21. 50 kg/m³ de acero ADN 420.',
+    unidad: 'm³', descripcion: 'Base aislada o corrida de H.A. H-21. 52,5 kg/m³ de acero ADN 420.',
     condiciones: {
       medicion: 'Volumen de hormigón de la base (largo × ancho × alto).',
       incluye: 'Hormigón elaborado H-21 con desperdicio y acero ADN 420 según la cuantía.',
@@ -996,12 +1036,13 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     ],
     formula: 'largo*ancho*alto',
     materiales: [
-      { nombre: 'Hormigón Elaborado H-21', unit: 'm³', coef: 1.05 },
-      { nombre: 'Acero ADN 420',           unit: 'kg', coef: 50   },
+      { nombre: 'Hormigón elaborado H-21', unit: 'm³', coef: 1.05, ref: 'OF-M-H21' },
+      { nombre: 'Acero ADN 420', unit: 'kg', coef: 52.5, ref: 'OF-M-ACE' },
     ],
+    apu: 'OF-FUN-005',
     structuralConfig: {
       enabled: true,
-      defaultSteelRatio: 50,
+      defaultSteelRatio: 52.5,
       defaultWastePercent: 5,
       defaultFormwork: { fondo: true, lat1: true, lat2: true, lat3: false },
       sketchVariant: 'box3d',
@@ -1010,7 +1051,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   },
   {
     id: 'FUN-002', nombre: 'Viga de Fundación de H.A.', categoria: 'Fundaciones',
-    unidad: 'm³', descripcion: 'Viga de fundación de H.A. H-21. 130 kg/m³ de acero ADN 420. Encofrado paramétrico (fondo + laterales).',
+    unidad: 'm³', descripcion: 'Viga de fundación de H.A. H-21. 94,5 kg/m³ de acero ADN 420. Encofrado paramétrico (fondo + laterales).',
     condiciones: {
       medicion: 'Volumen de hormigón de la viga (largo × ancho × alto).',
       incluye: 'Hormigón elaborado H-21, acero ADN 420 según la cuantía y encofrado de fondo y laterales.',
@@ -1024,9 +1065,10 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     ],
     formula: 'largo*ancho*alto',
     materiales: [
-      { nombre: 'Hormigón Elaborado H-21', unit: 'm³', coef: 1.05 },
-      { nombre: 'Acero ADN 420',           unit: 'kg', coef: 130  },
+      { nombre: 'Hormigón elaborado H-21', unit: 'm³', coef: 1.05, ref: 'OF-M-H21' },
+      { nombre: 'Acero ADN 420', unit: 'kg', coef: 94.5, ref: 'OF-M-ACE' },
     ],
+    apu: 'OF-FUN-004',
     derivedOutputs: [
       {
         id: 'encofrado',
@@ -1042,7 +1084,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     ],
     structuralConfig: {
       enabled: true,
-      defaultSteelRatio: 130,
+      defaultSteelRatio: 94.5,
       defaultWastePercent: 5,
       defaultFormwork: { fondo: true, lat1: true, lat2: true, lat3: false },
       sketchVariant: 'box3d',
@@ -1051,7 +1093,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   },
   {
     id: 'FUN-003', nombre: 'Columna de Hormigón Armado H-21', categoria: 'Fundaciones',
-    unidad: 'm³', descripcion: 'Columna estructural de H.A. H-21. 200 kg/m³ de acero ADN 420. Encofrado de 4 caras laterales.',
+    unidad: 'm³', descripcion: 'Columna estructural de H.A. H-21. 105 kg/m³ de acero ADN 420. Encofrado de 4 caras laterales.',
     condiciones: {
       medicion: 'Volumen de hormigón de la columna (altura × sección).',
       incluye: 'Hormigón elaborado H-21, acero ADN 420 según la cuantía y encofrado de las caras laterales.',
@@ -1065,9 +1107,10 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     ],
     formula: 'largo*ancho*alto',
     materiales: [
-      { nombre: 'Hormigón Elaborado H-21', unit: 'm³', coef: 1.05 },
-      { nombre: 'Acero ADN 420',           unit: 'kg', coef: 200  },
+      { nombre: 'Hormigón elaborado H-21', unit: 'm³', coef: 1.05, ref: 'OF-M-H21' },
+      { nombre: 'Acero ADN 420', unit: 'kg', coef: 105, ref: 'OF-M-ACE' },
     ],
+    apu: 'OF-FUN-006',
     derivedOutputs: [
       {
         id: 'encofrado',
@@ -1083,7 +1126,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     ],
     structuralConfig: {
       enabled: true,
-      defaultSteelRatio: 200,
+      defaultSteelRatio: 105,
       defaultWastePercent: 5,
       defaultFormwork: { fondo: false, lat1: true, lat2: true, lat3: true },
       sketchVariant: 'column3d',
@@ -1097,7 +1140,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   // la UI avanzada (cómputo, encofrado, acero) sin cambiar código.
   {
     id: 'FUN-004', nombre: 'Columna de H.A.', categoria: 'Estructura H.A.',
-    unidad: 'm³', descripcion: 'Columna estructural de H.A. H-21. 95 kg/m³ de acero ADN 420. Encofrado de 4 caras laterales.',
+    unidad: 'm³', descripcion: 'Columna estructural de H.A. H-21. 105 kg/m³ de acero ADN 420. Encofrado de 4 caras laterales.',
     condiciones: {
       medicion: 'Volumen de hormigón de la columna (altura libre × sección).',
       incluye: 'Hormigón elaborado H-21, acero ADN 420 según la cuantía y encofrado de las caras laterales.',
@@ -1111,9 +1154,10 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     ],
     formula: 'largo*ancho*alto',
     materiales: [
-      { nombre: 'Hormigón Elaborado H-21', unit: 'm³', coef: 1.05 },
-      { nombre: 'Acero ADN 420',           unit: 'kg', coef: 95   },
+      { nombre: 'Hormigón elaborado H-21', unit: 'm³', coef: 1.05, ref: 'OF-M-H21' },
+      { nombre: 'Acero ADN 420', unit: 'kg', coef: 105, ref: 'OF-M-ACE' },
     ],
+    apu: 'OF-EST-001',
     derivedOutputs: [
       {
         id: 'encofrado',
@@ -1129,7 +1173,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     ],
     structuralConfig: {
       enabled: true,
-      defaultSteelRatio: 95,
+      defaultSteelRatio: 105,
       defaultWastePercent: 5,
       defaultFormwork: { fondo: false, lat1: true, lat2: true, lat3: true },
       sketchVariant: 'column3d',
@@ -1138,7 +1182,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   },
   {
     id: 'FUN-005', nombre: 'Viga de H.A. Aérea', categoria: 'Estructura H.A.',
-    unidad: 'm³', descripcion: 'Viga aérea de H.A. H-21. 120 kg/m³ de acero ADN 420. Encofrado fondo + 2 laterales.',
+    unidad: 'm³', descripcion: 'Viga aérea de H.A. H-21. 126 kg/m³ de acero ADN 420. Encofrado fondo + 2 laterales.',
     condiciones: {
       medicion: 'Volumen de hormigón de la viga (largo × ancho × alto).',
       incluye: 'Hormigón elaborado H-21, acero ADN 420 según la cuantía y encofrado de fondo y laterales.',
@@ -1152,9 +1196,10 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     ],
     formula: 'largo*ancho*alto',
     materiales: [
-      { nombre: 'Hormigón Elaborado H-21', unit: 'm³', coef: 1.05 },
-      { nombre: 'Acero ADN 420',           unit: 'kg', coef: 120  },
+      { nombre: 'Hormigón elaborado H-21', unit: 'm³', coef: 1.05, ref: 'OF-M-H21' },
+      { nombre: 'Acero ADN 420', unit: 'kg', coef: 126, ref: 'OF-M-ACE' },
     ],
+    apu: 'OF-EST-101',
     derivedOutputs: [
       {
         id: 'encofrado',
@@ -1170,7 +1215,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     ],
     structuralConfig: {
       enabled: true,
-      defaultSteelRatio: 120,
+      defaultSteelRatio: 126,
       defaultWastePercent: 5,
       defaultFormwork: { fondo: true, lat1: true, lat2: true, lat3: false },
       sketchVariant: 'box3d',
@@ -1179,7 +1224,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   },
   {
     id: 'FUN-006', nombre: 'Losa Maciza de H.A.', categoria: 'Estructura H.A.',
-    unidad: 'm³', descripcion: 'Losa maciza de H.A. H-21. 55 kg/m³ de acero ADN 420. Cimbra en cara inferior.',
+    unidad: 'm³', descripcion: 'Losa maciza de H.A. H-21. 84 kg/m³ de acero ADN 420. Cimbra en cara inferior.',
     condiciones: {
       medicion: 'Volumen de hormigón de la losa (largo × ancho × espesor).',
       incluye: 'Hormigón elaborado H-21, acero ADN 420 según la cuantía y cimbra de la cara inferior.',
@@ -1193,9 +1238,10 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     ],
     formula: 'largo*ancho*alto',
     materiales: [
-      { nombre: 'Hormigón Elaborado H-21', unit: 'm³', coef: 1.05 },
-      { nombre: 'Acero ADN 420',           unit: 'kg', coef: 55   },
+      { nombre: 'Hormigón elaborado H-21', unit: 'm³', coef: 1.05, ref: 'OF-M-H21' },
+      { nombre: 'Acero ADN 420', unit: 'kg', coef: 84, ref: 'OF-M-ACE' },
     ],
+    apu: 'OF-CUB-019',
     derivedOutputs: [
       {
         id: 'encofrado',
@@ -1211,7 +1257,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     ],
     structuralConfig: {
       enabled: true,
-      defaultSteelRatio: 55,
+      defaultSteelRatio: 84,
       defaultWastePercent: 5,
       defaultFormwork: { fondo: true, lat1: false, lat2: false, lat3: false },
       sketchVariant: 'floor',
@@ -1243,16 +1289,17 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     unidad: 'ml', descripcion: 'Caño PVC serie sanitaria DN110, sellado con adhesivo',
     condiciones: {
       medicion: 'Longitud de cañería medida sobre plano o en obra.',
-      incluye: 'Caño PVC de 110 mm con 5 % de desperdicio, accesorios estimados y adhesivo, colocado con pendiente.',
+      incluye: 'Caño PVC de 110 mm con 5 % de desperdicio, accesorios estimados y cama de arena fina, colocado con pendiente.',
       noIncluye: 'Excavación, cámaras de inspección, piletas de patio ni prueba hidráulica.',
     },
     sketch: { kind: 'pipe', type: 'cloaca' },
     dims: [{ id: 'largo', label: 'Longitud', unit: 'm' }],
     formula: 'largo',
     materiales: [
-      { nombre: 'Caño PVC sanitario DN110mm', unit: 'ml', coef: 1.05 },
-      { nombre: 'Adhesivo PVC / sellador cloacal', unit: 'l', coef: 0.020 },
-      { nombre: 'Accesorios PVC 110mm (codos, reduc.) — estim.', unit: 'un', coef: 0.25 },
+      { nombre: 'Caño PVC 110 mm', unit: 'ml', coef: 1.05, ref: 'OF-M-P110' },
+      { nombre: 'Accesorios de PVC (codos, ramales)', unit: 'un', coef: 0.5, ref: 'OF-M-APV' },
+      { nombre: 'Arena fina', unit: 'm³', coef: 0.05, ref: 'OF-M-ARF' },
     ],
+    apu: 'OF-SAN-107',
   },
 ];

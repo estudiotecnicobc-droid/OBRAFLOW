@@ -131,9 +131,21 @@ export interface OrgMaterialLookup {
   commercialUnit?: string;    // Ej: "bolsa 50 kg"
   conversionFactor?: number;  // 1 unidad comercial = N unidades técnicas
   commercialPrice?: number;   // precio comercial original (antes de dividir por CF)
+  priceSource?: PriceSource;
 }
 
 export type MatchedBy = 'code' | 'name' | 'missing';
+
+/** De dónde sale el precio de un material del catálogo. */
+export type PriceSource = 'empresa' | 'obraflow';
+
+/** Precio de referencia de un recurso del Catálogo ObraFlow, por código OF-M-…. */
+export interface ReferencePrice {
+  code: string;
+  name: string;
+  unit: string;
+  cost: number;
+}
 
 export interface ResolvedMaterial extends ChandiasCalcMaterial {
   unitCost: number;
@@ -142,6 +154,7 @@ export interface ResolvedMaterial extends ChandiasCalcMaterial {
   commercialUnit?: string;   // Heredado del material org
   conversionFactor?: number;
   purchaseQty?: number;      // CEIL(cantidad / conversionFactor), undefined si no aplica
+  priceSource?: PriceSource;
 }
 
 /**
@@ -495,15 +508,62 @@ export function mapMaterialToReal(
     }
   }
 
+  // Un material encontrado pero con precio 0 entraría al presupuesto en $0 sin aviso.
+  if (!(unitCost > 0)) matchedBy = 'missing';
+
   return {
     ...m,
     unitCost,
     totalCost: parseFloat((unitCost * m.cantidad).toFixed(2)),
     matchedBy,
+    priceSource: matchedBy === 'missing' ? undefined : matched?.priceSource,
     conversionFactor,
     commercialUnit,
     purchaseQty: convertToCommercial(m.cantidad, conversionFactor) ?? fallbackPurchaseQty(m.nombre, m.cantidad),
   };
+}
+
+/**
+ * Precios de los materiales del catálogo que tienen código del Catálogo ObraFlow (ref).
+ *
+ * Manda el precio de la empresa si tiene ese mismo recurso (mismo código OF-M-…) con
+ * precio cargado; si no, el precio de referencia del Catálogo ObraFlow. Si no hay
+ * ninguno, la entrada queda en 0 y el material se marca «sin precio»: no se busca por
+ * nombre en la base de la empresa, porque ahí conviven precios de otras épocas.
+ *
+ * Devuelve entradas con el nombre del catálogo para anteponerlas a la base de la org.
+ */
+export function buildCatalogPriceIndex(
+  tasks: ChandiasTask[],
+  refs: Map<string, ReferencePrice>,
+  orgMaterials: Array<OrgMaterialLookup & { source?: string }>,
+): OrgMaterialLookup[] {
+  const own = new Map<string, OrgMaterialLookup>();
+  for (const m of orgMaterials) {
+    if (m.code && m.source === 'master_materials' && m.cost > 0) own.set(m.code.toUpperCase(), m);
+  }
+  const out = new Map<string, OrgMaterialLookup>();
+  for (const t of tasks) {
+    for (const mat of t.materiales) {
+      if (!mat.ref) continue;
+      const key = normalizeStr(mat.nombre);
+      if (out.has(key)) continue;
+      const code = mat.ref.toUpperCase();
+      const o = own.get(code);
+      const r = refs.get(code);
+      out.set(key, {
+        code: mat.ref,
+        name: mat.nombre,
+        unit: mat.unit,
+        cost: o ? o.cost : (r?.cost ?? 0),
+        conversionFactor: o?.conversionFactor,
+        commercialPrice: o?.commercialPrice,
+        commercialUnit: o?.commercialUnit,
+        priceSource: o ? 'empresa' : r ? 'obraflow' : undefined,
+      });
+    }
+  }
+  return [...out.values()];
 }
 
 /**

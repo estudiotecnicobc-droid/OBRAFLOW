@@ -6,7 +6,7 @@ import { officialRubro } from '../budgets/rubroMap';
 
 const EMPTY_DIMS: Record<string, string> = {};
 import {
-  calculateTask, consolidateMaterials, getCategories,
+  calculateTask, consolidateMaterials, getCategories, buildCatalogPriceIndex,
   mapMaterialToReal, consolidateResolved, convertToCommercial,
   computeDerivedOutputs, DerivedOutputResult,
   ChandiasAddedItem, ManualMaterial, OrgMaterialLookup, ResolvedMaterial,
@@ -21,6 +21,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useERP } from '../../../context/ERPContext';
 import { useMasterTasks } from '../../../hooks/useMasterTasks';
 import { useUnifiedMaterials } from '../../../hooks/useUnifiedMaterials';
+import { useObraFlowReferencePrices } from '../../../hooks/useObraFlowReferencePrices';
 import { masterTasksService, MasterTaskInput } from '../../../services/masterTasksSupabaseService';
 import { MasterTaskMaterial, APUSourceMetadata } from '../../../types';
 import { ReportPreviewModal, ReportMode } from './ReportPreviewModal';
@@ -799,7 +800,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
   const resolvedMaterials = useMemo((): ResolvedMaterial[] => {
     if (!calcResult || !task) return [];
     return calcResult.materiales.map((m, i) =>
-      mapMaterialToReal({ ...m, code: task.materiales[i]?.code }, orgMaterialsEffective),
+      mapMaterialToReal({ ...m, code: task.materiales[i]?.ref ?? task.materiales[i]?.code }, orgMaterialsEffective),
     );
   }, [calcResult, task, orgMaterialsEffective]);
 
@@ -1574,7 +1575,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
         </div>
 
         {totalCount === 0 ? (
-          <p className="text-xs text-slate-400 text-center py-6 italic">Sin materiales definidos</p>
+          <p className="text-xs text-slate-400 text-center py-6 italic">Sin materiales: es una tarea de mano de obra o equipo</p>
         ) : (
           <table className="w-full text-xs">
             <thead>
@@ -1623,7 +1624,17 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
                   <td className="px-3 py-2.5 text-right">
                     {m.matchedBy === 'missing'
                       ? <span className="text-amber-500 text-[10px]">sin precio</span>
-                      : <span className="text-slate-600">${fmtCost(m.unitCost)}</span>
+                      : (
+                        <span className="inline-flex flex-col items-end leading-tight">
+                          <span className="text-slate-600">${fmtCost(m.unitCost)}</span>
+                          {m.priceSource && (
+                            <span className={`text-[9px] ${m.priceSource === 'empresa' ? 'text-emerald-600' : 'text-slate-400'}`}
+                              title={m.priceSource === 'empresa' ? 'Precio cargado en tu empresa' : 'Precio de referencia del Catálogo ObraFlow (AMBA, octubre 2026)'}>
+                              {m.priceSource === 'empresa' ? 'tu empresa' : 'ObraFlow'}
+                            </span>
+                          )}
+                        </span>
+                      )
                     }
                   </td>
                   <td className="px-3 py-2.5 text-right font-semibold">
@@ -1766,6 +1777,11 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
               )}
             </tbody>
           </table>
+        )}
+        {totalCount > 0 && (
+          <p className="px-4 py-1.5 text-[10px] text-slate-400 border-t border-slate-100">
+            Precios de referencia del Catálogo ObraFlow (AMBA, octubre 2026). Si tu empresa tiene ese mismo material con precio, se usa el tuyo.
+          </p>
         )}
 
         {/* ── Formulario inline: agregar material ────────────────────────────── */}
@@ -2345,7 +2361,12 @@ export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }
   const { list: unifiedList }            = useUnifiedMaterials(orgId);
   // Fallback: si unifiedList todavía está vacío (Supabase aún cargando),
   // usar los materiales del proyecto ya disponibles en ERPContext.
-  const orgMaterials: OrgMaterialLookup[] = unifiedList.length > 0 ? unifiedList : erpMaterials;
+  const orgMaterialsBase: OrgMaterialLookup[] = unifiedList.length > 0 ? unifiedList : erpMaterials;
+  const referencePrices = useObraFlowReferencePrices();
+  const orgMaterials = useMemo(
+    () => [...buildCatalogPriceIndex(CHANDIAS_CATALOG, referencePrices, orgMaterialsBase), ...orgMaterialsBase],
+    [referencePrices, orgMaterialsBase],
+  );
 
   // Set de nombres existentes para el check de duplicados en el modal
   const existingNames = useMemo(
@@ -2619,6 +2640,8 @@ export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }
     if (noAPUPayloads.length > 0) {
       parts.push(`${noAPUPayloads.length} sin APU (costo = 0)`);
     }
+    const sinPrecio = consolidateResolved(withManualMerged(items), orgMaterials).filter(m => m.matchedBy === 'missing').length;
+    if (sinPrecio > 0) parts.push(`${sinPrecio} material${sinPrecio > 1 ? 'es' : ''} del cómputo sin precio`);
     return parts.join(' · ') + repeatedMsg;
   }, [
     items, projectId, project?.id, orgId, masterTasks, orgMaterials,
