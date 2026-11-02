@@ -639,10 +639,10 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
     setMatDropdown(false);
     setNWalls(init?.nWalls ?? 1);
     setOpenings(init?.openings ?? []);
-    setShowAdvanced(false);
+    setShowAdvanced(true);
     setNRooms(init?.nRooms ?? 1);
     setFloorSectors(init?.floorSectors ?? []);
-    setShowFloorAdvanced(false);
+    setShowFloorAdvanced(true);
     if (init) {
       // Restaurar config de vigas desde el borrador
       setBeamNBeams(init.beamNBeams);
@@ -672,7 +672,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
       setBeamNBeams(BEAM_CONFIG_DEFAULTS.nBeams);
       setBeamSteelDiameter(BEAM_CONFIG_DEFAULTS.steelDiameterMm);
     }
-    setShowBeamAdvanced(init ? (init.beamNBeams > 1 || init.beamWaste !== BEAM_CONFIG_DEFAULTS.wastePercent || init.beamSteelRatio !== BEAM_CONFIG_DEFAULTS.steelRatio) : (task.structuralConfig?.defaultPanelOpen ?? false));
+    setShowBeamAdvanced(true);
     prevTaskId.current = task.id;
   }
 
@@ -1000,7 +1000,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
           {/* ── Configuración avanzada de muro / paño (Mampostería · Revoques · Revestimientos) ── */}
           {isWallFamily && (() => {
             const isMam = task.categoria === 'Mampostería';
-            const wallLabel  = isMam ? 'Configuración de muro'  : 'Configuración de paño';
+            const wallLabel  = isMam ? 'Muros iguales y aberturas' : 'Paños iguales y aberturas';
             const nWallLabel = isMam ? 'Muros iguales' : 'Paños iguales';
             return (
               <div className="mt-4 border border-slate-200 rounded-xl overflow-hidden">
@@ -1119,7 +1119,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
               >
                 <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
                   <Layers size={13} />
-                  Configuración de piso
+                  Ambientes iguales y sectores
                   {(nRooms > 1 || floorSectors.length > 0) && (
                     <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-100 text-emerald-600 rounded-full">
                       {[
@@ -1211,7 +1211,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ task, orgMaterials, onAdd, on
               >
                 <span className="flex items-center gap-1.5 text-xs font-semibold text-stone-700">
                   <Settings2 size={13} />
-                  Parámetros de cómputo
+                  Elementos iguales, desperdicio y armadura
                   {(() => {
                     const activeFaceCount = [beamFondo, beamLat1, beamLat2, beamLat3].filter(Boolean).length;
                     const defaultFaceCount = task?.structuralConfig

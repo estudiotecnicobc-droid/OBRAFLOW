@@ -338,7 +338,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'MAM-001', nombre: 'Muro ladrillo común 6x12x24 e=0.15m (1 pie)', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Muro de 12 cm (medio ladrillo), junta 1,5 cm, mortero de cal',
     condiciones: {
-      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro». Muro de 12 cm, unos 15 cm revocado.',
+      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Muros iguales y aberturas». Muro de 12 cm, unos 15 cm revocado.',
       incluye: 'Ladrillos comunes y mortero de asiento de cemento, cal y arena, con juntas de 1,5 cm.',
       noIncluye: 'Revoques, encadenados, dinteles, capa aisladora ni andamios.',
     },
@@ -357,7 +357,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'MAM-002', nombre: 'Muro ladrillo común 6x12x24 e=0.30m (2 pies)', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Muro de 24 cm (un ladrillo), junta 1,5 cm, mortero de cal',
     condiciones: {
-      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro». Muro de 24 cm, unos 30 cm revocado.',
+      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Muros iguales y aberturas». Muro de 24 cm, unos 30 cm revocado.',
       incluye: 'Ladrillos comunes trabados en el espesor y mortero de asiento de cemento, cal y arena.',
       noIncluye: 'Revoques, encadenados, dinteles, capa aisladora ni andamios.',
     },
@@ -376,7 +376,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'MAM-003', nombre: 'Muro ladrillo hueco e=0.20m', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Cerramiento con ladrillo hueco 18×18×33cm',
     condiciones: {
-      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro».',
+      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Muros iguales y aberturas».',
       incluye: 'Ladrillos cerámicos huecos de 18 × 18 × 33 cm y mortero de cemento de albañilería y arena.',
       noIncluye: 'Revoques, encadenados, dinteles ni andamios.',
     },
@@ -394,7 +394,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'MAM-004', nombre: 'Muro ladrillo hueco e=0.15m', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Muro intermedio con ladrillo hueco 12×18×33cm',
     condiciones: {
-      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro».',
+      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Muros iguales y aberturas».',
       incluye: 'Ladrillos cerámicos huecos de 12 × 18 × 33 cm y mortero de cemento de albañilería y arena.',
       noIncluye: 'Revoques, encadenados, dinteles ni andamios.',
     },
@@ -412,7 +412,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'MAM-005', nombre: 'Tabique ladrillo cerámico 8x18x33 e=0.08m', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Tabique divisorio ceramico simple, e=8cm, 1 hoja',
     condiciones: {
-      medicion: 'Superficie de tabique (largo × alto). Los vanos se descuentan en «Configuración de muro».',
+      medicion: 'Superficie de tabique (largo × alto). Los vanos se descuentan en «Muros iguales y aberturas».',
       incluye: 'Tabique no portante de ladrillos huecos de 8 × 18 × 33 cm y mortero de cemento de albañilería y arena.',
       noIncluye: 'Revoques, dinteles, refuerzos para mesadas o muebles ni andamios.',
     },
@@ -430,7 +430,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'MAM-006', nombre: 'Muro ladrillo ceramico 18x18x33 e=0.18m', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Muro exterior ceramico, e=18cm, mortero 1:1:6',
     condiciones: {
-      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro».',
+      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Muros iguales y aberturas».',
       incluye: 'Ladrillos cerámicos huecos de 18 × 18 × 33 cm y mortero de cemento de albañilería y arena.',
       noIncluye: 'Revoques, encadenados, dinteles ni andamios.',
     },
@@ -450,7 +450,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'REV-001', nombre: 'Revoque grueso interior (1:2:9)', categoria: 'Revoques',
     unidad: 'm²', descripcion: 'Mortero cemento-cal-arena, e≈15mm, base para fino',
     condiciones: {
-      medicion: 'Superficie revocada (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      medicion: 'Superficie revocada (largo × alto). Los vanos se descuentan en «Paños iguales y aberturas».',
       incluye: 'Revoque grueso (jaharro) de cemento, cal y arena, de unos 1,5 cm, fratasado como base para el fino.',
       noIncluye: 'Fino, azotado hidrófugo, buñas, guardacantos ni andamios.',
     },
@@ -468,7 +468,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'REV-002', nombre: 'Revoque fino a la cal (enlucido)', categoria: 'Revoques',
     unidad: 'm²', descripcion: 'Yeso o pasta cal, acabado liso, e≈5mm',
     condiciones: {
-      medicion: 'Superficie revocada (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      medicion: 'Superficie revocada (largo × alto). Los vanos se descuentan en «Paños iguales y aberturas».',
       incluye: 'Enlucido fino de unos 5 mm sobre el grueso fraguado, terminado al fieltro.',
       noIncluye: 'Revoque grueso, pintura ni reparación de fisuras.',
     },
@@ -486,7 +486,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'REV-003', nombre: 'Revoque exterior hidrófugo', categoria: 'Revoques',
     unidad: 'm²', descripcion: 'Mortero con hidrófugo de fraguado, e≈20mm',
     condiciones: {
-      medicion: 'Superficie revocada (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      medicion: 'Superficie revocada (largo × alto). Los vanos se descuentan en «Paños iguales y aberturas».',
       incluye: 'Capa de cemento y arena con hidrófugo, continua y sin juntas, aplicada antes del grueso.',
       noIncluye: 'Revoque grueso, fino ni pintura impermeable.',
     },
@@ -504,7 +504,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'REV-004', nombre: 'Revoque grueso exterior (1:3)', categoria: 'Revoques',
     unidad: 'm²', descripcion: 'Mezcla de cemento, cal y arena, sobre azotado hidrófugo',
     condiciones: {
-      medicion: 'Superficie revocada (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      medicion: 'Superficie revocada (largo × alto). Los vanos se descuentan en «Paños iguales y aberturas».',
       incluye: 'Revoque grueso exterior sobre el azotado hidrófugo, fratasado como base para el fino.',
       noIncluye: 'Azotado hidrófugo, fino ni pintura.',
     },
@@ -522,7 +522,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'REV-005', nombre: 'Enlucido bajo azulejo / porcelanato (1:4)', categoria: 'Revoques',
     unidad: 'm²', descripcion: 'Base cementosa para aplicación de revestimiento',
     condiciones: {
-      medicion: 'Superficie a revestir (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      medicion: 'Superficie a revestir (largo × alto). Los vanos se descuentan en «Paños iguales y aberturas».',
       incluye: 'Revoque de cemento y arena a plomo y peinado, como base para pegar cerámicos o porcelanatos.',
       noIncluye: 'Revestimiento, adhesivo ni pastina.',
     },
@@ -688,7 +688,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'RVE-001', nombre: 'Revestimiento azulejo 15×15cm', categoria: 'Revestimientos',
     unidad: 'm²', descripcion: 'Azulejo cerámico para baños y cocinas',
     condiciones: {
-      medicion: 'Superficie revestida (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      medicion: 'Superficie revestida (largo × alto). Los vanos se descuentan en «Paños iguales y aberturas».',
       incluye: 'Azulejos de 15 × 15 cm (1,10 m² por m², con cortes), adhesivo y pastina.',
       noIncluye: 'Revoque bajo revestimiento, guardacantos ni cortes para accesorios.',
     },
@@ -706,7 +706,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'RVE-002', nombre: 'Revestimiento porcelanato 30×60cm', categoria: 'Revestimientos',
     unidad: 'm²', descripcion: 'Porcelanato pared, adhesivo blanco flexible',
     condiciones: {
-      medicion: 'Superficie revestida (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      medicion: 'Superficie revestida (largo × alto). Los vanos se descuentan en «Paños iguales y aberturas».',
       incluye: 'Porcelanato de 30 × 60 cm (1,10 m² por m², con cortes), adhesivo impermeable, pastina y sistema nivelador.',
       noIncluye: 'Revoque bajo revestimiento ni guardacantos.',
     },
@@ -742,7 +742,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'RVE-004', nombre: 'Revestimiento laja de piedra natural', categoria: 'Revestimientos',
     unidad: 'm²', descripcion: 'Laja de piedra sobre mortero 1:4',
     condiciones: {
-      medicion: 'Superficie revestida (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      medicion: 'Superficie revestida (largo × alto). Los vanos se descuentan en «Paños iguales y aberturas».',
       incluye: 'Laja de piedra natural (1,10 m² por m²) asentada con mortero de cemento y arena, con juntas tomadas.',
       noIncluye: 'Revoque de base, sellador ni hidrorrepelente.',
     },
@@ -951,7 +951,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'PIN-001', nombre: 'Pintura látex interior (2 manos)', categoria: 'Pinturas',
     unidad: 'm²', descripcion: 'Previo enduído y sellador, 2 manos de látex vinílico',
     condiciones: {
-      medicion: 'Superficie a pintar (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      medicion: 'Superficie a pintar (largo × alto). Si hay puertas o ventanas, cargá el largo ya descontado.',
       incluye: 'Lijado, fijador sellador, enduido parcial y 2 manos de látex interior.',
       noIncluye: 'Reparación de revoques, enduido total ni andamios.',
     },
@@ -970,7 +970,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'PIN-002', nombre: 'Pintura látex exterior (2 manos)', categoria: 'Pinturas',
     unidad: 'm²', descripcion: 'Látex exterior acrílico con base fijadora',
     condiciones: {
-      medicion: 'Superficie a pintar (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      medicion: 'Superficie a pintar (largo × alto). Si hay puertas o ventanas, cargá el largo ya descontado.',
       incluye: 'Fijador para exteriores y 2 manos de látex acrílico.',
       noIncluye: 'Hidrolavado, tratamiento de fisuras ni andamios.',
     },
@@ -988,7 +988,7 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
     id: 'PIN-003', nombre: 'Pintura al cal (2 manos)', categoria: 'Pinturas',
     unidad: 'm²', descripcion: 'Lechada de cal para paredes de obra gruesa',
     condiciones: {
-      medicion: 'Superficie a pintar (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      medicion: 'Superficie a pintar (largo × alto). Si hay puertas o ventanas, cargá el largo ya descontado.',
       incluye: 'Cal para pintar con fijador incorporado, en 2 manos sobre revoque.',
       noIncluye: 'Pigmentos ni reparación de revoques.',
     },
