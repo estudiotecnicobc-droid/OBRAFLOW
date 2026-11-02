@@ -1,10 +1,12 @@
 /**
  * services/pricing/types.ts
  * ─────────────────────────
- * Tipos TypeScript del motor de precios (contrato tanda 2-nov-2026).
+ * Tipos TypeScript del motor de precios (firmas finales, tanda 2-nov-2026).
  * Espejo camelCase del tipo SQL `resolved_reference_price`, de la tabla
  * `budget_cost_snapshot_prices` y de los resultados de las RPCs
- * `resolve_observed_price`, `freeze_budget_prices` y `get_frozen_budget_prices`.
+ * `resolve_observed_price`, `publish_price_observations`,
+ * `invalidate_price_observation`, `freeze_budget_prices` y
+ * `get_frozen_budget_prices`.
  */
 
 export type PriceCurrency = 'ARS' | 'USD';
@@ -23,7 +25,7 @@ export type PriceSource =
   | 'FROZEN_SNAPSHOT'
   | 'NO_PRICE';
 
-/** `price_status` del tipo SQL (atributo agregado por la migración 100008). */
+/** `price_status` del tipo SQL. */
 export type PriceStatus =
   | 'RELEVADO'
   | 'DESACTUALIZADO'
@@ -31,8 +33,74 @@ export type PriceStatus =
   | 'FROZEN'
   | 'SIN_PRECIO';
 
+/** Warnings conocidos del motor (la lista en runtime es abierta: `string[]`). */
+export type PriceWarning =
+  | 'CATALOG_UNVERIFIED'
+  | 'OBSERVATION_STALE'
+  | 'FROZEN_PRICE_MISSING'
+  | 'RESOLVER_ERROR'
+  | 'TOTALS_DIVERGE_FROM_LEGACY_ENGINE'
+  | (string & {});
+
 /** Indicador de calidad agregado para un APU / presupuesto (capa UI). */
 export type ApuPriceQuality = 'RELEVADO' | 'ESTIMADO' | 'DESACTUALIZADO' | 'SIN_PRECIO';
+
+/** `reference_pricing_status` de `budget_cost_snapshots` y `status` de `freeze_budget_prices`. */
+export type PriceReconciliationStatus = 'reconciled' | 'pending_reconciliation' | 'partial';
+
+// ── resolution (jsonb) ────────────────────────────────────────────────────────
+
+/** Fuente SUPPLIER_OBSERVED: mediana por proveedor. */
+export interface ObservedPriceResolution {
+  method: 'median_by_supplier';
+  window_days: number;
+  as_of: string;
+  mode: PriceMode;
+  filters: {
+    region: string;
+    currency: string;
+    includes_vat: boolean;
+    commercial_condition: string;
+  };
+  observation_ids: string[];
+  observation_count: number;
+  supplier_count: number;
+  newest_observed_on: string | null;
+  oldest_observed_on: string | null;
+}
+
+/** Resto de fuentes (override, maestros, recurso, legacy, NO_PRICE). */
+export interface SingleSourceResolution {
+  method: 'single_source';
+  source: PriceSource;
+  as_of: string;
+  mode: PriceMode;
+  observed_candidates: number;
+}
+
+/** Fuente FROZEN_SNAPSHOT: lectura del precio congelado. */
+export interface FrozenSnapshotResolution {
+  method: 'frozen_snapshot';
+  snapshot_id: string;
+  project_id: string | null;
+  found: boolean;
+  frozen_price_id: string | null;
+  original_source: PriceSource | null;
+  original_price_status: PriceStatus | null;
+  original_resolution: PriceResolution | null;
+  resolved_at: string | null;
+}
+
+/**
+ * Trazabilidad jsonb del motor. Se conserva en snake_case tal como lo emite
+ * SQL: es un documento de auditoría, no un objeto de dominio.
+ */
+export type PriceResolution =
+  | ObservedPriceResolution
+  | SingleSourceResolution
+  | FrozenSnapshotResolution;
+
+// ── resolve_reference_price ───────────────────────────────────────────────────
 
 /** Equivalente camelCase de `public.resolved_reference_price`. */
 export interface ResolvedReferencePrice {
@@ -46,6 +114,7 @@ export interface ResolvedReferencePrice {
   isUsable: boolean;
   observationCount: number | null;
   priceStatus: PriceStatus;
+  resolution: PriceResolution | null;
 }
 
 export interface ResolveReferencePriceParams {
@@ -58,8 +127,10 @@ export interface ResolveReferencePriceParams {
   mode?: PriceMode;                 // default: CURRENT
   requiredUnit?: string | null;
   expectedCurrency?: PriceCurrency; // default: ARS
-  snapshotId?: string | null;       // solo FROZEN
+  snapshotId?: string | null;       // obligatorio en FROZEN
 }
+
+// ── resolve_observed_price ────────────────────────────────────────────────────
 
 /** Fila de `resolve_observed_price` (mediana de observaciones de proveedores). */
 export interface ObservedPrice {
@@ -71,20 +142,48 @@ export interface ObservedPrice {
   oldestObservedOn: string;
   observationIds: string[];
   priceStatus: Extract<PriceStatus, 'RELEVADO' | 'DESACTUALIZADO'>;
+  supplierCount: number;
 }
 
-export type CommercialCondition = 'LISTA' | 'CONTADO' | 'MAYORISTA' | 'OTRA';
+/**
+ * Condición comercial de una observación. Valor libre en DB; se listan las
+ * conocidas para autocompletar sin cerrar el tipo.
+ */
+export type CommercialCondition = 'LISTA' | 'CONTADO' | 'MAYORISTA' | 'OTRA' | (string & {});
 
+/**
+ * `region` y `commercialCondition` son obligatorios: la DB usa 'DESCONOCIDA'
+ * como región de las observaciones no curadas y no debe viajar como filtro
+ * implícito desde TS.
+ */
 export interface ResolveObservedPriceParams {
   organizationId: string;
   masterMaterialId: string;
+  region: string;
+  commercialCondition: CommercialCondition;
   asOf?: string;                    // default: hoy
-  region?: string;                  // default: AMBA
   currency?: PriceCurrency;         // default: ARS
   includesVat?: boolean;            // default: false
-  commercialCondition?: CommercialCondition; // default: LISTA
   windowDays?: number;              // default: 90
 }
+
+// ── publish / invalidate observaciones ────────────────────────────────────────
+
+export interface PublishPriceObservationsParams {
+  organizationId: string;
+  observationIds: string[];
+  region: string;
+  includesVat: boolean;
+  commercialCondition: CommercialCondition;
+}
+
+export interface InvalidatePriceObservationParams {
+  organizationId: string;
+  observationId: string;
+  reason: string;
+}
+
+// ── snapshots congelados ──────────────────────────────────────────────────────
 
 /** Fila de `budget_cost_snapshot_prices` en camelCase. */
 export interface FrozenComponentPrice {
@@ -92,13 +191,14 @@ export interface FrozenComponentPrice {
   snapshotId: string;
   organizationId: string;
   projectId: string;
+  budgetItemId: string;
   masterTaskId: string;
   componentId: string;
   masterMaterialId: string | null;
   resourceId: string | null;
   quantity: number;
   unit: string;
-  unitPrice: number;
+  unitPrice: number | null;         // null solo si source = NO_PRICE
   currency: string;
   source: PriceSource;
   referenceId: string | null;
@@ -106,15 +206,28 @@ export interface FrozenComponentPrice {
   effectiveDate: string | null;
   unitFactor: number;
   warnings: string[];
+  isUsable: boolean;                // false si la DB lo marca o si unitPrice es null
+  observationCount: number | null;
+  resolution: PriceResolution | null;
   resolvedAt: string;
+  createdBy: string | null;
 }
 
 /** Resultado jsonb de `freeze_budget_prices`. */
 export interface FreezeBudgetPricesResult {
   snapshotId: string;
+  projectId: string;
+  costDate: string;
+  mode: PriceMode;
+  status: PriceReconciliationStatus;
   itemCount: number;
   componentCount: number;
   unusableCount: number;
+  nestedSkippedCount: number;
+  materialsTotal: number;
+  legacyMaterialsTotal: number | null;
+  divergence: number | null;
+  legacyTotals: Record<string, unknown> | null;
   warnings: string[];
 }
 
@@ -153,6 +266,8 @@ export interface ApuPriceTrace {
   referenceId: string | null;
   effectiveDate: string | null;
   priceStatus: PriceStatus;
+  observationCount: number | null;
+  resolution: PriceResolution | null;
 }
 
 export interface ApuUnitCostResult {

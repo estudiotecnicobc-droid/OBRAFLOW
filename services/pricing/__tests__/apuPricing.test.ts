@@ -1,12 +1,25 @@
 import { describe, it, expect } from 'vitest';
 import { buildApuUnitCost, summarizePriceStatus, WARN_CURRENCY_MIXED, WARN_PRICE_NOT_RESOLVED } from '../apuPricing';
-import type { ApuPricingComponent, ResolvedReferencePrice } from '../types';
+import type { ApuPricingComponent, PriceResolution, ResolvedReferencePrice } from '../types';
 
 const relevado = (over: Partial<ResolvedReferencePrice> = {}): ResolvedReferencePrice => ({
   price: 100, unit: 'KG', currency: 'ARS', source: 'SUPPLIER_OBSERVED', warnings: [],
   effectiveDate: '2026-11-01', referenceId: 'obs-1', isUsable: true,
-  observationCount: 3, priceStatus: 'RELEVADO', ...over,
+  observationCount: 3, priceStatus: 'RELEVADO', resolution: null, ...over,
 });
+
+const observedResolution: PriceResolution = {
+  method: 'median_by_supplier', window_days: 90, as_of: '2026-11-02', mode: 'CURRENT',
+  filters: { region: 'AMBA', currency: 'ARS', includes_vat: false, commercial_condition: 'LISTA' },
+  observation_ids: ['o1', 'o2', 'o3'], observation_count: 3, supplier_count: 2,
+  newest_observed_on: '2026-11-01', oldest_observed_on: '2026-10-01',
+};
+
+const frozenResolution: PriceResolution = {
+  method: 'frozen_snapshot', snapshot_id: 'snp-1', project_id: 'prj-1', found: true,
+  frozen_price_id: 'fp-1', original_source: 'ORG_MASTER', original_price_status: 'CATALOG_UNVERIFIED',
+  original_resolution: null, resolved_at: '2026-10-01T10:00:00+00:00',
+};
 
 const comp = (over: Partial<ApuPricingComponent> = {}): ApuPricingComponent => ({
   componentId: 'c1', materialName: 'Cemento', unit: 'KG', quantity: 10, ...over,
@@ -19,8 +32,8 @@ describe('buildApuUnitCost', () => {
       comp({ componentId: 'c2', materialName: 'Arena', unit: 'M3', quantity: 0.0333 }),
     ];
     const resolved = {
-      c1: relevado({ price: 123.4567, referenceId: 'obs-c' }),
-      c2: relevado({ price: 45000.1234, unit: 'M3', referenceId: 'obs-a', effectiveDate: '2026-10-28' }),
+      c1: relevado({ price: 123.4567, referenceId: 'obs-c', resolution: observedResolution }),
+      c2: relevado({ price: 45000.1234, unit: 'M3', referenceId: 'obs-a', effectiveDate: '2026-10-28', observationCount: 5 }),
     };
     const r = buildApuUnitCost(components, resolved);
 
@@ -31,8 +44,8 @@ describe('buildApuUnitCost', () => {
     expect(r.components[1].cost).toBe(+(45000.1234 * 0.0333).toFixed(4));
     expect(r.materialCost).toBe(+(r.components[0].cost + r.components[1].cost).toFixed(2));
     expect(r.traceability).toEqual([
-      { componentId: 'c1', source: 'SUPPLIER_OBSERVED', referenceId: 'obs-c', effectiveDate: '2026-11-01', priceStatus: 'RELEVADO' },
-      { componentId: 'c2', source: 'SUPPLIER_OBSERVED', referenceId: 'obs-a', effectiveDate: '2026-10-28', priceStatus: 'RELEVADO' },
+      { componentId: 'c1', source: 'SUPPLIER_OBSERVED', referenceId: 'obs-c', effectiveDate: '2026-11-01', priceStatus: 'RELEVADO', observationCount: 3, resolution: observedResolution },
+      { componentId: 'c2', source: 'SUPPLIER_OBSERVED', referenceId: 'obs-a', effectiveDate: '2026-10-28', priceStatus: 'RELEVADO', observationCount: 5, resolution: null },
     ]);
     expect(r.warnings).toEqual([]);
   });
@@ -92,6 +105,21 @@ describe('buildApuUnitCost', () => {
     expect(r.isUsable).toBe(false);
     expect(r.components[0].source).toBe('NO_PRICE');
     expect(r.warnings).toEqual([`Cemento: ${WARN_PRICE_NOT_RESOLVED}`]);
+    expect(r.traceability[0]).toEqual({
+      componentId: 'c1', source: 'NO_PRICE', referenceId: null, effectiveDate: null,
+      priceStatus: 'SIN_PRECIO', observationCount: null, resolution: null,
+    });
+  });
+
+  it('APU congelado: FROZEN cuenta como RELEVADO y la trazabilidad conserva la resolution frozen_snapshot', () => {
+    const r = buildApuUnitCost(
+      [comp()],
+      { c1: relevado({ source: 'FROZEN_SNAPSHOT', priceStatus: 'FROZEN', referenceId: 'fp-1', observationCount: null, resolution: frozenResolution }) },
+    );
+    expect(r.isUsable).toBe(true);
+    expect(r.priceQuality).toBe('RELEVADO');
+    expect(r.traceability[0].resolution).toEqual(frozenResolution);
+    expect(r.traceability[0].observationCount).toBeNull();
   });
 
   it('UNIT_MISMATCH del motor → componente no usable aunque tenga precio', () => {
@@ -145,6 +173,12 @@ describe('summarizePriceStatus', () => {
 
   it('todos RELEVADO (o FROZEN) → RELEVADO', () => {
     expect(summarizePriceStatus([relevado(), relevado({ source: 'FROZEN_SNAPSHOT', priceStatus: 'FROZEN' })])).toBe('RELEVADO');
+  });
+
+  it('FROZEN es el relevado del congelado: no se degrada aunque el original fuera CATALOG_UNVERIFIED o viejo', () => {
+    expect(summarizePriceStatus([
+      relevado({ source: 'FROZEN_SNAPSHOT', priceStatus: 'FROZEN', effectiveDate: '2025-01-15', resolution: frozenResolution }),
+    ])).toBe('RELEVADO');
   });
 
   it('algún CATALOG_UNVERIFIED → ESTIMADO', () => {

@@ -47,7 +47,7 @@ function lookup(resolved: ResolvedPriceMap, id: string): ResolvedReferencePrice 
 const NOT_RESOLVED: ResolvedReferencePrice = {
   price: null, unit: null, currency: null, source: 'NO_PRICE',
   warnings: [WARN_PRICE_NOT_RESOLVED], effectiveDate: null, referenceId: null,
-  isUsable: false, observationCount: null, priceStatus: 'SIN_PRECIO',
+  isUsable: false, observationCount: null, priceStatus: 'SIN_PRECIO', resolution: null,
 };
 
 function resolveFactor(component: ApuPricingComponent, resolvedUnit: string | null): number {
@@ -116,6 +116,8 @@ export function buildApuUnitCost(
       referenceId: r.referenceId,
       effectiveDate: r.effectiveDate,
       priceStatus: r.priceStatus,
+      observationCount: r.observationCount,
+      resolution: r.resolution,
     });
 
     for (const w of compWarnings) warnings.add(`${c.materialName}: ${w}`);
@@ -143,6 +145,12 @@ export function buildApuUnitCost(
  *   · ESTIMADO       — algún precio de catálogo no verificado (CATALOG_UNVERIFIED),
  *                      de recurso/legacy o de estado desconocido
  *   · RELEVADO       — todos relevados o congelados (FROZEN)
+ *
+ * FROZEN se trata como RELEVADO: un precio congelado es el "relevado del
+ * congelado", es decir, el valor que se validó y fijó en el momento del
+ * snapshot. Su antigüedad respecto de hoy no lo degrada a DESACTUALIZADO ni a
+ * ESTIMADO; la calidad original (observado, catálogo, legacy) queda disponible
+ * en `resolution.original_price_status` para quien quiera mostrarla.
  */
 export function summarizePriceStatus(resolved: ResolvedReferencePrice[]): ApuPriceQuality {
   if (resolved.length === 0) return 'SIN_PRECIO';
