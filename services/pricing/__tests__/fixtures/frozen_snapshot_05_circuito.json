@@ -1,0 +1,198 @@
+{
+  "_source": "supabase/tests/precios/05_circuito.sql — freeze P1 (I1 = 10 m2, I2 = 3,5 m2; APU T1: Cemento 2 bolsas +5 % cf 50, Arena 0,5 m3)",
+  "expected": {
+    "materialsTotal": 36247.5,
+    "legacyMaterialsTotal": 33075.0,
+    "divergence": 3172.5,
+    "byBudgetItem": {
+      "b0000000-0000-0000-0000-000000000001": 26850.0,
+      "b0000000-0000-0000-0000-000000000002": 9397.5
+    }
+  },
+  "rows": [
+    {
+      "id": "f0000000-0000-0000-0000-000000000001",
+      "snapshotId": "c0000000-0000-0000-0000-000000000001",
+      "organizationId": "10000000-0000-0000-0000-000000000001",
+      "projectId": "20000000-0000-0000-0000-000000000001",
+      "budgetItemId": "b0000000-0000-0000-0000-000000000001",
+      "masterTaskId": "80000000-0000-0000-0000-000000000001",
+      "componentId": "90000000-0000-0000-0000-000000000001",
+      "masterMaterialId": "30000000-0000-0000-0000-000000000001",
+      "resourceId": null,
+      "quantity": 21,
+      "unit": "bolsa",
+      "unitPrice": 1100,
+      "currency": "ARS",
+      "source": "SUPPLIER_OBSERVED",
+      "referenceId": "e0000000-0000-0000-0000-000000000002",
+      "priceStatus": "RELEVADO",
+      "effectiveDate": "2026-11-02",
+      "supplierUnitFactor": 1,
+      "apuConversionFactor": 50,
+      "warnings": [],
+      "isUsable": true,
+      "observationCount": 3,
+      "resolution": {
+        "method": "median_by_supplier",
+        "window_days": 90,
+        "as_of": "2026-11-02",
+        "mode": "CURRENT",
+        "filters": {
+          "region": "AMBA",
+          "currency": "ARS",
+          "includes_vat": false,
+          "commercial_condition": "LISTA"
+        },
+        "observation_ids": [
+          "e0000000-0000-0000-0000-000000000001",
+          "e0000000-0000-0000-0000-000000000002",
+          "e0000000-0000-0000-0000-000000000003"
+        ],
+        "observation_count": 3,
+        "supplier_count": 3,
+        "newest_observed_on": "2026-11-01",
+        "oldest_observed_on": "2026-10-30"
+      },
+      "resolvedAt": "2026-11-02T12:00:00+00:00",
+      "createdBy": "d0000000-0000-0000-0000-000000000001"
+    },
+    {
+      "id": "f0000000-0000-0000-0000-000000000002",
+      "snapshotId": "c0000000-0000-0000-0000-000000000001",
+      "organizationId": "10000000-0000-0000-0000-000000000001",
+      "projectId": "20000000-0000-0000-0000-000000000001",
+      "budgetItemId": "b0000000-0000-0000-0000-000000000001",
+      "masterTaskId": "80000000-0000-0000-0000-000000000001",
+      "componentId": "90000000-0000-0000-0000-000000000002",
+      "masterMaterialId": "30000000-0000-0000-0000-000000000002",
+      "resourceId": null,
+      "quantity": 5,
+      "unit": "m3",
+      "unitPrice": 750,
+      "currency": "ARS",
+      "source": "SUPPLIER_OBSERVED",
+      "referenceId": "e0000000-0000-0000-0000-000000000004",
+      "priceStatus": "RELEVADO",
+      "effectiveDate": "2026-11-02",
+      "supplierUnitFactor": 1,
+      "apuConversionFactor": 1,
+      "warnings": [],
+      "isUsable": true,
+      "observationCount": 1,
+      "resolution": {
+        "method": "median_by_supplier",
+        "window_days": 90,
+        "as_of": "2026-11-02",
+        "mode": "CURRENT",
+        "filters": {
+          "region": "AMBA",
+          "currency": "ARS",
+          "includes_vat": false,
+          "commercial_condition": "LISTA"
+        },
+        "observation_ids": [
+          "e0000000-0000-0000-0000-000000000004"
+        ],
+        "observation_count": 1,
+        "supplier_count": 1,
+        "newest_observed_on": "2026-10-30",
+        "oldest_observed_on": "2026-10-30"
+      },
+      "resolvedAt": "2026-11-02T12:00:00+00:00",
+      "createdBy": "d0000000-0000-0000-0000-000000000001"
+    },
+    {
+      "id": "f0000000-0000-0000-0000-000000000003",
+      "snapshotId": "c0000000-0000-0000-0000-000000000001",
+      "organizationId": "10000000-0000-0000-0000-000000000001",
+      "projectId": "20000000-0000-0000-0000-000000000001",
+      "budgetItemId": "b0000000-0000-0000-0000-000000000002",
+      "masterTaskId": "80000000-0000-0000-0000-000000000001",
+      "componentId": "90000000-0000-0000-0000-000000000001",
+      "masterMaterialId": "30000000-0000-0000-0000-000000000001",
+      "resourceId": null,
+      "quantity": 7.35,
+      "unit": "bolsa",
+      "unitPrice": 1100,
+      "currency": "ARS",
+      "source": "SUPPLIER_OBSERVED",
+      "referenceId": "e0000000-0000-0000-0000-000000000002",
+      "priceStatus": "RELEVADO",
+      "effectiveDate": "2026-11-02",
+      "supplierUnitFactor": 1,
+      "apuConversionFactor": 50,
+      "warnings": [],
+      "isUsable": true,
+      "observationCount": 3,
+      "resolution": {
+        "method": "median_by_supplier",
+        "window_days": 90,
+        "as_of": "2026-11-02",
+        "mode": "CURRENT",
+        "filters": {
+          "region": "AMBA",
+          "currency": "ARS",
+          "includes_vat": false,
+          "commercial_condition": "LISTA"
+        },
+        "observation_ids": [
+          "e0000000-0000-0000-0000-000000000001",
+          "e0000000-0000-0000-0000-000000000002",
+          "e0000000-0000-0000-0000-000000000003"
+        ],
+        "observation_count": 3,
+        "supplier_count": 3,
+        "newest_observed_on": "2026-11-01",
+        "oldest_observed_on": "2026-10-30"
+      },
+      "resolvedAt": "2026-11-02T12:00:00+00:00",
+      "createdBy": "d0000000-0000-0000-0000-000000000001"
+    },
+    {
+      "id": "f0000000-0000-0000-0000-000000000004",
+      "snapshotId": "c0000000-0000-0000-0000-000000000001",
+      "organizationId": "10000000-0000-0000-0000-000000000001",
+      "projectId": "20000000-0000-0000-0000-000000000001",
+      "budgetItemId": "b0000000-0000-0000-0000-000000000002",
+      "masterTaskId": "80000000-0000-0000-0000-000000000001",
+      "componentId": "90000000-0000-0000-0000-000000000002",
+      "masterMaterialId": "30000000-0000-0000-0000-000000000002",
+      "resourceId": null,
+      "quantity": 1.75,
+      "unit": "m3",
+      "unitPrice": 750,
+      "currency": "ARS",
+      "source": "SUPPLIER_OBSERVED",
+      "referenceId": "e0000000-0000-0000-0000-000000000004",
+      "priceStatus": "RELEVADO",
+      "effectiveDate": "2026-11-02",
+      "supplierUnitFactor": 1,
+      "apuConversionFactor": 1,
+      "warnings": [],
+      "isUsable": true,
+      "observationCount": 1,
+      "resolution": {
+        "method": "median_by_supplier",
+        "window_days": 90,
+        "as_of": "2026-11-02",
+        "mode": "CURRENT",
+        "filters": {
+          "region": "AMBA",
+          "currency": "ARS",
+          "includes_vat": false,
+          "commercial_condition": "LISTA"
+        },
+        "observation_ids": [
+          "e0000000-0000-0000-0000-000000000004"
+        ],
+        "observation_count": 1,
+        "supplier_count": 1,
+        "newest_observed_on": "2026-10-30",
+        "oldest_observed_on": "2026-10-30"
+      },
+      "resolvedAt": "2026-11-02T12:00:00+00:00",
+      "createdBy": "d0000000-0000-0000-0000-000000000001"
+    }
+  ]
+}
