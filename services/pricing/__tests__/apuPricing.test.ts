@@ -16,8 +16,8 @@ const observedResolution: PriceResolution = {
 };
 
 const frozenResolution: PriceResolution = {
-  method: 'frozen_snapshot', snapshot_id: 'snp-1', project_id: 'prj-1', found: true,
-  frozen_price_id: 'fp-1', original_source: 'ORG_MASTER', original_price_status: 'CATALOG_UNVERIFIED',
+  method: 'frozen_snapshot', snapshot_id: 'snp-1', project_id: 'prj-1', found: true, budget_item_id: 'bi-1',
+  frozen_price_id: 'fp-1', frozen_price_ids: ['fp-1'], original_source: 'ORG_MASTER', original_price_status: 'CATALOG_UNVERIFIED',
   original_resolution: null, resolved_at: '2026-10-01T10:00:00+00:00',
 };
 
@@ -59,6 +59,16 @@ describe('buildApuUnitCost', () => {
     expect(r.components[0].unitPrice).toBe(1000);
     expect(r.components[0].cost).toBe(3150);
     expect(r.materialCost).toBe(3150);
+  });
+
+  it('precio congelado: se consume tal cual (factor 1 si las unidades coinciden), sin reaplicar factores de evidencia', () => {
+    const r = buildApuUnitCost(
+      [comp({ unit: 'KG', quantity: 4 })],
+      { c1: relevado({ price: 250, unit: 'KG', source: 'FROZEN_SNAPSHOT', priceStatus: 'FROZEN', resolution: frozenResolution }) },
+    );
+    expect(r.components[0].conversionFactor).toBe(1);
+    expect(r.components[0].unitPrice).toBe(250);
+    expect(r.materialCost).toBe(1000);
   });
 
   it('sin conversionFactor explícito usa el helper de unidades comerciales ("50kg" → 50)', () => {

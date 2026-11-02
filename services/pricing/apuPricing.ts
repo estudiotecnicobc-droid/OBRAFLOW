@@ -11,6 +11,17 @@
  *
  * Un componente no usable (sin precio, UNIT_MISMATCH, moneda distinta, etc.)
  * aporta 0 y deja el APU marcado como no usable; nunca se mezclan monedas.
+ *
+ * Convención de factores — DIFERENCIA CON EL SQL DE CONGELADO:
+ *   · Acá sí se aplica `conversionFactor` (unidad del rendimiento → unidad base
+ *     del recurso) al precio resuelto, igual que recursiveCostEngine y
+ *     masterTaskCostService. Es la convención del cálculo de APU en TS.
+ *   · `freeze_budget_prices` (migración 100009) NO aplica ese factor: guarda
+ *     `apu_conversion_factor` y `supplier_unit_factor` solo como evidencia y
+ *     congela `unit_price` ya en la unidad técnica del material (como la 057).
+ *   · Por eso este módulo nunca usa `supplierUnitFactor` ni `apuConversionFactor`
+ *     de FrozenComponentPrice en la aritmética: un precio congelado se consume
+ *     tal cual y el factor no debe aplicarse dos veces.
  */
 
 import { getConversionFactor } from '../yieldUnitConversion';

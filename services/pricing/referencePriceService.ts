@@ -108,7 +108,8 @@ export function frozenPriceFromRow(row: Row): FrozenComponentPrice {
     referenceId:      strOrNull(row.reference_id),
     priceStatus:      String(row.price_status) as PriceStatus,
     effectiveDate:    strOrNull(row.effective_date),
-    unitFactor:       Number(row.unit_factor ?? 1),
+    supplierUnitFactor:  numOrNull(row.supplier_unit_factor),
+    apuConversionFactor: Number(row.apu_conversion_factor ?? 1),
     warnings:         strArray(row.warnings),
     isUsable:         Boolean(row.is_usable) && unitPrice !== null,
     observationCount: numOrNull(row.observation_count),
@@ -122,8 +123,12 @@ export function frozenPriceFromRow(row: Row): FrozenComponentPrice {
 
 /**
  * Resuelve el precio de referencia de un componente / material / recurso.
- * Envía siempre los 10 parámetros de la firma final (`p_snapshot_id` en null
- * salvo FROZEN).
+ * Envía siempre los 11 parámetros de la firma final (`p_snapshot_id` y
+ * `p_budget_item_id` en null si no vienen).
+ *
+ * FROZEN: si el componente está congelado en varios ítems del presupuesto con
+ * valores distintos y no se pasa `budgetItemId`, la RPC lanza
+ * 22023 'FROZEN_AMBIGUOUS_COMPONENT' y el error se propaga tal cual.
  */
 export async function resolveReferencePrice(
   params: ResolveReferencePriceParams,
@@ -144,6 +149,7 @@ export async function resolveReferencePrice(
     p_required_unit:      params.requiredUnit ?? null,
     p_expected_currency:  params.expectedCurrency ?? 'ARS',
     p_snapshot_id:        params.snapshotId ?? null,
+    p_budget_item_id:     params.budgetItemId ?? null,
   });
   if (error) throw new Error(error.message);
 
@@ -239,13 +245,17 @@ export async function freezeBudgetPrices(
     snapshotId:           String(r.snapshotId),
     projectId:            String(r.projectId ?? projectId),
     costDate:             String(r.costDate ?? costDate ?? today()),
+    scope:                'materials_only',
     mode:                 (strOrNull(r.mode) ?? 'CURRENT') as PriceMode,
     status:               (strOrNull(r.status) ?? 'pending_reconciliation') as PriceReconciliationStatus,
+    legacyDivergence:     Boolean(r.legacyDivergence),
+    incomplete:           Boolean(r.incomplete),
     itemCount:            Number(r.itemCount ?? 0),
     componentCount:       Number(r.componentCount ?? 0),
     unusableCount:        Number(r.unusableCount ?? 0),
     nestedSkippedCount:   Number(r.nestedSkippedCount ?? 0),
     materialsTotal:       Number(r.materialsTotal ?? 0),
+    unusableAmount:       Number(r.unusableAmount ?? 0),
     legacyMaterialsTotal: numOrNull(r.legacyMaterialsTotal),
     divergence:           numOrNull(r.divergence),
     legacyTotals:         r.legacyTotals && typeof r.legacyTotals === 'object'

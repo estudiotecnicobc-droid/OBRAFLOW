@@ -78,17 +78,23 @@ export interface SingleSourceResolution {
   observed_candidates: number;
 }
 
-/** Fuente FROZEN_SNAPSHOT: lectura del precio congelado. */
+/**
+ * Fuente FROZEN_SNAPSHOT: lectura del precio congelado. Cuando `found` es
+ * false solo vienen `snapshot_id`, `project_id`, `budget_item_id` y `found`.
+ */
 export interface FrozenSnapshotResolution {
   method: 'frozen_snapshot';
   snapshot_id: string;
   project_id: string | null;
   found: boolean;
-  frozen_price_id: string | null;
-  original_source: PriceSource | null;
-  original_price_status: PriceStatus | null;
-  original_resolution: PriceResolution | null;
-  resolved_at: string | null;
+  budget_item_id: string | null;
+  frozen_price_id?: string;
+  /** Todas las filas congeladas del componente (varias si está en varios ítems). */
+  frozen_price_ids?: string[];
+  original_source?: PriceSource;
+  original_price_status?: PriceStatus;
+  original_resolution?: PriceResolution | null;
+  resolved_at?: string;
 }
 
 /**
@@ -128,6 +134,12 @@ export interface ResolveReferencePriceParams {
   requiredUnit?: string | null;
   expectedCurrency?: PriceCurrency; // default: ARS
   snapshotId?: string | null;       // obligatorio en FROZEN
+  /**
+   * Desambigua un componente repetido en varios ítems del presupuesto (FROZEN).
+   * Sin él, si las filas congeladas difieren en precio/moneda/unidad/fuente la
+   * RPC lanza 22023 'FROZEN_AMBIGUOUS_COMPONENT'.
+   */
+  budgetItemId?: string | null;
 }
 
 // ── resolve_observed_price ────────────────────────────────────────────────────
@@ -204,7 +216,17 @@ export interface FrozenComponentPrice {
   referenceId: string | null;
   priceStatus: PriceStatus;
   effectiveDate: string | null;
-  unitFactor: number;
+  /**
+   * Factor comercial→técnico ya aplicado por la homologación al precio de la
+   * observación de origen. NULL si la fuente no es SUPPLIER_OBSERVED. Solo
+   * evidencia: `unitPrice` ya está en la unidad técnica.
+   */
+  supplierUnitFactor: number | null;
+  /**
+   * master_task_materials.conversion_factor del componente. Solo evidencia: el
+   * SQL de congelado NO lo aplica al costo (igual que la 057).
+   */
+  apuConversionFactor: number;
   warnings: string[];
   isUsable: boolean;                // false si la DB lo marca o si unitPrice es null
   observationCount: number | null;
@@ -213,18 +235,26 @@ export interface FrozenComponentPrice {
   createdBy: string | null;
 }
 
-/** Resultado jsonb de `freeze_budget_prices`. */
+/**
+ * Resultado jsonb de `freeze_budget_prices`.
+ * `status` prioriza partial (incomplete) > pending_reconciliation
+ * (legacyDivergence) > reconciled; las dos banderas viajan además por separado.
+ */
 export interface FreezeBudgetPricesResult {
   snapshotId: string;
   projectId: string;
   costDate: string;
+  scope: 'materials_only';
   mode: PriceMode;
   status: PriceReconciliationStatus;
+  legacyDivergence: boolean;
+  incomplete: boolean;
   itemCount: number;
   componentCount: number;
   unusableCount: number;
   nestedSkippedCount: number;
   materialsTotal: number;
+  unusableAmount: number;
   legacyMaterialsTotal: number | null;
   divergence: number | null;
   legacyTotals: Record<string, unknown> | null;

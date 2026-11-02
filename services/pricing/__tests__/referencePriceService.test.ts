@@ -37,7 +37,7 @@ const resolvedRow = {
 describe('resolveReferencePrice', () => {
   beforeEach(() => rpc.mockReset());
 
-  it('llama a resolve_reference_price con los 10 p_* de la firma final y mapea a camelCase', async () => {
+  it('llama a resolve_reference_price con los 11 p_* de la firma final y mapea a camelCase', async () => {
     rpc.mockResolvedValue({ data: resolvedRow, error: null });
 
     const r = await resolveReferencePrice({
@@ -56,6 +56,7 @@ describe('resolveReferencePrice', () => {
       p_required_unit:      'KG',
       p_expected_currency:  'ARS',
       p_snapshot_id:        null,
+      p_budget_item_id:     null,
     });
     expect(r).toEqual({
       price: 1234.5, unit: 'KG', currency: 'ARS', source: 'SUPPLIER_OBSERVED', warnings: [],
@@ -64,7 +65,7 @@ describe('resolveReferencePrice', () => {
     });
   });
 
-  it('defaults: CURRENT, hoy, ARS, nulls y p_snapshot_id null', async () => {
+  it('defaults: CURRENT, hoy, ARS, nulls, p_snapshot_id y p_budget_item_id null', async () => {
     rpc.mockResolvedValue({ data: resolvedRow, error: null });
     await resolveReferencePrice({ organizationId: ORG, resourceId: MAT });
 
@@ -78,25 +79,46 @@ describe('resolveReferencePrice', () => {
     expect(args.p_project_id).toBeNull();
     expect(args.p_required_unit).toBeNull();
     expect(args.p_snapshot_id).toBeNull();
+    expect(args.p_budget_item_id).toBeNull();
   });
 
   it('FROZEN envía p_snapshot_id y mapea FROZEN_SNAPSHOT con resolution frozen_snapshot', async () => {
     const frozenResolution = {
-      method: 'frozen_snapshot', snapshot_id: SNP, project_id: PRJ, found: true,
-      frozen_price_id: 'fp-1', original_source: 'SUPPLIER_OBSERVED', original_price_status: 'RELEVADO',
+      method: 'frozen_snapshot', snapshot_id: SNP, project_id: PRJ, found: true, budget_item_id: BIT,
+      frozen_price_id: 'fp-1', frozen_price_ids: ['fp-1', 'fp-2'],
+      original_source: 'SUPPLIER_OBSERVED', original_price_status: 'RELEVADO',
       original_resolution: observedResolution, resolved_at: '2026-11-02T12:00:00+00:00',
     };
     rpc.mockResolvedValue({
       data: { ...resolvedRow, source: 'FROZEN_SNAPSHOT', price_status: 'FROZEN', observation_count: null, resolution: frozenResolution },
       error: null,
     });
-    const r = await resolveReferencePrice({ organizationId: ORG, componentId: CMP, projectId: PRJ, mode: 'FROZEN', snapshotId: SNP });
+    const r = await resolveReferencePrice({ organizationId: ORG, componentId: CMP, projectId: PRJ, mode: 'FROZEN', snapshotId: SNP, budgetItemId: BIT });
 
-    expect(rpc.mock.calls[0][1]).toMatchObject({ p_mode: 'FROZEN', p_snapshot_id: SNP, p_component_id: CMP });
+    expect(rpc.mock.calls[0][1]).toMatchObject({ p_mode: 'FROZEN', p_snapshot_id: SNP, p_component_id: CMP, p_budget_item_id: BIT });
     expect(r.source).toBe('FROZEN_SNAPSHOT');
     expect(r.priceStatus).toBe('FROZEN');
     expect(r.observationCount).toBeNull();
     expect(r.resolution).toEqual(frozenResolution);
+  });
+
+  it('FROZEN sin budgetItemId: propaga 22023 FROZEN_AMBIGUOUS_COMPONENT del SQL', async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'FROZEN_AMBIGUOUS_COMPONENT: pass p_budget_item_id', code: '22023' } });
+    await expect(resolveReferencePrice({ organizationId: ORG, componentId: CMP, mode: 'FROZEN', snapshotId: SNP }))
+      .rejects.toThrow('FROZEN_AMBIGUOUS_COMPONENT');
+    expect(rpc.mock.calls[0][1]).toMatchObject({ p_snapshot_id: SNP, p_budget_item_id: null });
+  });
+
+  it('FROZEN no encontrado: resolution frozen_snapshot con found=false y FROZEN_PRICE_MISSING', async () => {
+    const res = { method: 'frozen_snapshot', snapshot_id: SNP, project_id: PRJ, budget_item_id: null, found: false };
+    rpc.mockResolvedValue({
+      data: { price: null, unit: 'KG', currency: 'ARS', source: 'NO_PRICE', warnings: ['FROZEN_PRICE_MISSING'], effective_date: null, reference_id: null, is_usable: false, observation_count: 0, price_status: 'SIN_PRECIO', resolution: res },
+      error: null,
+    });
+    const r = await resolveReferencePrice({ organizationId: ORG, componentId: CMP, mode: 'FROZEN', snapshotId: SNP });
+    expect(r.isUsable).toBe(false);
+    expect(r.warnings).toEqual(['FROZEN_PRICE_MISSING']);
+    expect(r.resolution).toEqual(res);
   });
 
   it('FROZEN sin snapshotId falla antes de llamar a Supabase', async () => {
@@ -245,9 +267,10 @@ describe('freezeBudgetPrices', () => {
   beforeEach(() => rpc.mockReset());
 
   const fullResult = {
-    snapshotId: SNP, projectId: PRJ, costDate: '2026-11-02', mode: 'CURRENT', status: 'partial',
+    snapshotId: SNP, projectId: PRJ, costDate: '2026-11-02', scope: 'materials_only', mode: 'CURRENT',
+    status: 'partial', legacyDivergence: true, incomplete: true,
     itemCount: 12, componentCount: 40, unusableCount: 2, nestedSkippedCount: 1,
-    materialsTotal: 1500000.5, legacyMaterialsTotal: 1498000, divergence: 2000.5,
+    materialsTotal: 1500000.5, unusableAmount: 12500.25, legacyMaterialsTotal: 1498000, divergence: 2000.5,
     legacyTotals: { materials: 1498000, labor: 300000 },
     warnings: ['Hierro: UNIT_MISMATCH', 'TOTALS_DIVERGE_FROM_LEGACY_ENGINE'],
   };
@@ -264,13 +287,19 @@ describe('freezeBudgetPrices', () => {
     expect(r).toEqual(fullResult);
   });
 
-  it('status reconciled / pending_reconciliation se conservan; legacy nulos → null', async () => {
-    rpc.mockResolvedValueOnce({ data: { ...fullResult, status: 'reconciled' }, error: null });
-    expect((await freezeBudgetPrices(PRJ, ORG)).status).toBe('reconciled');
+  it('status reconciled / pending_reconciliation y banderas se conservan; legacy nulos → null', async () => {
+    rpc.mockResolvedValueOnce({ data: { ...fullResult, status: 'reconciled', legacyDivergence: false, incomplete: false }, error: null });
+    const ok = await freezeBudgetPrices(PRJ, ORG);
+    expect(ok.status).toBe('reconciled');
+    expect(ok.legacyDivergence).toBe(false);
+    expect(ok.incomplete).toBe(false);
+    expect(ok.scope).toBe('materials_only');
 
-    rpc.mockResolvedValueOnce({ data: { ...fullResult, status: 'pending_reconciliation', legacyMaterialsTotal: null, divergence: null, legacyTotals: null }, error: null });
+    rpc.mockResolvedValueOnce({ data: { ...fullResult, status: 'pending_reconciliation', incomplete: false, unusableAmount: 0, legacyMaterialsTotal: null, divergence: null, legacyTotals: null }, error: null });
     const r = await freezeBudgetPrices(PRJ, ORG);
     expect(r.status).toBe('pending_reconciliation');
+    expect(r.legacyDivergence).toBe(true);
+    expect(r.unusableAmount).toBe(0);
     expect(r.legacyMaterialsTotal).toBeNull();
     expect(r.divergence).toBeNull();
     expect(r.legacyTotals).toBeNull();
@@ -296,7 +325,7 @@ describe('getFrozenBudgetPrices', () => {
     master_task_id: 'mt-1', component_id: CMP, master_material_id: MAT, resource_id: null,
     quantity: '15.00000000', unit: 'KG', unit_price: '1234.500000', currency: 'ARS',
     source: 'SUPPLIER_OBSERVED', reference_id: 'obs-9', price_status: 'RELEVADO',
-    effective_date: '2026-11-01', unit_factor: '1.00000000', warnings: [], is_usable: true,
+    effective_date: '2026-11-01', supplier_unit_factor: '50.00000000', apu_conversion_factor: '1.00000000', warnings: [], is_usable: true,
     observation_count: 4, resolution: observedResolution,
     resolved_at: '2026-11-02T12:00:00+00:00', created_by: USR,
   };
@@ -311,7 +340,7 @@ describe('getFrozenBudgetPrices', () => {
       masterTaskId: 'mt-1', componentId: CMP, masterMaterialId: MAT, resourceId: null,
       quantity: 15, unit: 'KG', unitPrice: 1234.5, currency: 'ARS',
       source: 'SUPPLIER_OBSERVED', referenceId: 'obs-9', priceStatus: 'RELEVADO',
-      effectiveDate: '2026-11-01', unitFactor: 1, warnings: [], isUsable: true,
+      effectiveDate: '2026-11-01', supplierUnitFactor: 50, apuConversionFactor: 1, warnings: [], isUsable: true,
       observationCount: 4, resolution: observedResolution,
       resolvedAt: '2026-11-02T12:00:00+00:00', createdBy: USR,
     }]);
@@ -328,6 +357,12 @@ describe('getFrozenBudgetPrices', () => {
     expect(r.observationCount).toBeNull();
     expect(r.resolution).toBeNull();
     expect(r.createdBy).toBeNull();
+  });
+
+  it('supplier_unit_factor NULL (fuente no observada) → null; apu_conversion_factor se mapea tal cual', () => {
+    const r = frozenPriceFromRow({ ...frozenRow, source: 'ORG_MASTER', supplier_unit_factor: null, apu_conversion_factor: '25.00000000' });
+    expect(r.supplierUnitFactor).toBeNull();
+    expect(r.apuConversionFactor).toBe(25);
   });
 
   it('is_usable false con precio → isUsable false', () => {
