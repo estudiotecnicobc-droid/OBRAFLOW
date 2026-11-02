@@ -448,7 +448,7 @@ export const APUBuilder: React.FC<APUBuilderProps> = ({ taskId, budgetItemId, on
                             </div>
                         </div>
 
-                        <table className="w-full text-sm text-left">
+                        <div className="overflow-x-auto"><table className="w-full text-sm text-left">
                             <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
                                 <tr>
                                     <th className="p-3 pl-4">Material</th>
@@ -523,7 +523,7 @@ export const APUBuilder: React.FC<APUBuilderProps> = ({ taskId, budgetItemId, on
                                     )
                                 })}
                             </tbody>
-                        </table>
+                        </table></div>
                     </div>
                 </div>
             )}
@@ -705,7 +705,7 @@ export const APUBuilder: React.FC<APUBuilderProps> = ({ taskId, budgetItemId, on
                             </div>
                         </div>
                         
-                        <table className="w-full text-sm text-left">
+                        <div className="overflow-x-auto"><table className="w-full text-sm text-left">
                             <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
                                 <tr>
                                     <th className="p-3 pl-4">Equipo</th>
@@ -745,7 +745,7 @@ export const APUBuilder: React.FC<APUBuilderProps> = ({ taskId, budgetItemId, on
                                     )
                                 })}
                             </tbody>
-                        </table>
+                        </table></div>
                     </div>
                 </div>
             )}

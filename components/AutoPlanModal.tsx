@@ -154,7 +154,7 @@ export const AutoPlanModal: React.FC<Props> = ({ onClose }) => {
                 </div>
               )}
 
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <div className="border border-slate-200 rounded-xl overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50 text-slate-500 uppercase">
                     <tr>

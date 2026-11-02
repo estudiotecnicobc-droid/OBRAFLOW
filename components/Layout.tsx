@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Calculator, CalendarDays, HardHat, Wrench, SlidersHorizontal, Truck, TrendingUp, Users, LogOut, FileText, ClipboardCheck, Save, CheckCircle2, X, ArrowLeftRight, Building, ChevronDown, ChevronRight, ShieldCheck, Lock, BookOpen, BarChart3, Settings2, PanelLeftClose, PanelLeftOpen, LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Calculator, CalendarDays, HardHat, Wrench, SlidersHorizontal, Truck, TrendingUp, Users, LogOut, FileText, ClipboardCheck, Save, CheckCircle2, X, ArrowLeftRight, Building, ChevronDown, ChevronRight, ShieldCheck, Lock, BookOpen, BarChart3, Settings2, PanelLeftClose, PanelLeftOpen, Menu, LucideIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Role } from '../types';
 import { useERP } from '../context/ERPContext';
@@ -7,6 +7,7 @@ import { useSave } from '../context/SaveContext';
 import { getProjectStage } from './ProjectStage';
 import { BUDGET_MODULE_TABS } from './BudgetModule';
 import { ProjectCover } from '../src/features/projects/ProjectCover';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 interface NavItem {
   id: string;
@@ -31,7 +32,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
     try { return localStorage.getItem(SIDEBAR_KEY) !== '0'; } catch { return true; }
   });
+  const isMobile = useIsMobile();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const expanded = isMobile || isSidebarOpen;
+  const goTo = (tab: string) => { setActiveTab(tab); if (isMobile) setMobileOpen(false); };
   const toggleSidebar = () => {
+    if (isMobile) { setMobileOpen(false); return; }
     setIsSidebarOpen(open => {
       try { localStorage.setItem(SIDEBAR_KEY, open ? '0' : '1'); } catch { /* sin almacenamiento local */ }
       return !open;
@@ -109,35 +115,40 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
     const label = locked ? `${item.label} (se habilita al aprobar el presupuesto)` : item.label;
     return (
       <button
-        onClick={() => setActiveTab(item.id)}
-        title={isSidebarOpen ? undefined : label}
-        aria-label={isSidebarOpen ? undefined : label}
-        className={`w-full flex items-center gap-3 rounded-lg transition-colors text-sm font-medium min-h-[40px] ${isSidebarOpen ? 'px-3' : 'justify-center'} ${
+        onClick={() => goTo(item.id)}
+        title={expanded ? undefined : label}
+        aria-label={expanded ? undefined : label}
+        className={`w-full flex items-center gap-3 rounded-lg transition-colors text-sm font-medium min-h-[40px] ${expanded ? 'px-3' : 'justify-center'} ${
           isActive(item.id)
             ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
             : locked ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800' : 'text-slate-400 hover:text-white hover:bg-slate-800'
         }`}
       >
         {locked ? <Lock size={18} className="shrink-0" /> : <item.icon size={18} className="shrink-0" />}
-        {isSidebarOpen && <span className="flex-1 text-left truncate">{item.label}</span>}
-        {isSidebarOpen && badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800">{badge}</span>}
+        {expanded && <span className="flex-1 text-left truncate">{item.label}</span>}
+        {expanded && badge && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800">{badge}</span>}
       </button>
     );
   };
 
   const SectionTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    isSidebarOpen
+    expanded
       ? <div className="px-3 pt-4 pb-1 text-[11px] font-bold tracking-wider text-slate-500 uppercase">{children}</div>
       : <div className="my-2 border-t border-slate-800" />
   );
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
-      <aside className={`${isSidebarOpen ? 'w-64' : 'w-16'} bg-slate-900 text-white flex flex-col flex-shrink-0 print:hidden transition-all duration-300 ease-in-out relative z-20 shadow-xl overflow-hidden`}>
+    <div className="flex h-screen h-[100dvh] bg-slate-50 font-sans overflow-hidden">
+      {isMobile && mobileOpen && (
+        <div className="fixed inset-0 bg-black/50 z-30 print:hidden" onClick={() => setMobileOpen(false)} aria-hidden="true" />
+      )}
+      <aside className={`${isMobile ? 'w-72 max-w-[85vw]' : expanded ? 'w-64' : 'w-16'} bg-slate-900 text-white flex flex-col flex-shrink-0 print:hidden transition-all duration-300 ease-in-out shadow-xl overflow-hidden ${
+        isMobile ? `fixed inset-y-0 left-0 z-40 pb-[env(safe-area-inset-bottom)] ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}` : 'relative z-20'
+      }`}>
 
         {/* Obra activa */}
-        <div className={`bg-slate-950 relative ${isSidebarOpen ? 'p-4' : 'p-2 flex flex-col items-center gap-2'}`}>
-          {isSidebarOpen ? (
+        <div className={`bg-slate-950 relative ${expanded ? 'p-4' : 'p-2 flex flex-col items-center gap-2'}`}>
+          {expanded ? (
             <div className="bg-slate-800 rounded-xl p-3 border border-slate-700 shadow-sm">
               <div className="flex items-center gap-1 mb-2">
                 <span className="flex-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 whitespace-nowrap">
@@ -190,7 +201,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
         </div>
 
         {/* Usuario */}
-        {isSidebarOpen && (
+        {expanded && (
           <div className="px-6 py-4 border-b border-slate-800/50">
             <div className="text-sm font-bold text-white truncate">{user?.name}</div>
             <div className="text-xs text-slate-400 mt-1">
@@ -199,7 +210,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
           </div>
         )}
 
-        <nav className={`flex-1 space-y-1 overflow-y-auto ${isSidebarOpen ? 'p-3' : 'p-2'}`}>
+        <nav className={`flex-1 space-y-1 overflow-y-auto ${expanded ? 'p-3' : 'p-2'}`}>
           <NavButton item={homeItem} />
 
           {can(budgetItem.roles) && (
@@ -213,7 +224,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
             <>
               <SectionTitle>Obra</SectionTitle>
               {worksItems.map(item => <NavButton key={item.id} item={item} locked={stage === 'budget'} />)}
-              {isSidebarOpen && stage === 'budget' && worksItems.length > 0 && (
+              {expanded && stage === 'budget' && worksItems.length > 0 && (
                 <div className="px-3 pl-10 pb-1 text-[11px] leading-snug text-slate-500">Se habilita al aprobar el presupuesto</div>
               )}
               {projectItems.map(item => <NavButton key={item.id} item={item} />)}
@@ -227,7 +238,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
             </>
           )}
 
-          {isSidebarOpen && hiddenTools.length > 0 && (
+          {expanded && hiddenTools.length > 0 && (
             <div className="pt-3">
               <button
                 onClick={() => setToolsOpen(o => !o)}
@@ -241,7 +252,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
                 <div key={item.id} className="flex items-center justify-between gap-2 pl-8 pr-1 py-1">
                   <span className="text-xs text-slate-400">{item.label}</span>
                   <button
-                    onClick={() => { saveTools([...activeTools, item.id]); setActiveTab(item.id); }}
+                    onClick={() => { saveTools([...activeTools, item.id]); goTo(item.id); }}
                     className="text-[11px] font-bold text-blue-300 hover:text-white bg-slate-800 border border-slate-700 rounded px-2 py-1"
                   >
                     Activar
@@ -253,20 +264,20 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
 
           {companyItems.length > 0 && (
             <>
-              {isSidebarOpen && <div className="mt-4 border-t border-slate-800" />}
+              {expanded && <div className="mt-4 border-t border-slate-800" />}
               <SectionTitle>Empresa</SectionTitle>
               {companyItems.map(item => <NavButton key={item.id} item={item} />)}
             </>
           )}
         </nav>
 
-        <div className={`border-t border-slate-800 space-y-2 bg-slate-900 ${isSidebarOpen ? 'p-4' : 'p-2'}`}>
+        <div className={`border-t border-slate-800 space-y-2 bg-slate-900 ${expanded ? 'p-4' : 'p-2'}`}>
           <button
             onClick={handleGlobalSave}
             disabled={!canSave || saveStatus === 'saving' || saveStatus === 'ok'}
             title={!canSave ? 'Esta vista se guarda automáticamente' : 'Guardar cambios de esta vista'}
-            aria-label={isSidebarOpen ? undefined : 'Guardar'}
-            className={`w-full flex items-center justify-center gap-2 text-sm font-bold rounded-lg min-h-[44px] transition-all shadow-md disabled:cursor-not-allowed ${isSidebarOpen ? 'px-4' : ''} ${
+            aria-label={expanded ? undefined : 'Guardar'}
+            className={`w-full flex items-center justify-center gap-2 text-sm font-bold rounded-lg min-h-[44px] transition-all shadow-md disabled:cursor-not-allowed ${expanded ? 'px-4' : ''} ${
               saveStatus === 'ok'     ? 'bg-green-600 text-white' :
               saveStatus === 'error'  ? 'bg-red-600 text-white opacity-90' :
               saveStatus === 'saving' ? 'bg-blue-400 text-white' :
@@ -275,21 +286,34 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
             }`}
           >
             {saveStatus === 'ok' ? <CheckCircle2 size={18} /> : saveStatus === 'error' ? <X size={18} /> : <Save size={18} />}
-            {isSidebarOpen && (saveStatus === 'ok' ? 'Guardado' : saveStatus === 'error' ? 'Error al guardar' : saveStatus === 'saving' ? 'Guardando…' : canSave ? 'Guardar' : 'Auto-guardado')}
+            {expanded && (saveStatus === 'ok' ? 'Guardado' : saveStatus === 'error' ? 'Error al guardar' : saveStatus === 'saving' ? 'Guardando…' : canSave ? 'Guardar' : 'Auto-guardado')}
           </button>
           <button
             onClick={logout}
-            title={isSidebarOpen ? undefined : 'Cerrar sesión'}
-            aria-label={isSidebarOpen ? undefined : 'Cerrar sesión'}
+            title={expanded ? undefined : 'Cerrar sesión'}
+            aria-label={expanded ? undefined : 'Cerrar sesión'}
             className="w-full flex items-center justify-center gap-2 text-slate-400 hover:text-red-400 text-xs font-bold px-2 py-2 hover:bg-slate-800 rounded-lg transition-colors min-h-[40px]"
           >
-            <LogOut size={isSidebarOpen ? 14 : 18} /> {isSidebarOpen && 'Cerrar sesión'}
+            <LogOut size={expanded ? 14 : 18} /> {expanded && 'Cerrar sesión'}
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto bg-slate-100 relative">
-        <div className="p-6 md:p-8 max-w-[1600px] mx-auto h-full">
+      <main className="flex-1 min-w-0 overflow-auto bg-slate-100 relative flex flex-col">
+        {isMobile && (
+          <div className="sticky top-0 z-20 flex items-center gap-2 bg-slate-900 text-white px-3 py-2 shadow print:hidden">
+            <button onClick={() => setMobileOpen(true)} aria-label="Abrir menú" className="p-2 -ml-1 rounded-lg hover:bg-slate-800">
+              <Menu size={20} />
+            </button>
+            <span className="flex-1 min-w-0 font-bold text-sm truncate">{project.name}</span>
+            {canSave && (
+              <button onClick={handleGlobalSave} disabled={saveStatus === 'saving' || saveStatus === 'ok'} aria-label="Guardar" className="p-2 rounded-lg bg-blue-700 hover:bg-blue-600 disabled:opacity-60">
+                {saveStatus === 'ok' ? <CheckCircle2 size={18} /> : <Save size={18} />}
+              </button>
+            )}
+          </div>
+        )}
+        <div className={`flex-1 w-full p-3 sm:p-6 md:p-8 max-w-[1600px] mx-auto ${isMobile ? '' : 'h-full'}`}>
           {children}
         </div>
       </main>

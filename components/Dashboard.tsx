@@ -1415,7 +1415,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, initialView })
                           <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
                               <BarChart2 size={18} /> Mayores Consumos (Top 6)
                           </h4>
-                          <div className="overflow-hidden border border-slate-100 rounded-xl">
+                          <div className="overflow-x-auto border border-slate-100 rounded-xl">
                               <table className="w-full text-sm text-left">
                                   <thead className="bg-slate-50 text-xs text-slate-500 uppercase font-semibold">
                                       <tr>

@@ -1659,7 +1659,7 @@ export const DataAdmin: React.FC<DataAdminProps> = ({ initialSubTab, scope }) =>
                                   {aiExplanation}
                               </div>
 
-                              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                              <div className="border border-slate-200 rounded-xl overflow-x-auto">
                                   <table className="w-full text-left text-xs">
                                       <thead className="bg-slate-100 text-slate-500 font-bold uppercase">
                                           <tr>
@@ -1722,7 +1722,7 @@ export const DataAdmin: React.FC<DataAdminProps> = ({ initialSubTab, scope }) =>
 
       {/* --- MATERIAL CONFIGURATION PANEL --- */}
       {editingMaterialConfig && (
-          <aside className="w-[450px] flex-shrink-0 bg-white border-l border-slate-200 shadow-2xl flex flex-col h-[calc(100vh-80px)] sticky top-0 rounded-l-xl animate-in slide-in-from-right z-20">
+          <aside className="w-[450px] max-w-full max-md:fixed max-md:inset-0 max-md:w-full max-md:!h-[100dvh] max-md:!rounded-none max-md:!z-50 flex-shrink-0 bg-white border-l border-slate-200 shadow-2xl flex flex-col h-[calc(100vh-80px)] sticky top-0 rounded-l-xl animate-in slide-in-from-right z-20">
              {/* Header */}
              <div className="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-start">
                 <div>
@@ -1853,7 +1853,7 @@ export const DataAdmin: React.FC<DataAdminProps> = ({ initialSubTab, scope }) =>
 
       {/* --- APU EDITOR SIDE PANEL --- */}
       {editingAPUTask && localTask && apuAnalysis && (
-          <aside className="w-[480px] flex-shrink-0 bg-white border-l border-slate-200 shadow-2xl flex flex-col h-[calc(100vh-80px)] sticky top-0 rounded-l-xl animate-in slide-in-from-right z-20">
+          <aside className="w-[480px] max-w-full max-md:fixed max-md:inset-0 max-md:w-full max-md:!h-[100dvh] max-md:!rounded-none max-md:!z-50 flex-shrink-0 bg-white border-l border-slate-200 shadow-2xl flex flex-col h-[calc(100vh-80px)] sticky top-0 rounded-l-xl animate-in slide-in-from-right z-20">
              {/* Header with Basic Info Editing */}
              <div className="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-start">
                 <div className="w-full pr-4">
@@ -2111,7 +2111,7 @@ export const DataAdmin: React.FC<DataAdminProps> = ({ initialSubTab, scope }) =>
 
       {/* --- CREW EDITOR SIDE PANEL --- */}
       {editingCrew && (
-          <aside className="w-[550px] flex-shrink-0 bg-white border-l border-slate-200 shadow-2xl flex flex-col h-[calc(100vh-80px)] sticky top-0 rounded-l-xl animate-in slide-in-from-right z-20">
+          <aside className="w-[550px] max-w-full max-md:fixed max-md:inset-0 max-md:w-full max-md:!h-[100dvh] max-md:!rounded-none max-md:!z-50 flex-shrink-0 bg-white border-l border-slate-200 shadow-2xl flex flex-col h-[calc(100vh-80px)] sticky top-0 rounded-l-xl animate-in slide-in-from-right z-20">
              {/* Header */}
              <div className="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-start">
                 <div>

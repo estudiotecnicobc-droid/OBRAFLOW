@@ -108,7 +108,7 @@ export const PricingModal: React.FC<Props> = ({ currentPlan, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90dvh] overflow-y-auto">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
