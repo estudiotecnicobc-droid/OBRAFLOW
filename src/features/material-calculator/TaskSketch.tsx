@@ -3,12 +3,16 @@
  * Las dimensiones del dibujo se actualizan en tiempo real según los valores ingresados.
  */
 
-import React from 'react';
+import React, { useId } from 'react';
 import { ChandiasTask, ChandiasTaskDim } from './catalog/chandiasCatalog';
+import { Patterns, pat } from './sketches/primitives';
+import { renderSketch, SketchCtx } from './sketches/drawings';
 
 interface TaskSketchProps {
   task: ChandiasTask;
   dimValues: Record<string, string>;
+  /** Miniatura para listas: solo el dibujo principal, sin textos. */
+  thumbnail?: boolean;
 }
 
 // ─── Proyección oblicua cabinet (30°, 45% escorzo) ───────────────────────────
@@ -28,7 +32,7 @@ function dimLabel(dim: ChandiasTaskDim | undefined, dimValues: Record<string, st
   const raw = dimValues[dim.id] ?? '';
   const v = parseFloat(raw);
   if (!isNaN(v) && v > 0) {
-    const s = v % 1 === 0 ? String(v) : parseFloat(v.toFixed(2)).toString();
+    const s = v % 1 === 0 ? String(v) : parseFloat(v.toFixed(2)).toString().replace('.', ',');
     return `${s} ${dim.unit}`;
   }
   return dim.label;
@@ -271,7 +275,43 @@ function getVariant(task: ChandiasTask): SketchVariant {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export const TaskSketch: React.FC<TaskSketchProps> = ({ task, dimValues }) => {
+export const TaskSketch: React.FC<TaskSketchProps> = ({ task, dimValues, thumbnail }) => {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  if (task.sketch) {
+    const ctx: SketchCtx = {
+      uid,
+      lbl: i => {
+        const l = dimLabel(task.dims[i], dimValues).replace(/\s*\(.*?\)/g, '').replace(/^sección\s+/i, '');
+        return l.charAt(0).toUpperCase() + l.slice(1);
+      },
+      v: i => {
+        const d = task.dims[i];
+        const n = d ? parseFloat(dimValues[d.id] ?? '') : NaN;
+        return Number.isFinite(n) && n > 0 ? n : 0;
+      },
+      p: name => pat(uid, name),
+      arrow: `url(#${uid}-arrow)`,
+    };
+    if (thumbnail) {
+      return (
+        <svg id={`${uid}-thumb`} viewBox="0 6 210 160" className="w-full block" aria-hidden="true">
+          <style>{`#${uid}-thumb text, #${uid}-thumb .sk-lead { display: none; }`}</style>
+          <Patterns uid={uid} />
+          {renderSketch(task.sketch, ctx)}
+        </svg>
+      );
+    }
+    return (
+      <svg viewBox="0 0 336 170" className="w-full max-w-[440px] mx-auto block" role="img" aria-label={`Esquema: ${task.nombre}`}>
+        <Patterns uid={uid} />
+        {renderSketch(task.sketch, ctx)}
+      </svg>
+    );
+  }
+  return <LegacySketch task={task} dimValues={dimValues} />;
+};
+
+const LegacySketch: React.FC<TaskSketchProps> = ({ task, dimValues }) => {
   const variant = getVariant(task);
   const d = task.dims;
   const lbl = (i: number) => dimLabel(d[i], dimValues);
