@@ -1,11 +1,12 @@
--- Comprobaciones mínimas tras aplicar 20261102100001..7: existen los objetos y la RLS está activa.
+-- Comprobaciones mínimas tras aplicar 20261102100001..9: existen los objetos y la RLS está activa.
 \set ON_ERROR_STOP 1
 do $$
 declare
   t text; f text; missing text[] := '{}';
 begin
   foreach t in array array['project_price_overrides','price_import_batches','price_import_rows',
-                           'price_suppliers','supplier_products','price_observations'] loop
+                           'price_suppliers','supplier_products','price_observations',
+                           'budget_cost_snapshots','budget_cost_snapshot_prices'] loop
     if to_regclass('public.' || t) is null then missing := missing || ('tabla ' || t); end if;
     if not exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
                    where n.nspname = 'public' and c.relname = t and c.relrowsecurity) then
@@ -13,7 +14,12 @@ begin
     end if;
   end loop;
   foreach f in array array[
-    'public.resolve_reference_price(uuid,uuid,uuid,uuid,uuid,date,text,text,text)',
+    'public.resolve_reference_price(uuid,uuid,uuid,uuid,uuid,date,text,text,text,uuid)',
+    'public.resolve_observed_price(uuid,uuid,date,text,text,boolean,text,integer)',
+    'public.publish_price_observations(uuid,uuid[],text,boolean,text)',
+    'public.invalidate_price_observation(uuid,uuid,text)',
+    'public.freeze_budget_prices(uuid,uuid,date)',
+    'public.get_frozen_budget_prices(uuid)',
     'public.enqueue_price_import(uuid,text)',
     'public.price_import_poll()',
     'public.price_import_claim(uuid,bigint)',
@@ -30,7 +36,50 @@ begin
   if to_regprocedure('public.price_import_claim(uuid)') is not null then
     missing := missing || 'price_import_claim(uuid) debería haber sido eliminada por 20261102100004';
   end if;
+  if to_regprocedure('public.resolve_reference_price(uuid,uuid,uuid,uuid,uuid,date,text,text,text)') is not null then
+    missing := missing || 'resolve_reference_price de 9 args debería haber sido eliminada por 20261102100008';
+  end if;
   if to_regtype('public.resolved_reference_price') is null then missing := missing || 'tipo resolved_reference_price'; end if;
+  foreach t in array array['observation_count','price_status','resolution'] loop
+    if not exists (select 1 from pg_attribute where attrelid = 'public.resolved_reference_price'::regclass
+                   and attname = t and not attisdropped) then
+      missing := missing || ('atributo resolved_reference_price.' || t);
+    end if;
+  end loop;
+  foreach t in array array['region','includes_vat','commercial_condition','is_valid','invalidated_at',
+                           'invalidation_reason','invalidated_by','publication_status','published_by',
+                           'published_at','rejection_reason'] loop
+    if not exists (select 1 from information_schema.columns where table_schema = 'public'
+                   and table_name = 'price_observations' and column_name = t) then
+      missing := missing || ('columna price_observations.' || t);
+    end if;
+  end loop;
+  foreach t in array array['region','supplier_type'] loop
+    if not exists (select 1 from information_schema.columns where table_schema = 'public'
+                   and table_name = 'price_suppliers' and column_name = t) then
+      missing := missing || ('columna price_suppliers.' || t);
+    end if;
+  end loop;
+  if not exists (select 1 from information_schema.columns where table_schema = 'public'
+                 and table_name = 'budget_cost_snapshots' and column_name = 'reference_pricing_status') then
+    missing := missing || 'columna budget_cost_snapshots.reference_pricing_status';
+  end if;
+  if not exists (select 1 from pg_trigger where tgname = 'budget_cost_snapshots_block_frozen_delete' and not tgisinternal) then
+    missing := missing || 'trigger budget_cost_snapshots_block_frozen_delete';
+  end if;
+  if not exists (select 1 from pg_trigger where tgname = 'price_observations_guard_curation' and not tgisinternal) then
+    missing := missing || 'trigger price_observations_guard_curation';
+  end if;
+  if exists (select 1 from information_schema.role_table_grants where table_schema = 'public'
+             and table_name = 'budget_cost_snapshot_prices' and grantee = 'authenticated'
+             and privilege_type in ('UPDATE','DELETE')) then
+    missing := missing || 'budget_cost_snapshot_prices no debe conceder UPDATE/DELETE a authenticated';
+  end if;
+  if exists (select 1 from information_schema.role_table_grants where table_schema = 'public'
+             and table_name = 'budget_cost_snapshots' and grantee = 'authenticated'
+             and privilege_type = 'UPDATE') then
+    missing := missing || 'budget_cost_snapshots no debe conceder UPDATE a authenticated';
+  end if;
   if not exists (select 1 from pgmq.meta where queue_name = 'price_imports') then missing := missing || 'cola pgmq price_imports'; end if;
   if not exists (select 1 from storage.buckets where id = 'price_imports' and not public) then missing := missing || 'bucket price_imports'; end if;
   if (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'price_imports_%') <> 6 then
@@ -45,5 +94,5 @@ begin
   if coalesce(array_length(missing, 1), 0) > 0 then
     raise exception 'Faltan objetos: %', array_to_string(missing, '; ');
   end if;
-  raise notice 'Verificación OK: tablas, funciones, tipo, cola, bucket y políticas presentes';
+  raise notice 'Verificación OK: tablas, funciones, tipo (con trazabilidad), cola, bucket, políticas y triggers presentes';
 end $$;
