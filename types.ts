@@ -713,6 +713,25 @@ export interface MasterTask {
  * Guardado en master_tasks.source_metadata (JSONB).
  * Migración: 037_apu_source_metadata.sql
  */
+/**
+ * Ficha técnica de un APU de la base maestra.
+ * Guardada en master_tasks.technical_sheet (JSONB). Migración: 068_fichas_tecnicas_apu.sql
+ */
+export interface TechnicalSheet {
+  version: number;
+  ficha: string;
+  gremio?: string;
+  titulo: string;
+  /** SVG autónomo; se muestra siempre como <img>, nunca como HTML */
+  esquemaSvg?: string;
+  pie?: string;
+  descripcion?: string;
+  datosTecnicos: { label: string; value: string }[];
+  notas: string[];
+  fuente?: string;
+  relacionadas: { codigo: string; nombre: string }[];
+}
+
 export interface APUSourceMetadata {
   /** Identificador del proceso generador */
   source: 'chandias_computation' | string;

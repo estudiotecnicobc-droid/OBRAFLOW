@@ -1,0 +1,5 @@
+Fichas técnicas de tareas en la base maestra de ObraFlow.
+
+Pedido (Gonzalo, 31/10/2026): cada tarea por defecto del catálogo maestro tiene un pequeño detalle técnico con imagen y una breve descripción. Usar las 44 fichas armadas (scripts/fichas). Asignarlas a los APU existentes; crear APU nuevos solo donde no hay equivalente, con sus consumos y precios de referencia. Si hay APU muy parecidos, unificar en lo posible y aclarar en qué se distinguen cuando corresponda.
+
+Restricciones: no tocar ERPContext; no tocar APU de empresas; migración idempotente que corre Gonzalo; esquema mostrado como imagen (sin HTML inyectado); consumos y mano de obra siguen saliendo del APU.
