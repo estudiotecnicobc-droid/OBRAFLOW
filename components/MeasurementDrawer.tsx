@@ -1,19 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Ruler, Plus, Trash2, X, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Ruler, Plus, Trash2, X, AlertTriangle, CheckCircle2, Minus } from 'lucide-react';
 import { useERP } from '../context/ERPContext';
 import { useAuth } from '../context/AuthContext';
 import { generateId } from '../utils/generateId';
 import type { MeasurementLine, MeasurementSheet } from '../types';
 import { DecimalInput } from './DecimalInput';
+import { lineSubtotal, measureColumns, measureFormula, sheetTotal } from '../utils/measurementLayout';
 
 interface Props {
   budgetItemId: string;
   onClose: () => void;
 }
 
-const lineTotal = (l: MeasurementLine) => Number((l.length * l.width * l.height * l.count).toFixed(2));
-const sumLines = (lines: MeasurementLine[]) => Number(lines.reduce((a, l) => a + (l.subtotal || 0), 0).toFixed(2));
 const fmt = (n: number) => n.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 
 /**
@@ -78,7 +77,7 @@ export const MeasurementDrawer: React.FC<Props> = ({ budgetItemId, onClose }) =>
   const setLines = (lines: MeasurementLine[]) => {
     if (!sheet) return;
     dirty.current = true;
-    setSheet({ ...sheet, lines, totalQuantity: sumLines(lines) });
+    setSheet({ ...sheet, lines, totalQuantity: sheetTotal(lines).total });
   };
 
   const addLine = () => {
@@ -95,19 +94,22 @@ export const MeasurementDrawer: React.FC<Props> = ({ budgetItemId, onClose }) =>
     setLines([...sheet.lines, l]);
   };
 
-  const updateLine = (id: string, field: keyof MeasurementLine, val: string | number) => {
+  const updateLine = (id: string, field: keyof MeasurementLine, val: string | number | boolean) => {
     if (!sheet) return;
     setLines(sheet.lines.map(l => {
       if (l.id !== id) return l;
       if (field === 'description') return { ...l, description: String(val) };
+      if (field === 'deduct') return { ...l, deduct: !!val };
       const u = { ...l, [field]: Number(val) || 0 };
-      return field === 'subtotal' ? u : { ...u, subtotal: lineTotal(u) };
+      return field === 'subtotal' ? u : { ...u, subtotal: lineSubtotal(u) };
     }));
   };
 
   if (!item || !sheet) return null;
 
   const hasLines = sheet.lines.length > 0;
+  const columns = measureColumns(task?.unit, sheet.lines);
+  const { negative } = sheetTotal(sheet.lines);
   const mismatch = hasLines && Math.abs(item.quantity - sheet.totalQuantity) > 0.005 && !dirty.current;
 
   const baseInput = 'w-full p-1 bg-transparent focus:bg-white border border-transparent focus:border-blue-300 rounded outline-none text-xs';
@@ -124,7 +126,7 @@ export const MeasurementDrawer: React.FC<Props> = ({ budgetItemId, onClose }) =>
             <div className="text-[10px] uppercase font-bold text-slate-400">Planilla de medición</div>
             <h3 className="font-bold text-slate-800 text-sm truncate">{task?.name ?? 'Ítem'}</h3>
             <div className="text-[11px] text-slate-500 mt-0.5">
-              Unidad: <span className="font-semibold">{task?.unit}</span> · Largo × Ancho × Alto × Veces
+              Unidad: <span className="font-semibold">{task?.unit}</span> · {measureFormula(columns)}
             </div>
           </div>
           <div className="text-right shrink-0">
@@ -163,29 +165,41 @@ export const MeasurementDrawer: React.FC<Props> = ({ budgetItemId, onClose }) =>
               <thead className="text-[10px] uppercase text-slate-500 font-semibold">
                 <tr className="border-b border-slate-200">
                   <th className="p-1.5">Descripción / ubicación</th>
-                  <th className="p-1.5 text-center w-16">Largo</th>
-                  <th className="p-1.5 text-center w-16">Ancho</th>
-                  <th className="p-1.5 text-center w-16">Alto</th>
+                  {columns.map(c => (
+                    <th key={c.field} className="p-1.5 text-center w-16">{c.label}</th>
+                  ))}
                   <th className="p-1.5 text-center w-14">Veces</th>
+                  <th className="p-1.5 text-center w-9" title="Descontar del total">Desc.</th>
                   <th className="p-1.5 text-right w-20">Subtotal</th>
                   <th className="w-7" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {sheet.lines.map(l => (
-                  <tr key={l.id} className="group hover:bg-slate-50">
+                  <tr key={l.id} className={`group hover:bg-slate-50 ${l.deduct ? 'bg-red-50/40' : ''}`}>
                     <td className="p-1">
-                      <input className={`${baseInput} text-left`} placeholder="Ej: Muro eje 1-2"
+                      <input className={`${baseInput} text-left`} placeholder={l.deduct ? 'Ej: Puerta cocina' : 'Ej: Muro eje 1-2'}
                         value={l.description} onChange={e => updateLine(l.id, 'description', e.target.value)} />
                     </td>
-                    {(['length', 'width', 'height', 'count'] as const).map(f => (
+                    {[...columns.map(c => c.field), 'count' as const].map(f => (
                       <td key={f} className="p-1">
                         <DecimalInput className={inputCls} step={f === 'count' ? 1 : 0.1} value={l[f]} onValue={n => updateLine(l.id, f, n)} />
                       </td>
                     ))}
+                    <td className="p-1 text-center">
+                      <button onClick={() => updateLine(l.id, 'deduct', !l.deduct)}
+                        className={`p-1 rounded border ${l.deduct ? 'bg-red-500 border-red-500 text-white' : 'border-slate-200 text-slate-300 hover:text-red-500 hover:border-red-300'}`}
+                        aria-pressed={!!l.deduct} aria-label={l.deduct ? 'Sumar esta línea' : 'Descontar esta línea'}
+                        title={l.deduct ? 'Esta línea descuenta. Clic para sumarla.' : 'Descontar esta línea del total'}>
+                        <Minus size={11} />
+                      </button>
+                    </td>
                     <td className="p-1 bg-slate-50">
-                      <DecimalInput className={`${baseInput} font-mono text-right font-bold text-blue-700`} title="Podés escribir el subtotal directamente"
-                        value={l.subtotal} onValue={n => updateLine(l.id, 'subtotal', n)} />
+                      <div className="flex items-center">
+                        {l.deduct && <span className="font-mono text-xs font-bold text-red-600">−</span>}
+                        <DecimalInput className={`${baseInput} font-mono text-right font-bold ${l.deduct ? 'text-red-600' : 'text-blue-700'}`} title="Podés escribir el subtotal directamente"
+                          value={l.subtotal} onValue={n => updateLine(l.id, 'subtotal', n)} />
+                      </div>
                     </td>
                     <td className="p-1 text-center">
                       <button onClick={() => setLines(sheet.lines.filter(x => x.id !== l.id))}
@@ -198,12 +212,18 @@ export const MeasurementDrawer: React.FC<Props> = ({ budgetItemId, onClose }) =>
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-slate-300">
-                  <td colSpan={5} className="p-1.5 text-right text-xs font-bold text-slate-600">Total</td>
+                  <td colSpan={columns.length + 3} className="p-1.5 text-right text-xs font-bold text-slate-600">Total</td>
                   <td className="p-1.5 text-right font-mono text-sm font-bold text-emerald-700">{fmt(sheet.totalQuantity)}</td>
                   <td />
                 </tr>
               </tfoot>
             </table>
+          )}
+          {negative && (
+            <div className="mt-3 p-2.5 rounded-lg border border-red-200 bg-red-50 text-red-700 text-xs flex items-center gap-2">
+              <AlertTriangle size={14} className="shrink-0" />
+              Los descuentos superan a lo medido. El total queda en 0 hasta que lo corrijas.
+            </div>
           )}
           <button onClick={addLine}
             className="mt-3 w-full py-2 border-2 border-dashed border-slate-300 rounded-lg text-slate-500 text-xs font-bold hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center gap-2">
