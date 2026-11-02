@@ -2656,9 +2656,16 @@ export const ChandiasCalculator: React.FC<{ onNavigate?: (tab: string) => void }
     const budgetTaskIds = new Set((project?.items ?? []).map(bi => bi.taskId));
     const byName = new Map(CHANDIAS_CATALOG.map(t => [t.nombre.trim().toLowerCase(), t.id]));
     const catalogIds = new Set(CHANDIAS_CATALOG.map(t => t.id));
+    // Un APU ObraFlow puede ser el equivalente de varias tareas (por ejemplo, cerámicos 30 y 45).
+    const byApu = new Map<string, string[]>();
+    for (const t of CHANDIAS_CATALOG) {
+      if (t.apu) byApu.set(t.apu, [...(byApu.get(t.apu) ?? []), t.id]);
+    }
     for (const t of projectTasks) {
       if (!budgetTaskIds.has(t.id)) continue;
-      if (t.code && catalogIds.has(t.code)) ids.add(t.code);
+      const code = t.code?.trim();
+      if (code && catalogIds.has(code)) ids.add(code);
+      if (code) byApu.get(code)?.forEach(id => ids.add(id));
       const byN = byName.get(t.name.trim().toLowerCase());
       if (byN) ids.add(byN);
     }
