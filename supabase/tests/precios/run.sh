@@ -54,4 +54,20 @@ echo "== motor (observaciones, mediana, AS_OF, congelado)"
 psql -v ON_ERROR_STOP=1 -q -t -d "$DB" -f 04_motor.sql >/dev/null
 echo "== aprobación trazable (H1/H2, historial)"
 psql -v ON_ERROR_STOP=1 -q -t -d "$DB" -f 04b_aprobacion_trazable.sql >/dev/null
-echo "OK: migraciones de precios aplicadas en $DB"
+echo "== QA: circuito completo (CSV → aprobación → publicación → mediana → congelado → RLS)"
+psql -v ON_ERROR_STOP=1 -q -t -d "$DB" -f 05_circuito.sql >/dev/null
+echo "== QA: approve_supplier_mapping (idempotencia, aprobador original, conflictos)"
+psql -v ON_ERROR_STOP=1 -q -t -d "$DB" -f 06_aprobacion_reintentos.sql >/dev/null
+echo "== QA: approve_supplier_mapping concurrente (dos sesiones psql en paralelo)"
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f 06b_concurrencia_setup.sql
+CONC_OUT="$(mktemp -d)"
+psql -v ON_ERROR_STOP=1 -q -t -d "$DB" -v uid=0c000000-0000-0000-0000-00000000aaaa -f 06c_concurrencia_approve.sql >"$CONC_OUT/1.log" 2>&1 &
+psql -v ON_ERROR_STOP=1 -q -t -d "$DB" -v uid=0c000000-0000-0000-0000-00000000aaa2 -f 06c_concurrencia_approve.sql >"$CONC_OUT/2.log" 2>&1 &
+wait
+if grep -qiE "ERROR|duplicate key|unique" "$CONC_OUT"/*.log; then
+  echo "concurrencia: una sesión falló"; cat "$CONC_OUT"/*.log; exit 1
+fi
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f 06d_concurrencia_check.sql
+echo "== QA: auditoría de políticas RLS (columnas sin calificar en EXISTS)"
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f 07_politicas_calificacion.sql
+echo "OK: migraciones de precios aplicadas y QA en verde en $DB"

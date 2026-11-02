@@ -51,9 +51,25 @@ Variables opcionales: `PRECIOS_TEST_DB` (default `obraflow_precios_test`), `PGBI
 9. `04b_aprobacion_trazable.sql` — `approve_supplier_mapping` (100010): H1 `HISTORICAL_MAPPING_IMMUTABLE` antes de la
    ambigüedad, H2 `MAPPING_CHANGE_BLOCKED_PENDING_ROWS` con filas raw, re-decisión sin historial ni raw deja el aprobador
    original en `supplier_product_mapping_history` (INSERT directo 42501). Transacción revertida.
+10. `05_circuito.sql` (QA) — aceptación de punta a punta: Org A (owner/editor/viewer), Org B y usuario sin membresía;
+   4 lotes CSV → `pending_mapping` → `approve_supplier_mapping` (editor) → `homologate_raw_price_rows` → 8 observaciones →
+   `publish_price_observations` → mediana por proveedor (3 proveedores → 1100; 4 → 650; 1 → 750) con `resolution.observation_ids`;
+   APU con desperdicio 5 % y `conversion_factor` 50 → `freeze_budget_prices` (AS_OF ayer) verificado fila por fila contra
+   la fórmula de la 057, `materialsTotal` vs `legacyMaterialsTotal`, `apu_conversion_factor`/`supplier_unit_factor`, INSERT directo del editor → 42501; observación nueva → CURRENT cambia, FROZEN y AS_OF no;
+   RLS vacía y 42501 para Org B / sin membresía; viewer lee pero no publica/congela; UNIT_MISMATCH y USD → `is_usable=false`;
+   APU anidado → `skipped` + `partial`. Transacción revertida.
+11. `06_aprobacion_reintentos.sql` (QA) — `approve_supplier_mapping` (100007 + 100010): idempotencia, reintento idéntico
+    por otro usuario (conserva `approved_by`), conflicto con historial → 23505 `HISTORICAL_MAPPING_IMMUTABLE` (con y sin
+    filas pendientes), ambigüedad (22023), re-decisión con filas raw → 23505 `MAPPING_CHANGE_BLOCKED_PENDING_ROWS`,
+    re-decisión permitida con rastro en `supplier_product_mapping_history`. Transacción revertida.
+    `06b/06c/06d` — concurrencia real: datos committed, dos `psql` en paralelo aprobando el mismo SKU, verificación
+    de una sola equivalencia y 3 filas reencoladas (los datos `0c…` quedan en la base descartable).
+12. `07_politicas_calificacion.sql` (QA) — audita `pg_policies` de las tablas de precios: `organization_id` sin calificar
+    dentro de `EXISTS` y autocomparaciones `alias.col = alias.col` (forma en que el deparser muestra ese bug). Se
+    autoverifica con una política defectuosa creada y revertida.
 
 ## Límites
 
-Los stubs imitan firmas y columnas, no el comportamiento real de pgmq/Storage. Las pruebas de
-concurrencia, idempotencia bajo reintentos reales y preservación del aprobador original
-(ver cabecera de `20261102100007`) quedan para QA en un proyecto Supabase de staging.
+Los stubs imitan firmas y columnas, no el comportamiento real de pgmq/Storage. La concurrencia se emula con dos
+sesiones `psql` locales (sin dblink); el comportamiento bajo PgBouncer/pooler de Supabase, los reintentos reales
+del worker (Edge Function) y la RLS de Storage quedan para QA en un proyecto Supabase de staging.
