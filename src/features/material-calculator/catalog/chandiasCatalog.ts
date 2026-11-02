@@ -70,12 +70,49 @@ export interface StructuralFamilyConfig {
   faceLabels?: { fondo: string; lat1: string; lat2: string; lat3: string };
 }
 
+export interface ChandiasTaskConditions {
+  medicion: string;
+  incluye: string;
+  noIncluye: string;
+}
+
+export type TaskSketchSpec =
+  | { kind: 'excavation'; mode: 'pit' | 'trench' }
+  | { kind: 'fill' }
+  | { kind: 'grading' }
+  | { kind: 'leanConcrete' }
+  | { kind: 'concrete'; shape: 'strip' | 'volume'; grade: string; mix?: string }
+  | { kind: 'slab'; thickness?: string }
+  | { kind: 'beam'; section?: string; onGround?: boolean }
+  | { kind: 'column'; section?: string; base?: boolean }
+  | { kind: 'footing' }
+  | { kind: 'brickWall'; wythes: 1 | 2 }
+  | { kind: 'hollowWall'; block: 8 | 12 | 18 }
+  | { kind: 'plaster'; layer: 'grueso' | 'fino' | 'hidrofugo' | 'gruesoExt' | 'bajoRev' }
+  | { kind: 'screed'; type: 'cascote' | 'pobre' | 'alisado' | 'visto'; thickness: string }
+  | { kind: 'tileFloor'; cm: number; finish: 'calcareo' | 'ceramico' | 'porcelanato' }
+  | { kind: 'wallTile'; w: number; h: number }
+  | { kind: 'skirting' }
+  | { kind: 'stoneWall' }
+  | { kind: 'sheetRoof' }
+  | { kind: 'tileRoof' }
+  | { kind: 'membrane' }
+  | { kind: 'joistSlab' }
+  | { kind: 'insulation'; type: 'asfaltica' | 'lana' | 'film' }
+  | { kind: 'ceiling'; type: 'aplicado' | 'suspendido' | 'machimbre' }
+  | { kind: 'paint'; type: 'interior' | 'exterior' | 'cal' | 'esmalte' }
+  | { kind: 'pipe'; type: 'agua' | 'cloaca' };
+
 export interface ChandiasTask {
   id: string;
   nombre: string;
   categoria: string;
   unidad: string;       // unidad de medida del resultado (m², m³, ml, un)
   descripcion: string;
+  /** Criterio de medición y alcance de la tarea, visible en el calculador. */
+  condiciones?: ChandiasTaskConditions;
+  /** Esquema técnico propio; si falta, se usa el genérico del rubro. */
+  sketch?: TaskSketchSpec;
   dims: ChandiasTaskDim[];
   formula: string;      // expresión JS que usa los ids de dims[]
   materiales: ChandiasTaskMaterial[];
@@ -90,6 +127,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'EXC-001', nombre: 'Excavación a cielo abierto', categoria: 'Movimiento de Suelos',
     unidad: 'm³', descripcion: 'Excavación en tierra sin clasificar, manual o mecánica',
+    condiciones: {
+      medicion: 'Volumen en banco (largo × ancho × profundidad), medido en el terreno antes de excavar.',
+      incluye: 'Excavación manual o mecánica y acopio de la tierra al costado de la obra.',
+      noIncluye: 'Retiro de tierra, volquetes, apuntalamiento ni depresión de napa. La tierra suelta ocupa entre 20 y 30 % más que en banco (esponjamiento).',
+    },
+    sketch: { kind: 'excavation', mode: 'pit' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }, { id: 'profundidad', label: 'Profundidad', unit: 'm' }],
     formula: 'largo*ancho*profundidad',
     materiales: [{ nombre: 'Puntas y barretas (amortiz.)', unit: 'kg', coef: 0.05 }],
@@ -97,6 +140,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'EXC-002', nombre: 'Excavación de zanjas para fundaciones', categoria: 'Movimiento de Suelos',
     unidad: 'm³', descripcion: 'Zanja a mano, profundidad hasta 1.50m',
+    condiciones: {
+      medicion: 'Volumen en banco de la zanja (largo × ancho × profundidad), hasta 1,50 m de profundidad.',
+      incluye: 'Excavación a mano, perfilado de paredes y fondo, y acopio al costado.',
+      noIncluye: 'Entibado (necesario en suelos inestables o a más de 1,50 m), retiro de tierra ni achique de agua.',
+    },
+    sketch: { kind: 'excavation', mode: 'trench' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }, { id: 'profundidad', label: 'Profundidad', unit: 'm' }],
     formula: 'largo*ancho*profundidad',
     materiales: [{ nombre: 'Puntas y barretas (amortiz.)', unit: 'kg', coef: 0.05 }],
@@ -104,6 +153,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'EXC-003', nombre: 'Relleno y compactación con material propio', categoria: 'Movimiento de Suelos',
     unidad: 'm³', descripcion: 'Relleno en capas de 20cm con compactación manual',
+    condiciones: {
+      medicion: 'Volumen compactado terminado.',
+      incluye: 'Relleno con tierra de la propia excavación en capas de 20 cm, humedecidas y compactadas con pisón.',
+      noIncluye: 'Material de aporte (tosca o tierra seleccionada) ni ensayos de compactación. Para 1 m³ compactado hace falta más volumen suelto.',
+    },
+    sketch: { kind: 'fill' },
     dims: [{ id: 'volumen', label: 'Volumen', unit: 'm³' }],
     formula: 'volumen',
     materiales: [{ nombre: 'Agua para compactación', unit: 'm³', coef: 0.12 }],
@@ -111,6 +166,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'EXC-004', nombre: 'Nivelación y emparejamiento de terreno', categoria: 'Movimiento de Suelos',
     unidad: 'm²', descripcion: 'Limpieza y emparejamiento superficial',
+    condiciones: {
+      medicion: 'Superficie en planta (largo × ancho).',
+      incluye: 'Limpieza de la capa superficial suelta, emparejamiento y perfilado del terreno a la cota de proyecto.',
+      noIncluye: 'Desmonte o terraplén de más de 20 cm, retiro de escombros ni compactación.',
+    },
+    sketch: { kind: 'grading' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [],
@@ -118,6 +179,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'EXC-005', nombre: 'Hormigón de limpieza H-4 (e=5cm)', categoria: 'Movimiento de Suelos',
     unidad: 'm²', descripcion: 'Capa de regularización bajo fundaciones, e=5cm',
+    condiciones: {
+      medicion: 'Superficie bajo bases o vigas de fundación (largo × ancho), con 5 cm de espesor.',
+      incluye: 'Hormigón pobre colado sobre el fondo de excavación limpio y nivelado.',
+      noIncluye: 'Excavación ni encofrado. Con otro espesor, la cantidad cambia en proporción.',
+    },
+    sketch: { kind: 'leanConcrete' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -132,6 +199,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'HOR-001', nombre: 'Hormigón en masa H-8', categoria: 'Hormigones',
     unidad: 'm³', descripcion: 'Para fundaciones corridas y mampostería en masa',
+    condiciones: {
+      medicion: 'Volumen colocado (largo × ancho × alto de la sección).',
+      incluye: 'Cemento, arena, piedra y agua para hormigón simple hecho en obra.',
+      noIncluye: 'Armadura, encofrado, excavación ni curado especial.',
+    },
+    sketch: { kind: 'concrete', shape: 'strip', grade: 'H-8' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Sección ancho', unit: 'm' }, { id: 'alto', label: 'Sección alto', unit: 'm' }],
     formula: 'largo*ancho*alto',
     materiales: [
@@ -144,6 +217,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'HOR-002', nombre: 'Hormigón H-13 (dosaje 1:2:4)', categoria: 'Hormigones',
     unidad: 'm³', descripcion: 'Bases y zapatas, resistencia 13 MPa',
+    condiciones: {
+      medicion: 'Volumen colocado.',
+      incluye: 'Hormigón hecho en obra con hormigonera, dosaje en volumen 1:2:4 (cemento, arena, piedra).',
+      noIncluye: 'Armadura, encofrado, vibrado ni ensayos de probetas.',
+    },
+    sketch: { kind: 'concrete', shape: 'volume', mix: '1:2:4', grade: 'H-13' },
     dims: [{ id: 'volumen', label: 'Volumen', unit: 'm³' }],
     formula: 'volumen',
     materiales: [
@@ -156,6 +235,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'HOR-003', nombre: 'Hormigón H-17 (dosaje 1:2:3)', categoria: 'Hormigones',
     unidad: 'm³', descripcion: 'Losas, vigas y columnas, resistencia 17 MPa',
+    condiciones: {
+      medicion: 'Volumen colocado.',
+      incluye: 'Hormigón hecho en obra con hormigonera, dosaje en volumen 1:2:3 (cemento, arena, piedra).',
+      noIncluye: 'Encofrado, vibrado ni ensayos de probetas.',
+    },
+    sketch: { kind: 'concrete', shape: 'volume', mix: '1:2:3', grade: 'H-17' },
     dims: [{ id: 'volumen', label: 'Volumen', unit: 'm³' }],
     formula: 'volumen',
     materiales: [
@@ -168,6 +253,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'HOR-004', nombre: 'Hormigón H-21 (dosaje 1:1.5:3)', categoria: 'Hormigones',
     unidad: 'm³', descripcion: 'Estructura principal, resistencia 21 MPa',
+    condiciones: {
+      medicion: 'Volumen colocado.',
+      incluye: 'Hormigón hecho en obra con hormigonera, dosaje en volumen 1:1,5:3. Para estructura H-21 conviene elaborado, con control de calidad.',
+      noIncluye: 'Encofrado, vibrado ni ensayos de probetas.',
+    },
+    sketch: { kind: 'concrete', shape: 'volume', mix: '1:1,5:3', grade: 'H-21' },
     dims: [{ id: 'volumen', label: 'Volumen', unit: 'm³' }],
     formula: 'volumen',
     materiales: [
@@ -181,6 +272,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'HOR-005', nombre: 'Losa de hormigón armado e=12cm', categoria: 'Hormigones',
     unidad: 'm²', descripcion: 'Losa maciza, armadura simple, e=12cm',
+    condiciones: {
+      medicion: 'Superficie de losa en planta (largo × ancho), con 12 cm de espesor.',
+      incluye: 'Hormigón hecho en obra y armadura simple de ø 8 mm.',
+      noIncluye: 'Encofrado, apuntalamiento, vigas de borde ni curado.',
+    },
+    sketch: { kind: 'slab', thickness: '12 cm' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -194,6 +291,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'HOR-006', nombre: 'Viga de hormigón armado 20×30cm', categoria: 'Hormigones',
     unidad: 'ml', descripcion: 'Viga principal 20×30cm con armadura',
+    condiciones: {
+      medicion: 'Longitud total de vigas, sección 20 × 30 cm.',
+      incluye: 'Hormigón hecho en obra, armadura longitudinal y alambre de atar.',
+      noIncluye: 'Estribos, encofrado ni apuntalamiento.',
+    },
+    sketch: { kind: 'beam', section: '20 × 30 cm' },
     dims: [{ id: 'largo', label: 'Longitud total', unit: 'm' }],
     formula: 'largo',
     materiales: [
@@ -207,6 +310,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'HOR-007', nombre: 'Columna de hormigón armado 25×25cm', categoria: 'Hormigones',
     unidad: 'ml', descripcion: 'Columna estructural 25×25cm con armadura',
+    condiciones: {
+      medicion: 'Altura total de columnas, sección 25 × 25 cm.',
+      incluye: 'Hormigón hecho en obra, armadura y alambre de atar.',
+      noIncluye: 'Encofrado ni apuntalamiento.',
+    },
+    sketch: { kind: 'column', section: '25 × 25 cm' },
     dims: [{ id: 'largo', label: 'Altura total', unit: 'm' }],
     formula: 'largo',
     materiales: [
@@ -222,6 +331,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'MAM-001', nombre: 'Muro ladrillo común 6x12x24 e=0.15m (1 pie)', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Muro portante de 1 pie, junta normal 1.5cm, mortero 1:1:6',
+    condiciones: {
+      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro». Muro de 12 cm, unos 15 cm revocado.',
+      incluye: 'Ladrillos comunes y mortero de asiento de cemento, cal y arena, con juntas de 1,5 cm.',
+      noIncluye: 'Revoques, encadenados, dinteles, capa aisladora ni andamios.',
+    },
+    sketch: { kind: 'brickWall', wythes: 1 },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -234,6 +349,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'MAM-002', nombre: 'Muro ladrillo común 6x12x24 e=0.30m (2 pies)', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Muro de cerramiento doble, junta normal',
+    condiciones: {
+      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro». Muro de 24 cm, unos 30 cm revocado.',
+      incluye: 'Ladrillos comunes trabados en el espesor y mortero de asiento de cemento, cal y arena.',
+      noIncluye: 'Revoques, encadenados, dinteles, capa aisladora ni andamios.',
+    },
+    sketch: { kind: 'brickWall', wythes: 2 },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -246,6 +367,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'MAM-003', nombre: 'Muro ladrillo hueco e=0.20m', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Cerramiento con ladrillo hueco 18×18×33cm',
+    condiciones: {
+      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro».',
+      incluye: 'Ladrillos cerámicos huecos de 18 × 18 × 33 cm y mortero de asiento de cemento, cal y arena.',
+      noIncluye: 'Revoques, encadenados, dinteles ni andamios.',
+    },
+    sketch: { kind: 'hollowWall', block: 18 },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -258,6 +385,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'MAM-004', nombre: 'Muro ladrillo hueco e=0.15m', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Muro intermedio con ladrillo hueco 12×18×33cm',
+    condiciones: {
+      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro».',
+      incluye: 'Ladrillos cerámicos huecos de 12 × 18 × 33 cm y mortero de asiento de cemento, cal y arena.',
+      noIncluye: 'Revoques, encadenados, dinteles ni andamios.',
+    },
+    sketch: { kind: 'hollowWall', block: 12 },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -270,6 +403,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'MAM-005', nombre: 'Tabique ladrillo cerámico 8x18x33 e=0.08m', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Tabique divisorio ceramico simple, e=8cm, 1 hoja',
+    condiciones: {
+      medicion: 'Superficie de tabique (largo × alto). Los vanos se descuentan en «Configuración de muro».',
+      incluye: 'Tabique no portante de ladrillos huecos de 8 × 18 × 33 cm y mortero de asiento.',
+      noIncluye: 'Revoques, dinteles, refuerzos para mesadas o muebles ni andamios.',
+    },
+    sketch: { kind: 'hollowWall', block: 8 },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -282,6 +421,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'MAM-006', nombre: 'Muro ladrillo ceramico 18x18x33 e=0.18m', categoria: 'Mampostería',
     unidad: 'm²', descripcion: 'Muro exterior ceramico, e=18cm, mortero 1:1:6',
+    condiciones: {
+      medicion: 'Superficie de muro (largo × alto). Los vanos se descuentan en «Configuración de muro».',
+      incluye: 'Ladrillos cerámicos huecos de 18 × 18 × 33 cm y mortero de asiento de cemento, cal y arena.',
+      noIncluye: 'Revoques, encadenados, dinteles ni andamios.',
+    },
+    sketch: { kind: 'hollowWall', block: 18 },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -296,6 +441,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'REV-001', nombre: 'Revoque grueso interior (1:2:9)', categoria: 'Revoques',
     unidad: 'm²', descripcion: 'Mortero cemento-cal-arena, e≈15mm, base para fino',
+    condiciones: {
+      medicion: 'Superficie revocada (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      incluye: 'Revoque grueso (jaharro) de cemento, cal y arena, de unos 1,5 cm, fratasado como base para el fino.',
+      noIncluye: 'Fino, azotado hidrófugo, buñas, guardacantos ni andamios.',
+    },
+    sketch: { kind: 'plaster', layer: 'grueso' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -307,6 +458,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'REV-002', nombre: 'Revoque fino a la cal (enlucido)', categoria: 'Revoques',
     unidad: 'm²', descripcion: 'Yeso o pasta cal, acabado liso, e≈5mm',
+    condiciones: {
+      medicion: 'Superficie revocada (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      incluye: 'Enlucido fino de unos 5 mm sobre el grueso fraguado, terminado al fieltro.',
+      noIncluye: 'Revoque grueso, pintura ni reparación de fisuras.',
+    },
+    sketch: { kind: 'plaster', layer: 'fino' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -317,6 +474,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'REV-003', nombre: 'Revoque exterior hidrófugo', categoria: 'Revoques',
     unidad: 'm²', descripcion: 'Mortero con hidrófugo de fraguado, e≈20mm',
+    condiciones: {
+      medicion: 'Superficie revocada (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      incluye: 'Capa de cemento y arena con hidrófugo, continua y sin juntas, aplicada antes del grueso.',
+      noIncluye: 'Revoque grueso, fino ni pintura impermeable.',
+    },
+    sketch: { kind: 'plaster', layer: 'hidrofugo' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -328,6 +491,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'REV-004', nombre: 'Revoque grueso exterior (1:3)', categoria: 'Revoques',
     unidad: 'm²', descripcion: 'Mezcla cemento-arena, para exteriores no hidrófugos',
+    condiciones: {
+      medicion: 'Superficie revocada (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      incluye: 'Revoque grueso exterior sobre el azotado hidrófugo, fratasado como base para el fino.',
+      noIncluye: 'Azotado hidrófugo, fino ni pintura.',
+    },
+    sketch: { kind: 'plaster', layer: 'gruesoExt' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -339,6 +508,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'REV-005', nombre: 'Enlucido bajo azulejo / porcelanato (1:4)', categoria: 'Revoques',
     unidad: 'm²', descripcion: 'Base cementosa para aplicación de revestimiento',
+    condiciones: {
+      medicion: 'Superficie a revestir (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      incluye: 'Revoque de cemento y arena a plomo y peinado, como base para pegar cerámicos o porcelanatos.',
+      noIncluye: 'Revestimiento, adhesivo ni pastina.',
+    },
+    sketch: { kind: 'plaster', layer: 'bajoRev' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -351,6 +526,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'PIS-001', nombre: 'Contrapiso de cascote s/terreno natural (e=12cm)', categoria: 'Contrapisos y Pisos',
     unidad: 'm²', descripcion: 'Base con cascote de ladrillo triturado, e=12cm',
+    condiciones: {
+      medicion: 'Superficie en planta (largo × ancho), con 12 cm de espesor.',
+      incluye: 'Cascote de ladrillo con mortero de cemento y arena, apisonado sobre el terreno.',
+      noIncluye: 'Compactación del terreno, film o aislación hidrófuga ni carpeta.',
+    },
+    sketch: { kind: 'screed', type: 'cascote', thickness: '12 cm' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -362,6 +543,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'PIS-002', nombre: 'Contrapiso hormigón pobre (e=10cm)', categoria: 'Contrapisos y Pisos',
     unidad: 'm²', descripcion: 'Contrapiso hormigón 1:4:8, e=10cm',
+    condiciones: {
+      medicion: 'Superficie en planta (largo × ancho), con 10 cm de espesor.',
+      incluye: 'Hormigón pobre colado sobre el terreno compactado y reglado.',
+      noIncluye: 'Malla, film, juntas ni carpeta.',
+    },
+    sketch: { kind: 'screed', type: 'pobre', thickness: '10 cm' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -373,6 +560,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'PIS-003', nombre: 'Piso de cemento alisado (e=3cm)', categoria: 'Contrapisos y Pisos',
     unidad: 'm²', descripcion: 'Mortero 1:3 cemento-arena, alisado con paleta',
+    condiciones: {
+      medicion: 'Superficie en planta (largo × ancho), con 3 cm de espesor.',
+      incluye: 'Carpeta de cemento y arena terminada alisada a la llana.',
+      noIncluye: 'Contrapiso, juntas de dilatación ni endurecedor.',
+    },
+    sketch: { kind: 'screed', type: 'alisado', thickness: '3 cm' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -383,6 +576,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'PIS-004', nombre: 'Piso mosaico calcáreo 20×20cm', categoria: 'Contrapisos y Pisos',
     unidad: 'm²', descripcion: 'Mosaico sobre cama de mortero 1:4',
+    condiciones: {
+      medicion: 'Superficie de piso (largo × ancho).',
+      incluye: 'Mosaicos calcáreos de 20 × 20 cm asentados sobre mortero de cemento y arena, y empastinado.',
+      noIncluye: 'Contrapiso, pulido a plomo ni zócalos.',
+    },
+    sketch: { kind: 'tileFloor', cm: 20, finish: 'calcareo' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -395,6 +594,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'PIS-005', nombre: 'Piso cerámico 30×30cm', categoria: 'Contrapisos y Pisos',
     unidad: 'm²', descripcion: 'Cerámica esmaltada, pegado con cemento cola',
+    condiciones: {
+      medicion: 'Superficie de piso (largo × ancho).',
+      incluye: 'Cerámicas de 30 × 30 cm con 5 % de desperdicio, adhesivo cementicio y pastina.',
+      noIncluye: 'Carpeta niveladora, zócalos ni cortes en diagonal.',
+    },
+    sketch: { kind: 'tileFloor', cm: 30, finish: 'ceramico' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -406,6 +611,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'PIS-006', nombre: 'Piso cerámico 45×45cm', categoria: 'Contrapisos y Pisos',
     unidad: 'm²', descripcion: 'Cerámica de alto tránsito, adhesivo gris',
+    condiciones: {
+      medicion: 'Superficie de piso (largo × ancho).',
+      incluye: 'Cerámicas de 45 × 45 cm con 5 % de desperdicio, adhesivo cementicio y pastina.',
+      noIncluye: 'Carpeta niveladora, zócalos ni cortes en diagonal.',
+    },
+    sketch: { kind: 'tileFloor', cm: 45, finish: 'ceramico' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -417,6 +628,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'PIS-007', nombre: 'Piso porcelanato 60×60cm', categoria: 'Contrapisos y Pisos',
     unidad: 'm²', descripcion: 'Porcelanato rectificado, adhesivo flexible',
+    condiciones: {
+      medicion: 'Superficie de piso (largo × ancho).',
+      incluye: 'Porcelanato rectificado de 60 × 60 cm con 5 % de desperdicio, adhesivo flexible y pastina.',
+      noIncluye: 'Carpeta niveladora, sistema nivelador de piezas ni zócalos.',
+    },
+    sketch: { kind: 'tileFloor', cm: 60, finish: 'porcelanato' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -428,6 +645,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'PIS-008', nombre: 'Solado de hormigón visto (e=8cm)', categoria: 'Contrapisos y Pisos',
     unidad: 'm²', descripcion: 'Hormigón 1:2:4 para solados exteriores, e=8cm',
+    condiciones: {
+      medicion: 'Superficie en planta (largo × ancho), con 8 cm de espesor.',
+      incluye: 'Hormigón colado en obra para solado exterior, terminado a la llana o peinado.',
+      noIncluye: 'Malla o fibras, juntas de dilatación, endurecedor ni base compactada.',
+    },
+    sketch: { kind: 'screed', type: 'visto', thickness: '8 cm' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -441,6 +664,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'RVE-001', nombre: 'Revestimiento azulejo 15×15cm', categoria: 'Revestimientos',
     unidad: 'm²', descripcion: 'Azulejo cerámico para baños y cocinas',
+    condiciones: {
+      medicion: 'Superficie revestida (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      incluye: 'Azulejos de 15 × 15 cm con 4 % de desperdicio, adhesivo y pastina.',
+      noIncluye: 'Revoque bajo revestimiento, guardacantos ni cortes para accesorios.',
+    },
+    sketch: { kind: 'wallTile', w: 15, h: 15 },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -452,6 +681,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'RVE-002', nombre: 'Revestimiento porcelanato 30×60cm', categoria: 'Revestimientos',
     unidad: 'm²', descripcion: 'Porcelanato pared, adhesivo blanco flexible',
+    condiciones: {
+      medicion: 'Superficie revestida (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      incluye: 'Porcelanato de 30 × 60 cm con 5 % de desperdicio, adhesivo flexible y pastina.',
+      noIncluye: 'Revoque bajo revestimiento, guardacantos ni sistema nivelador.',
+    },
+    sketch: { kind: 'wallTile', w: 60, h: 30 },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -463,6 +698,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'RVE-003', nombre: 'Zócalo cerámico h=10cm', categoria: 'Revestimientos',
     unidad: 'ml', descripcion: 'Cenefa / rodapié cerámico',
+    condiciones: {
+      medicion: 'Longitud de zócalo: perímetro del local menos el ancho de las puertas.',
+      incluye: 'Piezas de 10 × 30 cm con 5 % de desperdicio, adhesivo y pastina.',
+      noIncluye: 'Piezas especiales de esquina ni sellado contra el piso.',
+    },
+    sketch: { kind: 'skirting' },
     dims: [{ id: 'largo', label: 'Longitud', unit: 'm' }],
     formula: 'largo',
     materiales: [
@@ -474,6 +715,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'RVE-004', nombre: 'Revestimiento laja de piedra natural', categoria: 'Revestimientos',
     unidad: 'm²', descripcion: 'Laja de piedra sobre mortero 1:4',
+    condiciones: {
+      medicion: 'Superficie revestida (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      incluye: 'Laja de piedra natural asentada con mortero de cemento y arena, con juntas tomadas.',
+      noIncluye: 'Revoque de base, sellador ni hidrorrepelente.',
+    },
+    sketch: { kind: 'stoneWall' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -487,6 +734,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'CUB-001', nombre: 'Cubierta de chapa sinusoidal C25', categoria: 'Cubiertas',
     unidad: 'm²', descripcion: 'Chapa galvanizada C25, solape lateral y longitudinal',
+    condiciones: {
+      medicion: 'Superficie en proyección horizontal (largo × ancho). La chapa real es mayor según la pendiente.',
+      incluye: 'Chapa sinusoidal galvanizada C25 con solapes, tornillos autoperforantes, burlete de cierre y sellador.',
+      noIncluye: 'Estructura, correas, aislación, zinguería ni canaletas.',
+    },
+    sketch: { kind: 'sheetRoof' },
     dims: [{ id: 'largo', label: 'Largo (proyección)', unit: 'm' }, { id: 'ancho', label: 'Ancho (proyección)', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -499,6 +752,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'CUB-002', nombre: 'Cubierta de teja cerámica s/torta de barro', categoria: 'Cubiertas',
     unidad: 'm²', descripcion: 'Teja francesa o española sobre torta de barro+cal',
+    condiciones: {
+      medicion: 'Superficie en proyección horizontal (largo × ancho). La cubierta real es mayor según la pendiente.',
+      incluye: 'Tejas cerámicas asentadas sobre torta de barro y cal.',
+      noIncluye: 'Estructura, entablonado o clavaderas, aislación ni cumbreras.',
+    },
+    sketch: { kind: 'tileRoof' },
     dims: [{ id: 'largo', label: 'Largo (proyección)', unit: 'm' }, { id: 'ancho', label: 'Ancho (proyección)', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -509,7 +768,13 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   },
   {
     id: 'CUB-003', nombre: 'Membrana asfáltica 4mm APP', categoria: 'Cubiertas',
-    unidad: 'm²', descripcion: 'Membrana impermeabilizante termofusible, 2 capas',
+    unidad: 'm²', descripcion: 'Membrana impermeabilizante de 4 mm soldada con soplete',
+    condiciones: {
+      medicion: 'Superficie a impermeabilizar (largo × ancho). Sumá el desarrollo de las babetas.',
+      incluye: 'Imprimación asfáltica y membrana de 4 mm soldada con soplete, con solapes de 10 cm.',
+      noIncluye: 'Carpeta de pendiente, zinguería, embudos ni pintura reflectiva.',
+    },
+    sketch: { kind: 'membrane' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -521,6 +786,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'CUB-004', nombre: 'Losa con viguetas pretensadas y bloques', categoria: 'Cubiertas',
     unidad: 'm²', descripcion: 'Sistema de losa alivianada 20+5cm de capa',
+    condiciones: {
+      medicion: 'Superficie de losa en planta (largo × ancho).',
+      incluye: 'Viguetas pretensadas, bloques cerámicos, capa de compresión de 5 cm y malla de repartición.',
+      noIncluye: 'Apuntalamiento, vigas de borde, encadenados ni instalaciones embutidas.',
+    },
+    sketch: { kind: 'joistSlab' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -536,6 +807,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'AIS-001', nombre: 'Aislación hidrófuga horizontal bajo contrapiso', categoria: 'Aislaciones',
     unidad: 'm²', descripcion: 'Pintura asfáltica sobre tierra, 2 manos',
+    condiciones: {
+      medicion: 'Superficie en planta (largo × ancho).',
+      incluye: 'Pintura asfáltica en 2 manos sobre la superficie limpia y seca.',
+      noIncluye: 'Capa cementicia con hidrófugo, film de polietileno ni capa aisladora de muros.',
+    },
+    sketch: { kind: 'insulation', type: 'asfaltica' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -546,6 +823,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'AIS-002', nombre: 'Aislación térmica lana de vidrio e=50mm', categoria: 'Aislaciones',
     unidad: 'm²', descripcion: 'Panel de lana de vidrio 50mm con papel kraft',
+    condiciones: {
+      medicion: 'Superficie a aislar (largo × ancho).',
+      incluye: 'Lana de vidrio de 50 mm con papel kraft hacia el lado calefaccionado, cinta en las uniones y fijaciones.',
+      noIncluye: 'Estructura de sostén, cielorraso ni barrera de agua y viento.',
+    },
+    sketch: { kind: 'insulation', type: 'lana' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -557,6 +840,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'AIS-003', nombre: 'Barrera de vapor film polietileno 200µ', categoria: 'Aislaciones',
     unidad: 'm²', descripcion: 'Film polietileno negro bajo losa o entre capas',
+    condiciones: {
+      medicion: 'Superficie a cubrir (largo × ancho).',
+      incluye: 'Film de polietileno de 200 µm con solapes de 15 cm sellados con cinta.',
+      noIncluye: 'Contrapiso, losa ni protección mecánica.',
+    },
+    sketch: { kind: 'insulation', type: 'film' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -569,6 +858,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'CIE-001', nombre: 'Cielorraso revoque sobre losa', categoria: 'Cielorrasos',
     unidad: 'm²', descripcion: 'Enlucido yeso + cal sobre cara inferior de losa',
+    condiciones: {
+      medicion: 'Superficie de cielorraso en planta (largo × ancho).',
+      incluye: 'Revoque aplicado bajo losa con enlucido de yeso y cal.',
+      noIncluye: 'Andamios, molduras ni pintura.',
+    },
+    sketch: { kind: 'ceiling', type: 'aplicado' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -580,6 +875,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'CIE-002', nombre: 'Cielorraso suspendido en seco (Durlock)', categoria: 'Cielorrasos',
     unidad: 'm²', descripcion: 'Placa de yeso 12.5mm sobre estructura de perfiles',
+    condiciones: {
+      medicion: 'Superficie de cielorraso en planta (largo × ancho).',
+      incluye: 'Placa de yeso de 12,5 mm atornillada a perfiles galvanizados, con masilla y cinta en las juntas.',
+      noIncluye: 'Cuelgues, aislación, buñas ni pintura.',
+    },
+    sketch: { kind: 'ceiling', type: 'suspendido' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -594,6 +895,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'CIE-003', nombre: 'Cielorraso madera machimbrada', categoria: 'Cielorrasos',
     unidad: 'm²', descripcion: 'Tablones machimbrados de pino 1a clavados a viguería',
+    condiciones: {
+      medicion: 'Superficie de cielorraso en planta (largo × ancho).',
+      incluye: 'Machimbre de pino con 10 % de desperdicio, clavado a la estructura existente.',
+      noIncluye: 'Tirantes o clavaderas, aislación, barniz ni molduras.',
+    },
+    sketch: { kind: 'ceiling', type: 'machimbre' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -606,6 +913,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'PIN-001', nombre: 'Pintura látex interior (2 manos)', categoria: 'Pinturas',
     unidad: 'm²', descripcion: 'Previo enduído y sellador, 2 manos de látex vinílico',
+    condiciones: {
+      medicion: 'Superficie a pintar (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      incluye: 'Lijado, fijador sellador, enduido parcial y 2 manos de látex interior.',
+      noIncluye: 'Reparación de revoques, enduido total ni andamios.',
+    },
+    sketch: { kind: 'paint', type: 'interior' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -618,6 +931,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'PIN-002', nombre: 'Pintura látex exterior (2 manos)', categoria: 'Pinturas',
     unidad: 'm²', descripcion: 'Látex exterior acrílico con base fijadora',
+    condiciones: {
+      medicion: 'Superficie a pintar (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      incluye: 'Fijador para exteriores y 2 manos de látex acrílico.',
+      noIncluye: 'Hidrolavado, tratamiento de fisuras ni andamios.',
+    },
+    sketch: { kind: 'paint', type: 'exterior' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -628,6 +947,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'PIN-003', nombre: 'Pintura al cal (2 manos)', categoria: 'Pinturas',
     unidad: 'm²', descripcion: 'Lechada de cal para paredes de obra gruesa',
+    condiciones: {
+      medicion: 'Superficie a pintar (largo × alto). Los vanos se descuentan en «Configuración de paño».',
+      incluye: 'Lechada de cal en 2 manos sobre revoque.',
+      noIncluye: 'Fijador, pigmentos ni reparación de revoques.',
+    },
+    sketch: { kind: 'paint', type: 'cal' },
     dims: [{ id: 'largo', label: 'Largo', unit: 'm' }, { id: 'alto', label: 'Alto', unit: 'm' }],
     formula: 'largo*alto',
     materiales: [
@@ -637,6 +962,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'PIN-004', nombre: 'Esmalte sintético s/carpintería de madera (2 manos)', categoria: 'Pinturas',
     unidad: 'm²', descripcion: 'Preparación + fondo + 2 manos de esmalte',
+    condiciones: {
+      medicion: 'Superficie desarrollada de la carpintería: ambas caras y cantos.',
+      incluye: 'Lijado, fondo sellador y 2 manos de esmalte sintético.',
+      noIncluye: 'Remoción de pintura vieja, masillado ni herrajes.',
+    },
+    sketch: { kind: 'paint', type: 'esmalte' },
     dims: [{ id: 'largo', label: 'Largo (desarrollo)', unit: 'm' }, { id: 'ancho', label: 'Ancho', unit: 'm' }],
     formula: 'largo*ancho',
     materiales: [
@@ -652,6 +983,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'FUN-001', nombre: 'Bases de Hormigón Armado H-21', categoria: 'Fundaciones',
     unidad: 'm³', descripcion: 'Base aislada o corrida de H.A. H-21. 50 kg/m³ de acero ADN 420.',
+    condiciones: {
+      medicion: 'Volumen de hormigón de la base (largo × ancho × alto).',
+      incluye: 'Hormigón elaborado H-21 con desperdicio y acero ADN 420 según la cuantía.',
+      noIncluye: 'Excavación, hormigón de limpieza, bombeo ni vibrado.',
+    },
+    sketch: { kind: 'footing' },
     dims: [
       { id: 'largo',  label: 'Largo',  unit: 'm' },
       { id: 'ancho',  label: 'Ancho',  unit: 'm' },
@@ -674,6 +1011,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'FUN-002', nombre: 'Viga de Fundación de H.A.', categoria: 'Fundaciones',
     unidad: 'm³', descripcion: 'Viga de fundación de H.A. H-21. 130 kg/m³ de acero ADN 420. Encofrado paramétrico (fondo + laterales).',
+    condiciones: {
+      medicion: 'Volumen de hormigón de la viga (largo × ancho × alto).',
+      incluye: 'Hormigón elaborado H-21, acero ADN 420 según la cuantía y encofrado de fondo y laterales.',
+      noIncluye: 'Excavación, hormigón de limpieza ni bombeo.',
+    },
+    sketch: { kind: 'beam', onGround: true },
     dims: [
       { id: 'largo',  label: 'Largo',  unit: 'm' },
       { id: 'ancho',  label: 'Ancho',  unit: 'm' },
@@ -709,6 +1052,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'FUN-003', nombre: 'Columna de Hormigón Armado H-21', categoria: 'Fundaciones',
     unidad: 'm³', descripcion: 'Columna estructural de H.A. H-21. 200 kg/m³ de acero ADN 420. Encofrado de 4 caras laterales.',
+    condiciones: {
+      medicion: 'Volumen de hormigón de la columna (altura × sección).',
+      incluye: 'Hormigón elaborado H-21, acero ADN 420 según la cuantía y encofrado de las caras laterales.',
+      noIncluye: 'Apuntalamiento, bombeo ni vibrado.',
+    },
+    sketch: { kind: 'column', base: true },
     dims: [
       { id: 'largo',  label: 'Altura (largo)',   unit: 'm' },
       { id: 'ancho',  label: 'Ancho de sección', unit: 'm' },
@@ -749,6 +1098,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'FUN-004', nombre: 'Columna de H.A.', categoria: 'Estructura H.A.',
     unidad: 'm³', descripcion: 'Columna estructural de H.A. H-21. 95 kg/m³ de acero ADN 420. Encofrado de 4 caras laterales.',
+    condiciones: {
+      medicion: 'Volumen de hormigón de la columna (altura libre × sección).',
+      incluye: 'Hormigón elaborado H-21, acero ADN 420 según la cuantía y encofrado de las caras laterales.',
+      noIncluye: 'Apuntalamiento, bombeo ni vibrado.',
+    },
+    sketch: { kind: 'column' },
     dims: [
       { id: 'largo',  label: 'Altura libre',  unit: 'm' },
       { id: 'ancho',  label: 'Ancho sección', unit: 'm' },
@@ -784,6 +1139,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'FUN-005', nombre: 'Viga de H.A. Aérea', categoria: 'Estructura H.A.',
     unidad: 'm³', descripcion: 'Viga aérea de H.A. H-21. 120 kg/m³ de acero ADN 420. Encofrado fondo + 2 laterales.',
+    condiciones: {
+      medicion: 'Volumen de hormigón de la viga (largo × ancho × alto).',
+      incluye: 'Hormigón elaborado H-21, acero ADN 420 según la cuantía y encofrado de fondo y laterales.',
+      noIncluye: 'Apuntalamiento, bombeo ni vibrado.',
+    },
+    sketch: { kind: 'beam' },
     dims: [
       { id: 'largo',  label: 'Largo',       unit: 'm' },
       { id: 'ancho',  label: 'Ancho (base)', unit: 'm' },
@@ -819,6 +1180,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'FUN-006', nombre: 'Losa Maciza de H.A.', categoria: 'Estructura H.A.',
     unidad: 'm³', descripcion: 'Losa maciza de H.A. H-21. 55 kg/m³ de acero ADN 420. Cimbra en cara inferior.',
+    condiciones: {
+      medicion: 'Volumen de hormigón de la losa (largo × ancho × espesor).',
+      incluye: 'Hormigón elaborado H-21, acero ADN 420 según la cuantía y cimbra de la cara inferior.',
+      noIncluye: 'Apuntalamiento, bordes (se activan en las caras de encofrado) ni bombeo.',
+    },
+    sketch: { kind: 'slab' },
     dims: [
       { id: 'largo',  label: 'Largo',   unit: 'm' },
       { id: 'ancho',  label: 'Ancho',   unit: 'm' },
@@ -857,6 +1224,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'INS-001', nombre: 'Cañería agua fría PVC 3/4" (20mm)', categoria: 'Instalaciones',
     unidad: 'ml', descripcion: 'Caño PVC clase 6 con accesorios y sellado',
+    condiciones: {
+      medicion: 'Longitud de cañería medida sobre plano o en obra.',
+      incluye: 'Caño PVC de ¾" con 5 % de desperdicio, accesorios estimados y sellador.',
+      noIncluye: 'Canaletas en muro, llaves de paso, grifería ni prueba hidráulica.',
+    },
+    sketch: { kind: 'pipe', type: 'agua' },
     dims: [{ id: 'largo', label: 'Longitud', unit: 'm' }],
     formula: 'largo',
     materiales: [
@@ -868,6 +1241,12 @@ export const CHANDIAS_CATALOG: ChandiasTask[] = [
   {
     id: 'INS-002', nombre: 'Cañería cloacal PVC 110mm', categoria: 'Instalaciones',
     unidad: 'ml', descripcion: 'Caño PVC serie sanitaria DN110, sellado con adhesivo',
+    condiciones: {
+      medicion: 'Longitud de cañería medida sobre plano o en obra.',
+      incluye: 'Caño PVC de 110 mm con 5 % de desperdicio, accesorios estimados y adhesivo, colocado con pendiente.',
+      noIncluye: 'Excavación, cámaras de inspección, piletas de patio ni prueba hidráulica.',
+    },
+    sketch: { kind: 'pipe', type: 'cloaca' },
     dims: [{ id: 'largo', label: 'Longitud', unit: 'm' }],
     formula: 'largo',
     materiales: [
