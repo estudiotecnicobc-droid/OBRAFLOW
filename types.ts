@@ -774,6 +774,13 @@ export interface MasterMaterial {
   wastePercent?: number;   // % desperdicio estándar
   commercialUnit?: string;    // Etiqueta unidad de compra. Ej: "bolsa 50 kg" (migration 021)
   conversionFactor?: number;  // 1 unidad comercial = N unidades técnicas (migration 021)
+  /**
+   * Marca de la unidad en la que está guardado `unitPrice` (migración 20261103100100).
+   * - `'technical'` → ya está en unidad técnica (post-migración).
+   * - `'commercial_legacy'` o `undefined` + `conversionFactor > 1` → `unitPrice` está en
+   *   unidad comercial y hay que dividir por el factor una sola vez. Usar `technicalUnitPrice()`.
+   */
+  priceUnitBasis?: 'commercial_legacy' | 'technical';
   isActive: boolean;       // Soft delete
   lastPriceUpdate?: string; // ISO timestamp
   createdAt?: string;

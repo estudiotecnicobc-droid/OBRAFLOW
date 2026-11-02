@@ -497,15 +497,11 @@ export function mapMaterialToReal(
     const sw = resolveSteelPricingModel(m.cantidad, matched ?? null, null, orgMaterials);
     unitCost = sw.technicalUnitPrice;
   } else {
-    // ── Resto de materiales: precio estándar ──────────────────────────────────
-    if (matched) {
-      const cf = conversionFactor;
-      if (cf && cf > 0 && matched.commercialPrice) {
-        unitCost = matched.commercialPrice / cf;
-      } else {
-        unitCost = matched.cost;
-      }
-    }
+    // ── Resto de materiales: precio técnico directo ───────────────────────────
+    // Post-migración 20261103100100 master_materials.unit_price está siempre en
+    // unidad técnica, así que matched.cost ya es técnico. commercialPrice queda
+    // como evidencia (precio/bolsa, precio/barra) y solo se usa para display.
+    if (matched) unitCost = matched.cost;
   }
 
   // Un material encontrado pero con precio 0 entraría al presupuesto en $0 sin aviso.

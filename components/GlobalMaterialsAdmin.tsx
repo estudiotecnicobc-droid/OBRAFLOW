@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Plus, Search, Edit2, CheckCircle2, XCircle, Loader2, AlertTriangle, Save, X, FlaskConical } from 'lucide-react';
 import { MasterMaterial } from '../types';
 import { masterMaterialsService } from '../services/masterMaterialsService';
+import { technicalUnitPrice, commercialUnitPrice } from '../services/pricing/technicalUnitPrice';
 
 const YIELD_UNIT_OPTIONS = [
   'm²/l', 'm²/kg', 'kg/m²', 'ml/un', 'm²/rollo',
@@ -31,11 +32,13 @@ const EMPTY_FORM: FormData = {
 };
 
 function toForm(m: MasterMaterial): FormData {
+  // El form muestra el precio TÉCNICO (unidad base del material), independiente
+  // del estado 'technical' vs 'commercial_legacy' de la fila.
   return {
     name: m.name,
     code: m.code ?? '',
     unit: m.unit,
-    unitPrice: String(m.unitPrice),
+    unitPrice: String(technicalUnitPrice(m)),
     currency: m.currency,
     category: m.category ?? '',
     supplier: m.supplier ?? '',
@@ -97,11 +100,16 @@ export const GlobalMaterialsAdmin: React.FC = () => {
     setSaving(true);
     setError(null);
     try {
+      // El form guarda SIEMPRE técnico; marca la fila como 'technical' si tiene factor > 1
+      // (idempotente con la migración 20261103100100).
+      const editingFactor = editing?.conversionFactor && editing.conversionFactor > 1
+        ? editing.conversionFactor : null;
       const payload = {
         name: form.name.trim(),
         code: form.code.trim() || undefined,
         unit: form.unit.trim(),
         unitPrice: parseFloat(form.unitPrice) || 0,
+        priceUnitBasis: editingFactor ? ('technical' as const) : undefined,
         currency: form.currency,
         category: form.category.trim() || undefined,
         supplier: form.supplier.trim() || undefined,
@@ -200,7 +208,14 @@ export const GlobalMaterialsAdmin: React.FC = () => {
             {F('name', 'Nombre *')}
             {F('code', 'Código')}
             {F('unit', 'Unidad *')}
-            {F('unitPrice', 'Precio unitario', 'number', { min: '0', step: '0.01' })}
+            <div>
+              {F('unitPrice', `Precio por ${form.unit?.trim() || 'unidad técnica'}`, 'number', { min: '0', step: '0.01' })}
+              {editing?.conversionFactor && editing.conversionFactor > 1 && (
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Material con factor {editing.conversionFactor}. Si la lista del proveedor viene por {editing.commercialUnit ?? 'unidad comercial'}, dividí: 1 {editing.commercialUnit ?? 'unidad comercial'} = {editing.conversionFactor} × precio técnico.
+                </p>
+              )}
+            </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Moneda</label>
               <select
@@ -309,7 +324,12 @@ export const GlobalMaterialsAdmin: React.FC = () => {
                   </td>
                   <td className="px-4 py-2 text-slate-500">{m.unit}</td>
                   <td className="px-4 py-2 text-right text-slate-700 font-mono">
-                    {m.unitPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                    <div>$ {technicalUnitPrice(m).toLocaleString('es-AR', { minimumFractionDigits: 2 })} <span className="text-[10px] text-slate-400">/ {m.unit}</span></div>
+                    {m.conversionFactor && m.conversionFactor > 1 && (
+                      <div className="text-[10px] text-slate-500">
+                        $ {(commercialUnitPrice(m) ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })} / {m.commercialUnit ?? 'unidad comercial'}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-slate-400">{m.currency}</td>
                   <td className="px-4 py-2 text-slate-500">{m.category ?? '—'}</td>
