@@ -99,10 +99,6 @@ begin
     '70000000-0000-0000-0000-000000000031','70000000-0000-0000-0000-000000000201','70000000-0000-0000-0000-000000000401']::uuid[],
     'AMBA', false, 'LISTA');
   if n <> 6 then raise exception 'publish devolvió %', n; end if;
-  -- idempotente: ya publicadas → 0
-  n := public.publish_price_observations('10000000-0000-0000-0000-000000000001',
-    array['70000000-0000-0000-0000-000000000011']::uuid[], 'AMBA', false, 'LISTA');
-  if n <> 0 then raise exception 'republicar devolvió %', n; end if;
   -- id de otra org / inexistente → 42501
   begin
     perform public.publish_price_observations('10000000-0000-0000-0000-000000000001',
@@ -110,9 +106,29 @@ begin
     raise exception 'publish aceptó un id ajeno';
   exception when insufficient_privilege then null;
   end;
+  -- publicar una ya publicada → 22023 (nada se publica a medias)
+  begin
+    perform public.publish_price_observations('10000000-0000-0000-0000-000000000001',
+      array['70000000-0000-0000-0000-000000000011','70000000-0000-0000-0000-000000000301']::uuid[], 'AMBA', false, 'LISTA');
+    raise exception 'publish aceptó una observación ya publicada';
+  exception when invalid_parameter_value then null;
+  end;
+  if (select publication_status from public.price_observations where id = '70000000-0000-0000-0000-000000000301') <> 'pending' then
+    raise exception 'publish parcial: la pendiente del lote rechazado cambió de estado';
+  end if;
+  -- UPDATE directo (editor/owner) sin pasar por la RPC: sin privilegio UPDATE → 42501
+  begin
+    update public.price_observations set publication_status = 'published'
+      where id = '70000000-0000-0000-0000-000000000301';
+    raise exception 'UPDATE directo sobre price_observations no falló';
+  exception when insufficient_privilege then null;
+  end;
+  if (select publication_status from public.price_observations where id = '70000000-0000-0000-0000-000000000301') <> 'pending' then
+    raise exception 'UPDATE directo cambió la observación';
+  end if;
   -- invalidar M4 (hoy; después se retrodata a D+10)
   perform public.invalidate_price_observation('10000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000401', 'Lista errónea');
-  raise notice 'publicación OK (6 publicadas, idempotente, DESCONOCIDA rechazada, id ajeno 42501, invalidación)';
+  raise notice 'publicación OK (6 publicadas, republicar 22023 sin efecto parcial, UPDATE directo 42501, DESCONOCIDA rechazada, id ajeno 42501, invalidación)';
 end $$;
 
 -- Retrodatar publicación e invalidación para los casos históricos (solo el harness puede: superusuario)
@@ -209,12 +225,13 @@ begin
   if (f->>'itemCount')::int <> 2 or (f->>'componentCount')::int <> 4 or (f->>'unusableCount')::int <> 0
      or (f->>'materialsTotal')::numeric <> 46800 or (f->>'legacyMaterialsTotal')::numeric <> 43500
      or (f->>'divergence')::numeric <> 3300 or f->>'status' <> 'pending_reconciliation'
-     or not (f->'warnings') ? 'TOTALS_DIVERGE_FROM_LEGACY_ENGINE' then
+     or not (f->'warnings') ? 'TOTALS_DIVERGE_FROM_LEGACY_ENGINE' or f->>'scope' <> 'materials_only' then
     raise exception 'freeze_budget_prices: %', f;
   end if;
   select count(*), min(reference_pricing_status) into n, v_status from public.budget_cost_snapshots where id = v_snap;
   if n <> 1 or v_status <> 'pending_reconciliation' then raise exception 'cabecera: % %', n, v_status; end if;
-  if (select (result->'reference_pricing'->>'status') from public.budget_cost_snapshots where id = v_snap) <> 'pending_reconciliation'
+  if (select (result->'reference_pricing'->>'scope') from public.budget_cost_snapshots where id = v_snap) <> 'materials_only'
+     or (select (result->'reference_pricing'->>'status') from public.budget_cost_snapshots where id = v_snap) <> 'pending_reconciliation'
      or (select (result->'totals'->>'material')::numeric from public.budget_cost_snapshots where id = v_snap) <> 43500 then
     raise exception 'result.reference_pricing / result.totals inconsistentes';
   end if;
@@ -275,6 +292,35 @@ begin
   end;
   raise notice 'FROZEN OK (no cambia con observación nueva, CURRENT sí, faltante → FROZEN_PRICE_MISSING, DELETE bloqueado)';
 end $$;
+
+-- Componente con material de otra org: el resolvedor lanza 42501 y el congelado se aborta sin dejar snapshot
+reset role;
+insert into public.master_materials (id, organization_id, name, unit, unit_price) values
+  ('30000000-0000-0000-0000-000000000099', '10000000-0000-0000-0000-000000000002', 'Ajeno', 'kg', 10);
+insert into public.master_tasks (id, organization_id, name, unit) values ('80000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'Con ajeno', 'm2');
+insert into public.master_task_materials (id, master_task_id, master_material_id, material_name, unit, quantity) values
+  ('90000000-0000-0000-0000-000000000099', '80000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000099', 'Ajeno', 'kg', 1);
+insert into public.tasks (id, organization_id, master_task_id, name, unit)
+  values ('a0000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000003', 'Con ajeno', 'm2');
+insert into public.budget_items (project_id, organization_id, task_id, quantity) values
+  ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 1);
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-00000000aaaa';
+set local request.jwt.claim.role = 'authenticated';
+do $$
+declare n int;
+begin
+  select count(*) into n from public.budget_cost_snapshots;
+  begin
+    perform public.freeze_budget_prices('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001');
+    raise exception 'freeze con material ajeno no falló';
+  exception when insufficient_privilege then null;
+  end;
+  if (select count(*) from public.budget_cost_snapshots) <> n then raise exception 'freeze abortado dejó snapshot'; end if;
+  raise notice 'freeze abortado OK (42501 del resolvedor, sin snapshot)';
+end $$;
+reset role;
+delete from public.budget_items where task_id = 'a0000000-0000-0000-0000-000000000003';
 
 -- --------------------------------------------------------------------------- otra org (usuario B)
 reset role;

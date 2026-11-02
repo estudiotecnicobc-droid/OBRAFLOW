@@ -76,6 +76,18 @@ begin
     missing := missing || 'budget_cost_snapshot_prices no debe conceder UPDATE/DELETE a authenticated';
   end if;
   if exists (select 1 from information_schema.role_table_grants where table_schema = 'public'
+             and table_name = 'price_observations' and grantee = 'authenticated'
+             and privilege_type in ('INSERT','UPDATE','DELETE'))
+     or exists (select 1 from information_schema.role_column_grants where table_schema = 'public'
+             and table_name = 'price_observations' and grantee = 'authenticated'
+             and privilege_type in ('INSERT','UPDATE')) then
+    missing := missing || 'price_observations: authenticated solo debe tener SELECT (curaduría vía RPC)';
+  end if;
+  if not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                 where n.nspname = 'public' and p.proname = 'publish_price_observations' and p.prosecdef) then
+    missing := missing || 'publish_price_observations debe ser SECURITY DEFINER';
+  end if;
+  if exists (select 1 from information_schema.role_table_grants where table_schema = 'public'
              and table_name = 'budget_cost_snapshots' and grantee = 'authenticated'
              and privilege_type = 'UPDATE') then
     missing := missing || 'budget_cost_snapshots no debe conceder UPDATE a authenticated';

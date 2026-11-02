@@ -1,7 +1,8 @@
 -- Motor de precios — observaciones de proveedores como fuente de referencia.
 -- Contrato: /contrato-precios.md sección 2 corregida por 2bis (2-nov-2026).
 --   * Comparabilidad y publicación en price_observations / price_suppliers (2bis-2/3).
---   * RPC publish_price_observations / invalidate_price_observation (SECURITY INVOKER).
+--   * RPC publish_price_observations / invalidate_price_observation (SECURITY DEFINER: los
+--     usuarios no tienen UPDATE sobre price_observations; la RPC verifica rol y tenant).
 --   * resolve_observed_price: mediana en numeric entre proveedores, una observación
 --     vigente por proveedor (2bis-1), ventana de 90 días, DESACTUALIZADO a los 31 días (2bis-6).
 --   * resolved_reference_price gana observation_count / price_status / resolution (2bis-5).
@@ -62,25 +63,24 @@ ALTER TABLE public.price_suppliers
   ADD CONSTRAINT price_suppliers_supplier_type_check
     CHECK (supplier_type IN ('CORRALON','FABRICANTE','DISTRIBUIDOR','FERRETERIA','OTRO','DESCONOCIDO'));
 
--- Las RPC son SECURITY INVOKER: necesitan UPDATE solo sobre las columnas de curaduría.
--- El precio, la unidad, la moneda y la fecha observada siguen siendo inmutables.
-GRANT UPDATE (region, includes_vat, commercial_condition, is_valid, invalidated_at,
-              invalidation_reason, invalidated_by, publication_status, published_by,
-              published_at, rejection_reason)
-  ON public.price_observations TO authenticated;
-
+-- Publicación e invalidación SOLO por RPC (SECURITY DEFINER): authenticated conserva
+-- únicamente SELECT sobre price_observations (política price_observations_read, 100005).
+REVOKE UPDATE ON public.price_observations FROM authenticated;
 DROP POLICY IF EXISTS price_observations_curate ON public.price_observations;
-CREATE POLICY price_observations_curate ON public.price_observations
-  FOR UPDATE TO authenticated
-  USING (public.is_org_member_with_role(organization_id, ARRAY['owner','admin','editor']::text[]))
-  WITH CHECK (public.is_org_member_with_role(organization_id, ARRAY['owner','admin','editor']::text[]));
 
--- Transiciones permitidas: pending → published | rejected; válida → inválida. Nunca al revés.
+-- Defensa en profundidad (los usuarios no tienen UPDATE): transiciones permitidas
+-- pending → published | rejected; válida → inválida. Nunca al revés. Fuera de las RPC de
+-- curaduría (GUC local obraflow.curation_rpc) ningún cambio de estado es admisible.
 CREATE OR REPLACE FUNCTION public.price_observations_guard_curation()
 RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER
 SET search_path = pg_catalog, public AS $$
 DECLARE v_uid uuid := auth.uid();
 BEGIN
+  IF (NEW.publication_status <> OLD.publication_status OR NEW.is_valid <> OLD.is_valid)
+     AND current_setting('obraflow.curation_rpc', true) IS DISTINCT FROM 'on' THEN
+    RAISE EXCEPTION 'Curation changes are only allowed through the curation RPCs'
+      USING ERRCODE = '42501';
+  END IF;
   IF OLD.publication_status <> 'pending'
      AND NEW.publication_status <> OLD.publication_status THEN
     RAISE EXCEPTION 'Publication status is final once published or rejected'
@@ -107,7 +107,7 @@ CREATE TRIGGER price_observations_guard_curation
   FOR EACH ROW EXECUTE FUNCTION public.price_observations_guard_curation();
 
 -- ---------------------------------------------------------------------------
--- 2. Publicación e invalidación (SECURITY INVOKER, rol owner/admin/editor)
+-- 2. Publicación e invalidación (SECURITY DEFINER, rol owner/admin/editor, solo filas de la org)
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.publish_price_observations(
   p_organization_id uuid,
@@ -116,7 +116,7 @@ CREATE OR REPLACE FUNCTION public.publish_price_observations(
   p_includes_vat boolean,
   p_commercial_condition text
 ) RETURNS integer
-LANGUAGE plpgsql VOLATILE SECURITY INVOKER
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path = pg_catalog, public
 AS $fn$
 DECLARE
@@ -125,6 +125,7 @@ DECLARE
   v_condition text := upper(btrim(p_commercial_condition));
   v_count integer;
   v_foreign integer;
+  v_not_pending integer;
 BEGIN
   IF v_uid IS NULL OR NOT public.is_org_member_with_role(
        p_organization_id, ARRAY['owner','admin','editor']::text[]) THEN
@@ -151,7 +152,18 @@ BEGIN
     RAISE EXCEPTION 'FORBIDDEN: % observation(s) not accessible', v_foreign
       USING ERRCODE = '42501';
   END IF;
+  -- Todas deben estar pendientes y vigentes: nada se publica a medias.
+  SELECT count(*) INTO v_not_pending
+  FROM public.price_observations o
+  WHERE o.organization_id = p_organization_id
+    AND o.id = ANY (p_observation_ids)
+    AND (o.publication_status <> 'pending' OR NOT o.is_valid);
+  IF v_not_pending > 0 THEN
+    RAISE EXCEPTION '% observation(s) already published, rejected or invalidated', v_not_pending
+      USING ERRCODE = '22023';
+  END IF;
 
+  PERFORM set_config('obraflow.curation_rpc', 'on', true);
   UPDATE public.price_observations o
      SET region = v_region,
          includes_vat = p_includes_vat,
@@ -164,11 +176,12 @@ BEGIN
      AND o.publication_status = 'pending'
      AND o.is_valid;
   GET DIAGNOSTICS v_count = ROW_COUNT;
+  PERFORM set_config('obraflow.curation_rpc', 'off', true);
   RETURN v_count;
 END
 $fn$;
 REVOKE ALL ON FUNCTION public.publish_price_observations(uuid,uuid[],text,boolean,text)
-  FROM PUBLIC, anon;
+  FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.publish_price_observations(uuid,uuid[],text,boolean,text)
   TO authenticated;
 
@@ -177,7 +190,7 @@ CREATE OR REPLACE FUNCTION public.invalidate_price_observation(
   p_observation_id uuid,
   p_reason text
 ) RETURNS void
-LANGUAGE plpgsql VOLATILE SECURITY INVOKER
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path = pg_catalog, public
 AS $fn$
 DECLARE
@@ -198,6 +211,7 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'FORBIDDEN: observation not accessible' USING ERRCODE = '42501';
   END IF;
+  PERFORM set_config('obraflow.curation_rpc', 'on', true);
   UPDATE public.price_observations o
      SET is_valid = false,
          invalidated_at = now(),
@@ -207,12 +221,13 @@ BEGIN
      AND o.organization_id = p_organization_id
      AND o.is_valid;
   GET DIAGNOSTICS v_count = ROW_COUNT;
+  PERFORM set_config('obraflow.curation_rpc', 'off', true);
   IF v_count = 0 THEN
     RAISE EXCEPTION 'Observation already invalidated' USING ERRCODE = '22023';
   END IF;
 END
 $fn$;
-REVOKE ALL ON FUNCTION public.invalidate_price_observation(uuid,uuid,text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.invalidate_price_observation(uuid,uuid,text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.invalidate_price_observation(uuid,uuid,text) TO authenticated;
 
 -- ---------------------------------------------------------------------------

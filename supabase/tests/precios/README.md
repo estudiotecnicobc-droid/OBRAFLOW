@@ -40,12 +40,12 @@ Variables opcionales: `PRECIOS_TEST_DB` (default `obraflow_precios_test`), `PGBI
 7. `03_humo.sql` — resolvedor (ORG_MASTER, override, cross-org denegado), ingesta (enqueue idempotente,
    poll, claim, commit_chunk, ACK), homologación y aprobación con reintento idéntico. Todo en una
    transacción que se revierte.
-8. `04_motor.sql` — observaciones publicadas de 3 proveedores → `SUPPLIER_OBSERVED` con mediana por proveedor
+8. `04_motor.sql` — publicación solo por RPC (UPDATE directo → 42501, republicar → 22023); observaciones publicadas de 3 proveedores → `SUPPLIER_OBSERVED` con mediana por proveedor
    y `resolution`; 45 días → `DESACTUALIZADO` + `OBSERVATION_STALE`; sin publicadas → `ORG_MASTER` +
    `CATALOG_UNVERIFIED`; `AS_OF` histórico (incluida una observación invalidada después de la fecha);
    `freeze_budget_prices` (cabecera + detalle, componente repetido en dos ítems, `TOTALS_DIVERGE_FROM_LEGACY_ENGINE`,
    `pending_reconciliation`); observación nueva no altera `FROZEN` pero sí `CURRENT`; `FROZEN_PRICE_MISSING`;
-   `get_frozen_budget_prices` cross-org → 42501; `DELETE` del snapshot congelado bloqueado. Transacción revertida.
+   `get_frozen_budget_prices` cross-org → 42501; componente con material ajeno aborta `freeze_budget_prices` (42501, sin snapshot); `DELETE` del snapshot congelado bloqueado. Transacción revertida.
 
 ## Límites
 

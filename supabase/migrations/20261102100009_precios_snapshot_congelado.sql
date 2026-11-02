@@ -85,10 +85,14 @@ ALTER TABLE public.budget_cost_snapshots
 COMMENT ON COLUMN public.budget_cost_snapshots.reference_pricing_status IS
   'Estado de conciliación entre el motor de precios de referencia (budget_cost_snapshot_prices) '
   'y el motor legacy (result.totals). NULL: snapshot anterior al motor, sin detalle congelado. '
-  'reconciled: totales de materiales coinciden (±0,01) y todos los componentes son usables. '
+  'Alcance: solo precios de MATERIALES congelados (scope materials_only); mano de obra, equipos y '
+  'APU anidados quedan fuera. reconciled: los totales de materiales coinciden (±0,01) y todos los '
+  'componentes son usables — certifica los precios de materiales congelados, NO un presupuesto '
+  'completo validado. '
   'pending_reconciliation: los totales divergen en más de 0,01 — el snapshot NO es un '
   'presupuesto definitivo hasta revisar la diferencia. '
-  'partial: hay componentes sin precio usable o anidados no congelados.';
+  'partial: hay componentes sin precio usable o anidados no congelados. '
+  'Un error del resolvedor (autorización, aislamiento) aborta el congelado completo.';
 
 -- ---------------------------------------------------------------------------
 -- 2. budget_cost_snapshot_prices: detalle congelado por ítem y componente
@@ -198,7 +202,6 @@ DECLARE
   v_component_count integer := 0;
   v_unusable integer := 0;
   v_nested integer := 0;
-  v_errors integer := 0;
   v_labor_rows integer := 0;
   v_equipment_rows integer := 0;
   v_total numeric := 0;
@@ -289,26 +292,14 @@ BEGIN
       v_qty := v_comp.quantity * (1 + v_comp.waste_percent / 100.0) * v_item.item_qty;
       v_component_count := v_component_count + 1;
 
-      BEGIN
-        v_res := public.resolve_reference_price(
-          p_organization_id := p_organization_id,
-          p_component_id := v_comp.id,
-          p_project_id := p_project_id,
-          p_effective_date := v_date,
-          p_mode := v_mode);
-      EXCEPTION WHEN OTHERS THEN
-        -- Un componente irresoluble no bloquea el congelado: queda trazado como NO_PRICE.
-        v_errors := v_errors + 1;
-        v_res := NULL;
-        v_res.source := 'NO_PRICE';
-        v_res.unit := v_comp.unit;
-        v_res.currency := 'ARS';
-        v_res.warnings := ARRAY['RESOLVER_ERROR', SQLSTATE, left(SQLERRM, 200)];
-        v_res.is_usable := false;
-        v_res.price_status := 'SIN_PRECIO';
-        v_res.observation_count := 0;
-        v_res.resolution := jsonb_build_object('method', 'error', 'sqlstate', SQLSTATE);
-      END;
+      -- Cualquier error del resolvedor (42501, 22023, ...) aborta todo el congelado:
+      -- solo la ausencia de precio (NO_PRICE devuelto normalmente) genera fila no usable.
+      v_res := public.resolve_reference_price(
+        p_organization_id := p_organization_id,
+        p_component_id := v_comp.id,
+        p_project_id := p_project_id,
+        p_effective_date := v_date,
+        p_mode := v_mode);
 
       IF NOT COALESCE(v_res.is_usable, false) THEN
         v_unusable := v_unusable + 1;
@@ -350,10 +341,10 @@ BEGIN
   END IF;
   IF v_unusable > 0 THEN v_warnings := v_warnings || 'UNUSABLE_COMPONENT_PRICES'::text; END IF;
   IF v_nested > 0 THEN v_warnings := v_warnings || 'NESTED_APU_SKIPPED'::text; END IF;
-  IF v_errors > 0 THEN v_warnings := v_warnings || 'RESOLVER_ERRORS'::text; END IF;
 
   v_block := jsonb_build_object(
     'engine', 'reference_price_v1',
+    'scope', 'materials_only',
     'mode', v_mode,
     'costDate', v_date,
     'status', v_status,
@@ -361,7 +352,6 @@ BEGIN
     'componentCount', v_component_count,
     'unusableCount', v_unusable,
     'nestedSkippedCount', v_nested,
-    'resolverErrorCount', v_errors,
     'materialsTotal', v_total,
     'legacyMaterialsTotal', v_legacy_total,
     'divergence', v_divergence,
@@ -397,6 +387,7 @@ BEGIN
     'snapshotId', v_snapshot_id,
     'projectId', p_project_id,
     'costDate', v_date,
+    'scope', 'materials_only',
     'mode', v_mode,
     'status', v_status,
     'itemCount', v_item_count,
