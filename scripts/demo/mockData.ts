@@ -54,11 +54,10 @@ const TASK_MAM: MasterTask = {
     {
       id: 'm-003',
       materialName: 'Cemento Portland',
-      // Rendimiento en "50kg" (bolsas de 50kg) → conversionFactor=50 → precio/KG × 50
-      unit: '50kg',
-      quantity: 0.0144,
+      // Rendimiento en unidad técnica (KG): 0.0144 bolsas × 50 kg/bolsa = 0.72 kg.
+      unit: 'KG',
+      quantity: 0.72,
       resourceId: RES_CEMENTO,
-      // conversionFactor omitido → lo calcula getConversionFactor("50kg", "KG") = 50
     },
   ],
   labor: [
@@ -101,10 +100,10 @@ const TASK_REV: MasterTask = {
     {
       id: 'm-004',
       materialName: 'Cemento Portland',
-      unit: '25kg',
-      quantity: 0.12,
+      // Rendimiento en unidad técnica (KG): 0.12 bolsas × 25 kg/bolsa = 3 kg.
+      unit: 'KG',
+      quantity: 3,
       resourceId: RES_CEMENTO,
-      // conversionFactor omitido → getConversionFactor("25kg", "KG") = 25
     },
     {
       id: 'm-005',
