@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildApuUnitCost, describePriceQuality, observationIdsOf, summarizePriceStatus, WARN_CURRENCY_MIXED, WARN_PRICE_NOT_RESOLVED } from '../apuPricing';
+import { buildApuUnitCost, describePriceQuality, observationIdsOf, summarizePriceStatus, WARN_CURRENCY_MIXED, WARN_PRICE_NOT_RESOLVED, WARN_UNIT_MISMATCH } from '../apuPricing';
 import type { ApuPricingComponent, PriceResolution, ResolvedReferencePrice } from '../types';
 
 const relevado = (over: Partial<ResolvedReferencePrice> = {}): ResolvedReferencePrice => ({
@@ -50,18 +50,28 @@ describe('buildApuUnitCost', () => {
     expect(r.warnings).toEqual([]);
   });
 
-  it('aplica desperdicio y factor de conversión sin cambiar la aritmética existente', () => {
-    // bolsa de 50 kg → precio por kg 20 → precio por bolsa 1000; 3 bolsas con 5% desperdicio
+  it('aplica desperdicio sobre precio técnico; conversionFactor es evidencia y NO cambia el costo', () => {
+    // Mismo kg (técnica) con 5% desperdicio. Factor 10.68 queda como evidencia para compras.
     const r = buildApuUnitCost(
-      [comp({ unit: 'bolsa', quantity: 3, wastePercent: 5, conversionFactor: 50 })],
-      { c1: relevado({ price: 20, unit: 'KG' }) },
+      [comp({ unit: 'kg', quantity: 95, wastePercent: 5, conversionFactor: 10.68 })],
+      { c1: relevado({ price: 2260, unit: 'KG' }) },
     );
-    expect(r.components[0].unitPrice).toBe(1000);
-    expect(r.components[0].cost).toBe(3150);
-    expect(r.materialCost).toBe(3150);
+    expect(r.components[0].conversionFactor).toBe(10.68);
+    expect(r.components[0].unitPrice).toBe(2260);                       // sin multiplicar por factor
+    expect(r.components[0].cost).toBe(+(2260 * 95 * 1.05).toFixed(4));  // = 225435
+    expect(r.materialCost).toBe(+(2260 * 95 * 1.05).toFixed(2));
+    expect(r.warnings).toEqual([]);
   });
 
-  it('precio congelado: se consume tal cual (factor 1 si las unidades coinciden), sin reaplicar factores de evidencia', () => {
+  it('mismo costo con factor 10.68 que con factor 1 (paridad por "factor es solo evidencia")', () => {
+    const base = { unit: 'kg', quantity: 95, wastePercent: 0 } as const;
+    const price = { c1: relevado({ price: 2260, unit: 'KG' }) };
+    const conFactor = buildApuUnitCost([comp({ ...base, conversionFactor: 10.68 })], price);
+    const sinFactor = buildApuUnitCost([comp({ ...base, conversionFactor: 1 })],     price);
+    expect(Math.abs(conFactor.materialCost - sinFactor.materialCost)).toBeLessThanOrEqual(0.01);
+  });
+
+  it('precio congelado: se consume tal cual, sin reaplicar factores de evidencia', () => {
     const r = buildApuUnitCost(
       [comp({ unit: 'KG', quantity: 4 })],
       { c1: relevado({ price: 250, unit: 'KG', source: 'FROZEN_SNAPSHOT', priceStatus: 'FROZEN', resolution: frozenResolution }) },
@@ -71,13 +81,17 @@ describe('buildApuUnitCost', () => {
     expect(r.materialCost).toBe(1000);
   });
 
-  it('sin conversionFactor explícito usa el helper de unidades comerciales ("50kg" → 50)', () => {
+  it('componente en unidad distinta a la del precio sin UNIT_MISMATCH del motor → UNIT_MISMATCH local, no se convierte', () => {
+    // Antes el motor TS inferia factor 50 por "50kg"; ahora rechaza por mismatch.
     const r = buildApuUnitCost(
       [comp({ unit: '50kg', quantity: 2 })],
       { c1: relevado({ price: 20, unit: 'KG' }) },
     );
-    expect(r.components[0].conversionFactor).toBe(50);
-    expect(r.components[0].cost).toBe(2000);
+    expect(r.isUsable).toBe(false);
+    expect(r.components[0].isUsable).toBe(false);
+    expect(r.components[0].warnings).toContain(WARN_UNIT_MISMATCH);
+    expect(r.components[0].cost).toBe(0);
+    expect(r.materialCost).toBe(0);
   });
 
   it('un CATALOG_UNVERIFIED → APU usable con calidad ESTIMADO', () => {
@@ -138,7 +152,7 @@ describe('buildApuUnitCost', () => {
       { c1: relevado({ unit: 'KG', isUsable: false, warnings: ['UNIT_MISMATCH'] }) },
     );
     expect(r.isUsable).toBe(false);
-    expect(r.components[0].unitPrice).toBe(100);
+    expect(r.components[0].unitPrice).toBe(100);     // el precio sigue reportado, pero el componente no entra
     expect(r.components[0].cost).toBe(0);
     expect(r.materialCost).toBe(0);
     expect(r.warnings).toEqual(['Cemento: UNIT_MISMATCH']);

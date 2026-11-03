@@ -18,6 +18,14 @@ const COMMERCIAL_PATTERN = /^([0-9]+(?:[.,][0-9]+)?)\s*([a-zA-Z²³]+)$/;
  *   yieldUnit = "bolsa",resourceUnit = "KG"   → 1 + warn (unidades incompatibles)
  *
  * Nota: parseFloat con coma → se reemplaza coma por punto antes de parsear.
+ *
+ * @deprecated Desde el criterio de "unidad técnica única" (noviembre 2026) ya
+ *   no se usa para calcular costos de APU. Cantidad y precio viven siempre en
+ *   la unidad técnica del componente; `conversion_factor` quedó como evidencia
+ *   para compras. Si la unidad del precio no coincide con la del componente,
+ *   el material queda fuera del costo con UNIT_MISMATCH. Esta función se
+ *   conserva por si algún flujo de compras futuro necesita inferir factor a
+ *   partir de etiquetas tipo "50kg", pero no debe usarse en el motor de costo.
  */
 export function getConversionFactor(
   yieldUnit: string,
