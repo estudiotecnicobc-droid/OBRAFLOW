@@ -27,18 +27,20 @@ FROM public.master_materials
 WHERE conversion_factor IS NOT NULL AND conversion_factor > 0 AND conversion_factor < 1
    OR conversion_factor = 0;
 
--- 0.4 Hierros con unit='barra' fuera de los 4 ids previstos (esperado: 0)
-SELECT id, name FROM public.master_materials
-WHERE unit = 'barra' AND conversion_factor > 1
+-- 0.4 Filas con unit comercial (barra, Bolsa, …) fuera de los 5 ids previstos (esperado: 0)
+SELECT id, name, unit FROM public.master_materials
+WHERE conversion_factor > 1
+  AND LOWER(TRIM(unit)) ~ '^(bolsa|barra|balde|bid[oó]n|millar|ca[nñ]o|rollo|pack|caja|cajon)'
   AND id NOT IN (
     '47007849-ac1b-43f8-8c61-f237f19e6516',  -- Hierro Ø10
     '7fa33df3-1823-4a45-b126-30e20bad516a',  -- Hierro Ø12
     '814e64a6-67fe-4074-ae35-e32d39925a3d',  -- Hierro Ø6
-    '998cd42b-0929-409b-a8ab-536ef8d07504'   -- Hierro Ø8
+    '998cd42b-0929-409b-a8ab-536ef8d07504',  -- Hierro Ø8
+    '464f38f3-b62b-4684-a784-084523ae9bde'   -- Cemento Avellaneda (Bolsa → kg)
   );
 ```
 
-Si alguna fila nueva apareció con factor < 1 o `unit='barra'` que no estaba en el PR, **frená y avisá** antes de correr la migración principal.
+Si alguna fila nueva apareció con factor < 1 o `unit` comercial que no esté en los 5 ids, **frená y avisá** antes de correr la migración principal.
 
 ## 1. Lista de pre-chequeo: los 80 materiales que se van a dividir
 
@@ -58,6 +60,7 @@ Precio actual vs precio técnico resultante. Si ves alguna fila que **ya estaba 
 | 3e5c…ea8f | Estructural | Hierro nervado Ø12 mm | **barra → kg** | barra ∅12mm · 12m | 10.68 | 10 253.00 | 960.02 |
 | 3e5c…ea8f | Estructural | Hierro nervado Ø6 mm | **barra → kg** | barra ∅6mm · 12m | 2.64 | 2 429.00 | 920.08 |
 | 3e5c…ea8f | Estructural | Hierro nervado Ø8 mm | **barra → kg** | barra ∅8mm · 12m | 4.80 | 4 488.00 | 935.00 |
+| org_a | Cemento | Cemento Avellaneda | **Bolsa → kg** | bolsa 50 kg | 50 | 12 000.00 | 240.00 |
 | 3e5c…ea8f | Impermeab. | Hidrófugo líquido integral | lt | bidón 5 lt | 5 | 1 800.00 | 360.00 |
 | 3e5c…ea8f | Mampostería | Ladrillo común 6x12x24 | un | millar | 1 000 | 200.00 | 0.20 |
 | 3e5c…ea8f | Mampostería | Ladrillo hueco 12x18x33 | u | millar | 1 000 | 180.00 | 0.18 |
@@ -69,9 +72,6 @@ Precio actual vs precio técnico resultante. Si ves alguna fila que **ya estaba 
 | 3e5c…ea8f | Pinturas | Pintura látex interior blanco | lt | balde 20 lt | 20 | 2 850.00 | 142.50 |
 | 3e5c…ea8f | Sanitaria | Caño PVC 110 mm | m | caño 3 m | 3 | 1 250.00 | 416.67 |
 | 3e5c…ea8f | Sanitaria | Caño PVC 63 mm | m | caño 3 m | 3 | 680.00 | 226.67 |
-| org_a | Cemento | Cemento Avellaneda | **Bolsa** ⚠ | bolsa 50 kg | 50 | 12 000.00 | 240.00 |
-
-> ⚠ **Cemento Avellaneda (`org_a`, id `464f38f3-b62b-4684-a784-084523ae9bde`)**: tiene `unit = "Bolsa"` (semánticamente comercial, no unit técnica). La migración le divide igual el precio y resulta en 240 por "Bolsa" — eso no es coherente. **No es un hierro** (no se renombra). Revisar manualmente post-migración: probablemente convenga cambiar `unit` a `"kg"` como los demás, pero conviene decidirlo con los datos a la vista. Está listado acá para que lo tengas en cuenta.
 
 Las orgs de seed (`org_a`, `org_b`, `org_demo`) replican el mismo catálogo con los mismos precios. Lista completa (80 filas) disponible en `supabase/tests/precios/fixture_master_materials.sql` o volvé a correr la query de A4 del plan.
 
@@ -109,29 +109,13 @@ WHERE id IN (
 SELECT material_name, last_known_unit_price
 FROM public.master_task_materials
 WHERE master_material_id IN (SELECT id FROM public.master_materials_precio_comercial_backup)
-  AND id <> '6bdf5331-060a-4424-bd9c-c50be7f82b7c'
 ORDER BY material_name
 LIMIT 20;
 
--- 3.5 La pintura excluida sigue en 72.50 (valor manual)
-SELECT id, last_known_unit_price
-FROM public.master_task_materials
-WHERE id = '6bdf5331-060a-4424-bd9c-c50be7f82b7c';   -- esperado: 72.50
+-- 3.5 Cemento Avellaneda ahora en 'kg' con precio técnico 240
+SELECT id, unit, unit_price FROM public.master_materials
+WHERE id = '464f38f3-b62b-4684-a784-084523ae9bde';   -- esperado: unit=kg, 240.00
 ```
-
-## 4. Fila excluida (revisar manualmente)
-
-Un solo renglón de `master_task_materials` no entra en el UPDATE dirigido porque su `last_known_unit_price` tiene un valor manual que no coincide con el técnico resultante ni con el comercial:
-
-| component_id | tarea | material | lkup actual | técnico esperado | comercial |
-|---|---|---|---:|---:|---:|
-| `6bdf5331-060a-4424-bd9c-c50be7f82b7c` | Pintura al latex interior dos manos con una base de fijador | Pintura látex interior blanco | **$ 72.50** | 142.50 | 2 850.00 |
-
-Opciones:
-- Si el 72.50 es un error histórico, actualizalo manualmente a 142.50 vía UI.
-- Si es un precio pactado específicamente, dejalo tal cual.
-
-Tomá la decisión con los números a la vista; no la cambiamos automáticamente.
 
 ## 5. Reversión (solo si algo salió mal, antes de que haya tráfico de carga de precios)
 

@@ -111,32 +111,31 @@ UPDATE public.master_materials mm
        updated_at       = now()
  WHERE mm.id IN (SELECT id FROM candidatos);
 
--- ── 4. Hierros: unit 'barra' → 'kg' (ids explícitos, factor y commercial_unit intactos) ──
+-- ── 4. unit comercial → unit técnica (ids explícitos). factor y commercial_unit intactos ──
+-- Los 4 hierros y Cemento Avellaneda son los únicos 5 materiales en el catálogo cuya `unit`
+-- apunta a una unidad comercial (barra, Bolsa) en vez de la unidad técnica (kg). Verificado
+-- por SELECT contra producción: ninguna otra fila con factor > 1 tiene unit comercial.
 UPDATE public.master_materials
    SET unit = 'kg', updated_at = now()
  WHERE id IN (
-   '47007849-ac1b-43f8-8c61-f237f19e6516',   -- Hierro nervado Ø10 mm
-   '7fa33df3-1823-4a45-b126-30e20bad516a',   -- Hierro nervado Ø12 mm
-   '814e64a6-67fe-4074-ae35-e32d39925a3d',   -- Hierro nervado Ø6 mm
-   '998cd42b-0929-409b-a8ab-536ef8d07504'    -- Hierro nervado Ø8 mm
+   '47007849-ac1b-43f8-8c61-f237f19e6516',   -- Hierro nervado Ø10 mm   (barra → kg)
+   '7fa33df3-1823-4a45-b126-30e20bad516a',   -- Hierro nervado Ø12 mm   (barra → kg)
+   '814e64a6-67fe-4074-ae35-e32d39925a3d',   -- Hierro nervado Ø6 mm    (barra → kg)
+   '998cd42b-0929-409b-a8ab-536ef8d07504',   -- Hierro nervado Ø8 mm    (barra → kg)
+   '464f38f3-b62b-4684-a784-084523ae9bde'    -- Cemento Avellaneda      (Bolsa → kg)
  )
- AND unit = 'barra';
+ AND unit IN ('barra', 'Bolsa');
 
 -- ── 5. Resincroniza master_task_materials.last_known_unit_price ─────────────
 -- UPDATE dirigido: solo los componentes cuyo master_material_id acaba de ser
 -- convertido (está en el backup, lo que garantiza que son solo filas tocadas
--- por esta migración y no pisamos otros snapshots legítimos).
---
--- Exclusión manual: componente 6bdf5331-060a-4424-bd9c-c50be7f82b7c (pintura
--- látex interior blanco, lkup=72.50 que no coincide ni con el técnico 142.50 ni
--- con el comercial 2850 — valor manual). Queda listado para revisión en el
--- runbook; no se toca en esta migración.
+-- por esta migración y no pisamos otros snapshots legítimos). Alinea la foto
+-- del precio del componente con el nuevo precio técnico del material referenciado.
 UPDATE public.master_task_materials mtm
    SET last_known_unit_price = mm.unit_price
   FROM public.master_materials mm
  WHERE mm.id = mtm.master_material_id
-   AND mtm.master_material_id IN (SELECT id FROM public.master_materials_precio_comercial_backup)
-   AND mtm.id <> '6bdf5331-060a-4424-bd9c-c50be7f82b7c';
+   AND mtm.master_material_id IN (SELECT id FROM public.master_materials_precio_comercial_backup);
 
 -- ── 6. Verificación ─────────────────────────────────────────────────────────
 DO $post$

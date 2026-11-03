@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useMasterMaterials } from '../hooks/useMasterMaterials';
 import { MasterMaterial } from '../types';
 import { suggestMaterialCode } from '../utils/codeGenerator';
-import { technicalUnitPrice, commercialUnitPrice } from '../services/pricing/technicalUnitPrice';
+import { technicalUnitPrice, commercialUnitPrice, priceInputToTechnical } from '../services/pricing/technicalUnitPrice';
 
 interface Props {
   onNavigateToResources?: () => void;
@@ -23,6 +23,8 @@ const EMPTY_DRAFT: Partial<MasterMaterial> = {
   name: '',
   description: '',
   unit: '',
+  commercialUnit: '',
+  conversionFactor: undefined,
   unitPrice: 0,
   currency: 'ARS',
   category: '',
@@ -116,19 +118,22 @@ export const MasterMaterialsPanel: React.FC<Props> = ({ onNavigateToResources })
     }
     setSaving(true);
     try {
-      // `unitPrice` se persiste SIEMPRE en unidad técnica. Si el usuario cargó
-      // comercial y el material tiene factor > 1, se divide acá una sola vez.
-      // `priceUnitBasis = 'technical'` marca la fila convertida (idempotente con la migración).
-      const factor = draft.conversionFactor && draft.conversionFactor > 1 ? draft.conversionFactor : 1;
-      const technicalPrice = priceMode === 'commercial' && factor > 1
-        ? displayPrice / factor
-        : displayPrice;
+      // `unitPrice` SIEMPRE se persiste en unidad técnica; `priceUnitBasis`
+      // = 'technical' si hay factor > 1. Helper puro, cubre alta y edición.
+      const { unitPrice, priceUnitBasis } = priceInputToTechnical({
+        displayPrice,
+        priceMode,
+        conversionFactor: draft.conversionFactor,
+      });
+      const factor = draft.conversionFactor && draft.conversionFactor > 1 ? draft.conversionFactor : undefined;
 
       const payload: Partial<MasterMaterial> = {
         name: draft.name.trim(),
         unit: draft.unit.trim(),
-        unitPrice: Number(technicalPrice) || 0,
-        priceUnitBasis: factor > 1 ? 'technical' : undefined,
+        commercialUnit: draft.commercialUnit?.trim() || undefined,
+        conversionFactor: factor,
+        unitPrice: Number(unitPrice) || 0,
+        priceUnitBasis,
         currency: draft.currency || 'ARS',
         code: draft.code?.trim() || undefined,
         description: draft.description?.trim() || undefined,
@@ -307,11 +312,33 @@ export const MasterMaterialsPanel: React.FC<Props> = ({ onNavigateToResources })
         {sectionTitle('Unidad y precio')}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            {fieldLabel('Unidad', true)}
+            {fieldLabel('Unidad técnica', true)}
             {inp({
-              placeholder: 'bolsa / kg / m3',
+              placeholder: 'kg / m3 / lt / un',
               value: draft.unit ?? '',
               onChange: e => setDraft(d => ({ ...d, unit: e.target.value })),
+            })}
+          </div>
+          <div>
+            {fieldLabel('Unidad comercial')}
+            {inp({
+              placeholder: 'bolsa 50 kg / balde 20 lt / millar',
+              value: draft.commercialUnit ?? '',
+              onChange: e => setDraft(d => ({ ...d, commercialUnit: e.target.value })),
+            })}
+          </div>
+          <div>
+            {fieldLabel('Factor (técnica por 1 comercial)')}
+            {inp({
+              type: 'number',
+              min: 0,
+              step: 0.01,
+              placeholder: '50',
+              value: draft.conversionFactor ?? '',
+              onChange: e => {
+                const v = parseFloat(e.target.value);
+                setDraft(d => ({ ...d, conversionFactor: Number.isFinite(v) ? v : undefined }));
+              },
             })}
           </div>
           <div>

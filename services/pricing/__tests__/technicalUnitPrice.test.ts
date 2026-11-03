@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { technicalUnitPrice, commercialUnitPrice } from '../technicalUnitPrice';
+import { technicalUnitPrice, commercialUnitPrice, priceInputToTechnical } from '../technicalUnitPrice';
 
 /**
  * Paridad bidireccional: el código tiene que resolver el precio técnico igual
@@ -55,5 +55,35 @@ describe('commercialUnitPrice', () => {
     const antes   = commercialUnitPrice({ unitPrice: 15500, conversionFactor: 50 });                              // 15500
     const despues = commercialUnitPrice({ unitPrice: 310,   conversionFactor: 50, priceUnitBasis: 'technical' }); // 15500
     expect(Math.abs((antes ?? 0) - (despues ?? 0))).toBeLessThanOrEqual(0.01);
+  });
+});
+
+describe('priceInputToTechnical (form del usuario → payload DB)', () => {
+  it('alta nueva con factor 50, modo comercial, usuario escribe 15500 → unitPrice=310 marcado technical', () => {
+    const r = priceInputToTechnical({ displayPrice: 15500, priceMode: 'commercial', conversionFactor: 50 });
+    expect(r.unitPrice).toBe(310);
+    expect(r.priceUnitBasis).toBe('technical');
+  });
+
+  it('alta nueva con factor 50, modo técnico, usuario escribe 310 → unitPrice=310 marcado technical', () => {
+    const r = priceInputToTechnical({ displayPrice: 310, priceMode: 'technical', conversionFactor: 50 });
+    expect(r.unitPrice).toBe(310);
+    expect(r.priceUnitBasis).toBe('technical');
+  });
+
+  it('alta nueva sin factor → unitPrice tal cual, priceUnitBasis undefined', () => {
+    expect(priceInputToTechnical({ displayPrice: 45000, priceMode: 'technical', conversionFactor: null }))
+      .toEqual({ unitPrice: 45000, priceUnitBasis: undefined });
+    expect(priceInputToTechnical({ displayPrice: 45000, priceMode: 'commercial' }))
+      .toEqual({ unitPrice: 45000, priceUnitBasis: undefined });
+    expect(priceInputToTechnical({ displayPrice: 45000, priceMode: 'commercial', conversionFactor: 1 }))
+      .toEqual({ unitPrice: 45000, priceUnitBasis: undefined });
+  });
+
+  it('edición con factor 10.68, modo comercial, usuario sube el precio → se divide y queda marcado', () => {
+    // Hierro Ø12: barra 10 253 → técnico 960.019...
+    const r = priceInputToTechnical({ displayPrice: 10253, priceMode: 'commercial', conversionFactor: 10.68 });
+    expect(r.unitPrice).toBeCloseTo(960.019, 3);
+    expect(r.priceUnitBasis).toBe('technical');
   });
 });

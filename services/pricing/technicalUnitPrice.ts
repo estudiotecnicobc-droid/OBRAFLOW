@@ -45,3 +45,22 @@ export function commercialUnitPrice(m: PriceBasisFields): number | undefined {
   // commercial_legacy o undefined con factor > 1: unitPrice ya es comercial
   return m.unitPrice;
 }
+
+/**
+ * Convierte lo que el usuario escribe en el form (`displayPrice` + modo
+ * comercial/técnico + factor) al par `{ unitPrice, priceUnitBasis }` que debe
+ * persistirse: `unitPrice` SIEMPRE en unidad técnica y la fila marcada
+ * `'technical'` si tiene factor > 1 (idempotente con la migración).
+ */
+export function priceInputToTechnical(input: {
+  displayPrice: number;
+  priceMode: 'commercial' | 'technical';
+  conversionFactor?: number | null;
+}): { unitPrice: number; priceUnitBasis: 'technical' | undefined } {
+  const f = input.conversionFactor;
+  const hasFactor = f != null && f > 1;
+  const unitPrice = input.priceMode === 'commercial' && hasFactor
+    ? input.displayPrice / f
+    : input.displayPrice;
+  return { unitPrice, priceUnitBasis: hasFactor ? 'technical' : undefined };
+}

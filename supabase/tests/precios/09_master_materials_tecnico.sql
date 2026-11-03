@@ -7,7 +7,8 @@ DO $test$
 DECLARE
   v_total_backup           int;
   v_marked_technical       int;
-  v_hierros_kg             int;
+  v_unit_fixed             int;
+  v_cemento_avellaneda_unit text;
   v_pintura_lkup           numeric;
   v_cemento_portland_tech  numeric;
   v_cal_hidraulica_tech    numeric;
@@ -28,17 +29,24 @@ BEGIN
     RAISE EXCEPTION 'Marcadas technical: esperadas 80, obtenidas %', v_marked_technical;
   END IF;
 
-  -- 3. Hierros: unit = 'kg' (los 4 ids explícitos)
-  SELECT COUNT(*) INTO v_hierros_kg
+  -- 3. unit comercial → 'kg' para los 4 hierros + Cemento Avellaneda (5 ids explícitos)
+  SELECT COUNT(*) INTO v_unit_fixed
     FROM public.master_materials
     WHERE id IN (
-      '47007849-ac1b-43f8-8c61-f237f19e6516',
-      '7fa33df3-1823-4a45-b126-30e20bad516a',
-      '814e64a6-67fe-4074-ae35-e32d39925a3d',
-      '998cd42b-0929-409b-a8ab-536ef8d07504'
+      '47007849-ac1b-43f8-8c61-f237f19e6516',   -- Hierro Ø10
+      '7fa33df3-1823-4a45-b126-30e20bad516a',   -- Hierro Ø12
+      '814e64a6-67fe-4074-ae35-e32d39925a3d',   -- Hierro Ø6
+      '998cd42b-0929-409b-a8ab-536ef8d07504',   -- Hierro Ø8
+      '464f38f3-b62b-4684-a784-084523ae9bde'    -- Cemento Avellaneda (Bolsa → kg)
     ) AND unit = 'kg';
-  IF v_hierros_kg <> 4 THEN
-    RAISE EXCEPTION 'Hierros con unit=kg: esperados 4, obtenidos %', v_hierros_kg;
+  IF v_unit_fixed <> 5 THEN
+    RAISE EXCEPTION 'Renombre unit comercial → kg: esperados 5, obtenidos %', v_unit_fixed;
+  END IF;
+
+  SELECT unit INTO v_cemento_avellaneda_unit
+    FROM public.master_materials WHERE id = '464f38f3-b62b-4684-a784-084523ae9bde';
+  IF v_cemento_avellaneda_unit <> 'kg' THEN
+    RAISE EXCEPTION 'Cemento Avellaneda: unit esperado kg, obtenido %', v_cemento_avellaneda_unit;
   END IF;
 
   -- 4. Spot checks de precios técnicos
@@ -74,14 +82,16 @@ BEGIN
     RAISE EXCEPTION 'last_known_unit_price cal hidráulica (vacía): esperado 3.80, obtenido %', v_cal_hidraulica_lkup;
   END IF;
 
-  -- 7. Pintura látex con valor manual (72.50) NO fue tocada
+  -- 7. Pintura látex (6bdf5331) entra en el UPDATE dirigido normal.
+  --    Apunta por FK a 51f95a6c (3e5c, pintura 2850). Tras la migración ese material
+  --    queda en 142.50, y el UPDATE sincroniza el lkup del componente a 142.50.
   SELECT last_known_unit_price INTO v_pintura_lkup
     FROM public.master_task_materials WHERE id = '6bdf5331-060a-4424-bd9c-c50be7f82b7c';
-  IF ABS(v_pintura_lkup - 72.50) > 0.01 THEN
-    RAISE EXCEPTION 'Pintura látex (excluida): debía quedarse en 72.50, obtenido %', v_pintura_lkup;
+  IF ABS(v_pintura_lkup - 142.50) > 0.01 THEN
+    RAISE EXCEPTION 'Pintura látex (resincronizada): esperado 142.50, obtenido %', v_pintura_lkup;
   END IF;
 
-  RAISE NOTICE 'OK: backup=80, technical=80, hierros=4, spot checks OK, pintura intacta';
+  RAISE NOTICE 'OK: backup=80, technical=80, unit comercial→kg=5, spot checks OK, pintura resincronizada';
 END $test$;
 
 -- 8. Idempotencia: corremos la migración otra vez; backup y technical no deben cambiar.
@@ -110,7 +120,7 @@ BEGIN
   IF ABS(v_cal_lkup - 3.80) > 0.01 THEN
     RAISE EXCEPTION 'Idempotencia FALLÓ: cal hidráulica lkup pasó a %', v_cal_lkup;
   END IF;
-  IF ABS(v_pintura_lkup - 72.50) > 0.01 THEN
+  IF ABS(v_pintura_lkup - 142.50) > 0.01 THEN
     RAISE EXCEPTION 'Idempotencia FALLÓ: pintura látex lkup pasó a %', v_pintura_lkup;
   END IF;
 

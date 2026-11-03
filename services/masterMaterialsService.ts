@@ -57,6 +57,8 @@ function toRow(m: Partial<MasterMaterial>): Record<string, any> {
   if (m.category !== undefined) row.category = m.category || null;
   if (m.supplier !== undefined) row.supplier = m.supplier || null;
   if (m.commercialFormat !== undefined) row.commercial_format = m.commercialFormat || null;
+  if (m.commercialUnit !== undefined) row.commercial_unit = m.commercialUnit || null;
+  if (m.conversionFactor !== undefined) row.conversion_factor = m.conversionFactor ?? null;
   if (m.wastePercent !== undefined) row.waste_percent = m.wastePercent;
   if (m.priceUnitBasis !== undefined) row.price_unit_basis = m.priceUnitBasis;
   if (m.isActive !== undefined) row.is_active = m.isActive;
