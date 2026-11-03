@@ -42,10 +42,18 @@ for f in "$MIG_DIR"/057_fix_resources_commercial_columns.sql; do
 done
 
 for f in "$MIG_DIR"/202611021000{01,02,03,04,05,06,07,08,09,10}_*.sql \
-         "$MIG_DIR"/20261103100000_*.sql; do
+         "$MIG_DIR"/20261103100000_*.sql \
+         "$MIG_DIR"/20261103100100_master_materials_precio_tecnico_unico.sql; do
   echo "== $(basename "$f")"
   psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f"
 done
+
+echo "== fixture: 80 master_materials reales + 5 master_task_materials"
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f fixture_master_materials.sql
+echo "== aplicar migración 20261103100100 sobre fixture"
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$MIG_DIR/20261103100100_master_materials_precio_tecnico_unico.sql"
+echo "== test de migración (totales + idempotencia + exclusión manual)"
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f 09_master_materials_tecnico.sql
 
 echo "== verificación de objetos"
 psql -v ON_ERROR_STOP=1 -q -d "$DB" -f 02_verificacion.sql

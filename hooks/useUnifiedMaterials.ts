@@ -6,18 +6,15 @@
  *   2. materials (ERPContext — proyecto, prioridad baja)
  *   3. master_materials (Supabase org catalog — prioridad alta, sobreescribe)
  *
- * Precio técnico unitario:
- *   · Si hay match en resources → resources.baseCost (ya es técnico)
- *   · Si hay conversionFactor y NO hay match en resources →
- *       technicalPrice = unitPrice / conversionFactor
- *     (convención: unitPrice en master_materials es el PRECIO COMERCIAL cuando
- *      conversionFactor está definido; el APU siempre usa precio técnico)
- *   · Sin conversionFactor → unitPrice tal cual
+ * Criterio de unidades (migración 20261103100100): `master_materials.unit_price`
+ * está SIEMPRE en unidad técnica. `conversionFactor` queda como evidencia para
+ * compras y para derivar un precio comercial (`unitPrice × conversionFactor`)
+ * cuando la UI lo necesita como etiqueta. No se divide nada en este hook.
  *
  * Devuelve:
  *   · list              — materiales unificados, cost = precio TÉCNICO
  *                         (compatible con OrgMaterialLookup del motor Chandías)
- *   · masterMaterialsMap — Record<uuid, MasterMaterial> con unitPrice = precio TÉCNICO
+ *   · masterMaterialsMap — Record<uuid, MasterMaterial> con unitPrice tal cual (técnico)
  *                          (para calculateMasterTaskCost / calculateMaterials)
  *   · getUnifiedMaterial — lookup por code o nombre normalizado
  *   · loading / error
@@ -27,6 +24,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { MasterMaterial, Resource } from '../types';
 import { masterMaterialsService } from '../services/masterMaterialsService';
 import { resourcesService } from '../services/resourcesService';
+import { technicalUnitPrice, commercialUnitPrice } from '../services/pricing/technicalUnitPrice';
 import { useERP } from '../context/ERPContext';
 import { normalizeStr } from '../utils/normalizeStr';
 
@@ -86,26 +84,21 @@ export function useUnifiedMaterials(organizationId: string): UseUnifiedMaterials
       }
 
       // Enriquecer master_materials:
-      //   · Si hay conversionFactor → master_materials.unitPrice es el PRECIO COMERCIAL.
-      //     La división técnica se aplica en masterMaterialsMap (useMemo) y en list().
-      //     El resource NO overridea materiales con CF (Resource carece de conversionFactor).
-      //   · Sin conversionFactor → si hay resource, usar su baseCost (precio técnico directo).
-      //   unitPrice en el estado queda como precio COMERCIAL para CF materials;
-      //   la conversión se aplica al construir masterMaterialsMap y list.
+      //   · Sin factor (o factor ≤ 1): si hay resource con precio técnico, se usa como override.
+      //   · Con conversionFactor > 1: NO se pisa con resources (resources carece de factor;
+      //     usar su baseCost rompería la convención — resources.baseCost es técnico pero el
+      //     master puede estar en estado 'commercial_legacy' donde su propio unitPrice todavía
+      //     es comercial). technicalUnitPrice()/commercialUnitPrice() resuelven ambos estados.
       const enriched = mats.map(m => {
         const hasConversion = !!(m.conversionFactor && m.conversionFactor > 1);
-
-        // CF material: mantener precio comercial tal cual; no aplicar override de resource
         if (hasConversion) return m;
 
-        // Sin CF: usar precio técnico del resource si existe
         const keyCode = m.code ? normalizeStr(m.code) : null;
         const keyName = normalizeStr(m.name);
         const rCost = (keyCode && resourcePriceByNorm.get(keyCode)) || resourcePriceByNorm.get(keyName);
         if (rCost != null && rCost > 0) {
           return { ...m, unitPrice: rCost };
         }
-
         return m;
       });
 
@@ -121,17 +114,13 @@ export function useUnifiedMaterials(organizationId: string): UseUnifiedMaterials
 
   useEffect(() => { load(); }, [load]);
 
-  // UUID-keyed map con unitPrice = precio TÉCNICO
+  // UUID-keyed map con unitPrice = precio TÉCNICO.
   // Usado por calculateMasterTaskCost / calculateMaterials — NO tocar su interfaz.
-  // Aplica división por CF aquí (unitPrice en DB es comercial cuando CF > 1).
+  // Aplica technicalUnitPrice() para cubrir ambos estados: 'technical' (post-migración,
+  // devuelve el valor tal cual) y commercial_legacy / NULL con factor > 1 (divide).
   const masterMaterialsMap = useMemo(
     () => Object.fromEntries(
-      masterMaterials.map(m => {
-        if (m.conversionFactor && m.conversionFactor > 1 && m.unitPrice > 0) {
-          return [m.id, { ...m, unitPrice: m.unitPrice / m.conversionFactor }];
-        }
-        return [m.id, m];
-      }),
+      masterMaterials.map(m => [m.id, { ...m, unitPrice: technicalUnitPrice(m) }]),
     ),
     [masterMaterials],
   );
@@ -151,52 +140,38 @@ export function useUnifiedMaterials(organizationId: string): UseUnifiedMaterials
       });
     }
 
-    // 1. Materiales de proyecto (prioridad baja)
+    // 1. Materiales de proyecto (prioridad baja). `m.cost` ya es técnico.
     for (const m of projectMaterials) {
-      const tech = m.conversionFactor && m.conversionFactor > 1
-        ? m.cost / m.conversionFactor
-        : m.cost;
+      const hasConversion = !!(m.conversionFactor && m.conversionFactor > 1);
       map.set(normalizeStr(m.name), {
         code: m.code,
         name: m.name,
         unit: m.unit ?? '',
-        cost: tech,
+        cost: m.cost,
         commercialUnit: m.commercialUnit,
         conversionFactor: m.conversionFactor,
-        commercialPrice: m.conversionFactor && m.conversionFactor > 1 ? m.cost : undefined,
+        commercialPrice: hasConversion ? m.cost * m.conversionFactor! : undefined,
         source: 'materials',
       });
     }
 
-    // 2. Materiales maestros (prioridad alta — sobreescribe)
-    //    mm.unitPrice = precio COMERCIAL cuando CF > 1 (sin dividir, lo hace mapMaterialToReal).
-    //    cost en UnifiedMaterial = precio TÉCNICO (dividido aquí para display correcto).
-    //    commercialPrice = precio comercial original (para mapMaterialToReal y display).
+    // 2. Materiales maestros (prioridad alta — sobreescribe).
+    //    `cost` = precio técnico resuelto vía technicalUnitPrice() (soporta
+    //    'technical' y 'commercial_legacy'/NULL con factor > 1).
+    //    `commercialPrice` = precio comercial derivado para display y mapMaterialToReal.
     for (const mm of masterMaterials) {
-      const hasConversion = !!(mm.conversionFactor && mm.conversionFactor > 1);
-      const techCost   = hasConversion ? mm.unitPrice / mm.conversionFactor! : mm.unitPrice;
-      const commPrice  = hasConversion ? mm.unitPrice : undefined;
-
-      // Acero comercial (unit='barra', CF>1): la unidad TÉCNICA es kg.
-      // DB almacena $/barra → techCost ya es $/kg. Exponer 'kg' como unit
-      // evita que MasterTasksPanel muestre "barra" y el usuario ingrese
-      // cantidades en barras multiplicadas por $/kg (resultado absurdo).
-      // La unidad comercial de compra sigue disponible en commercialUnit.
-      const n = normalizeStr(mm.name);
-      const isSteelCommercialBar = hasConversion &&
-        mm.unit !== 'kg' &&
-        (n.includes('hierro') || n.includes('acero'));
-      const displayUnit = isSteelCommercialBar ? 'kg' : mm.unit;
+      const techCost  = technicalUnitPrice(mm);
+      const commPrice = commercialUnitPrice(mm);
 
       map.set(normalizeStr(mm.name), {
         masterId: mm.id,
         code: mm.code,
         name: mm.name,
-        unit: displayUnit,       // 'kg' para acero comercial; mm.unit para el resto
-        cost: techCost,          // precio TÉCNICO para display y nameIndex
+        unit: mm.unit,
+        cost: techCost,
         commercialUnit: mm.commercialUnit,
         conversionFactor: mm.conversionFactor,
-        commercialPrice: commPrice, // precio comercial original para mapMaterialToReal
+        commercialPrice: commPrice,
         source: mm.unitPrice > 0 ? 'master_materials' : 'materials',
       });
     }

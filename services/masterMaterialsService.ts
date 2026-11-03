@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { MasterMaterial } from '../types';
+import { technicalUnitPrice } from './pricing/technicalUnitPrice';
 
 const TABLE = 'master_materials';
 
@@ -26,6 +27,7 @@ function fromRow(row: Record<string, any>): MasterMaterial {
     // Se leen de forma segura: si las columnas no existen, row.x = undefined → undefined
     commercialUnit:   row.commercial_unit   ?? undefined,
     conversionFactor: row.conversion_factor != null ? Number(row.conversion_factor) : undefined,
+    priceUnitBasis:   row.price_unit_basis ?? undefined,
     // Trazabilidad de importación (migration 053)
     globalSourceId: row.global_source_id ?? undefined,
     importedAt:     row.imported_at ?? undefined,
@@ -55,7 +57,10 @@ function toRow(m: Partial<MasterMaterial>): Record<string, any> {
   if (m.category !== undefined) row.category = m.category || null;
   if (m.supplier !== undefined) row.supplier = m.supplier || null;
   if (m.commercialFormat !== undefined) row.commercial_format = m.commercialFormat || null;
+  if (m.commercialUnit !== undefined) row.commercial_unit = m.commercialUnit || null;
+  if (m.conversionFactor !== undefined) row.conversion_factor = m.conversionFactor ?? null;
   if (m.wastePercent !== undefined) row.waste_percent = m.wastePercent;
+  if (m.priceUnitBasis !== undefined) row.price_unit_basis = m.priceUnitBasis;
   if (m.isActive !== undefined) row.is_active = m.isActive;
   // Trazabilidad de importación (migration 053)
   if (m.globalSourceId !== undefined) row.global_source_id = m.globalSourceId || null;
@@ -177,6 +182,18 @@ export const masterMaterialsService = {
       .single();
     if (globalError) throw new Error(globalError.message);
 
+    // Para importar: siempre copiamos el precio TÉCNICO (unidad base), usando el
+    // helper que soporta ambos estados ('technical' y 'commercial_legacy'/NULL+factor).
+    // En la fila de la empresa se marca 'technical' si hay factor > 1, de modo que
+    // la copia nunca viva en 'commercial_legacy' aunque el origen todavía lo esté.
+    const globalFactor = globalData.conversion_factor != null
+      ? Number(globalData.conversion_factor) : null;
+    const importedUnitPrice = technicalUnitPrice({
+      unitPrice: Number(globalData.unit_price) || 0,
+      conversionFactor: globalFactor,
+      priceUnitBasis: globalData.price_unit_basis ?? undefined,
+    });
+
     // Dedup check
     const { data: existing } = await supabase
       .from(TABLE)
@@ -193,7 +210,9 @@ export const masterMaterialsService = {
       name:              globalData.name,
       description:       globalData.description ?? null,
       unit:              globalData.unit,
-      unit_price:        globalData.unit_price,
+      // Precio ya normalizado a técnico por technicalUnitPrice().
+      unit_price:        importedUnitPrice,
+      price_unit_basis:  globalFactor != null && globalFactor > 1 ? 'technical' : null,
       currency:          globalData.currency,
       category:          globalData.category ?? null,
       supplier:          globalData.supplier ?? null,

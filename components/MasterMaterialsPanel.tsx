@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useMasterMaterials } from '../hooks/useMasterMaterials';
 import { MasterMaterial } from '../types';
 import { suggestMaterialCode } from '../utils/codeGenerator';
+import { technicalUnitPrice, commercialUnitPrice, priceInputToTechnical } from '../services/pricing/technicalUnitPrice';
 
 interface Props {
   onNavigateToResources?: () => void;
@@ -22,6 +23,8 @@ const EMPTY_DRAFT: Partial<MasterMaterial> = {
   name: '',
   description: '',
   unit: '',
+  commercialUnit: '',
+  conversionFactor: undefined,
   unitPrice: 0,
   currency: 'ARS',
   category: '',
@@ -43,6 +46,8 @@ export const MasterMaterialsPanel: React.FC<Props> = ({ onNavigateToResources })
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [draft, setDraft] = useState<Partial<MasterMaterial>>(EMPTY_DRAFT);
+  const [priceMode, setPriceMode] = useState<'commercial' | 'technical'>('commercial');
+  const [displayPrice, setDisplayPrice] = useState<number>(0);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [search, setSearch] = useState('');
@@ -78,6 +83,8 @@ export const MasterMaterialsPanel: React.FC<Props> = ({ onNavigateToResources })
     autoCodeRef.current = '';
     setIsAdding(true);
     setEditingId(null);
+    setPriceMode('commercial');       // default: comercial (como vienen las listas de corralón)
+    setDisplayPrice(0);
   };
 
   const startEdit = (m: MasterMaterial) => {
@@ -86,6 +93,12 @@ export const MasterMaterialsPanel: React.FC<Props> = ({ onNavigateToResources })
     autoCodeRef.current = '';
     setEditingId(m.id);
     setIsAdding(false);
+    // Al editar: resolvemos el precio técnico vía helper (compatible con los dos
+    // estados: 'technical' post-migración y 'commercial_legacy'/NULL con factor > 1).
+    // Default: modo comercial si hay factor > 1 (como vienen las listas de corralón).
+    const hasFactor = !!(m.conversionFactor && m.conversionFactor > 1);
+    setPriceMode(hasFactor ? 'commercial' : 'technical');
+    setDisplayPrice(hasFactor ? (commercialUnitPrice(m) ?? 0) : technicalUnitPrice(m));
   };
 
   const cancelEdit = () => {
@@ -94,6 +107,8 @@ export const MasterMaterialsPanel: React.FC<Props> = ({ onNavigateToResources })
     setDraft(EMPTY_DRAFT);
     setAutoCode('');
     autoCodeRef.current = '';
+    setPriceMode('commercial');
+    setDisplayPrice(0);
   };
 
   const handleSave = async () => {
@@ -103,10 +118,22 @@ export const MasterMaterialsPanel: React.FC<Props> = ({ onNavigateToResources })
     }
     setSaving(true);
     try {
+      // `unitPrice` SIEMPRE se persiste en unidad técnica; `priceUnitBasis`
+      // = 'technical' si hay factor > 1. Helper puro, cubre alta y edición.
+      const { unitPrice, priceUnitBasis } = priceInputToTechnical({
+        displayPrice,
+        priceMode,
+        conversionFactor: draft.conversionFactor,
+      });
+      const factor = draft.conversionFactor && draft.conversionFactor > 1 ? draft.conversionFactor : undefined;
+
       const payload: Partial<MasterMaterial> = {
         name: draft.name.trim(),
         unit: draft.unit.trim(),
-        unitPrice: Number(draft.unitPrice) || 0,
+        commercialUnit: draft.commercialUnit?.trim() || undefined,
+        conversionFactor: factor,
+        unitPrice: Number(unitPrice) || 0,
+        priceUnitBasis,
         currency: draft.currency || 'ARS',
         code: draft.code?.trim() || undefined,
         description: draft.description?.trim() || undefined,
@@ -285,11 +312,33 @@ export const MasterMaterialsPanel: React.FC<Props> = ({ onNavigateToResources })
         {sectionTitle('Unidad y precio')}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            {fieldLabel('Unidad', true)}
+            {fieldLabel('Unidad técnica', true)}
             {inp({
-              placeholder: 'bolsa / kg / m3',
+              placeholder: 'kg / m3 / lt / un',
               value: draft.unit ?? '',
               onChange: e => setDraft(d => ({ ...d, unit: e.target.value })),
+            })}
+          </div>
+          <div>
+            {fieldLabel('Unidad comercial')}
+            {inp({
+              placeholder: 'bolsa 50 kg / balde 20 lt / millar',
+              value: draft.commercialUnit ?? '',
+              onChange: e => setDraft(d => ({ ...d, commercialUnit: e.target.value })),
+            })}
+          </div>
+          <div>
+            {fieldLabel('Factor (técnica por 1 comercial)')}
+            {inp({
+              type: 'number',
+              min: 0,
+              step: 0.01,
+              placeholder: '50',
+              value: draft.conversionFactor ?? '',
+              onChange: e => {
+                const v = parseFloat(e.target.value);
+                setDraft(d => ({ ...d, conversionFactor: Number.isFinite(v) ? v : undefined }));
+              },
             })}
           </div>
           <div>
@@ -303,15 +352,66 @@ export const MasterMaterialsPanel: React.FC<Props> = ({ onNavigateToResources })
             </select>
           </div>
           <div className="col-span-2">
-            {fieldLabel('Precio unitario')}
-            {inp({
-              type: 'number',
-              min: 0,
-              step: 0.01,
-              placeholder: '0.00',
-              value: draft.unitPrice ?? 0,
-              onChange: e => setDraft(d => ({ ...d, unitPrice: parseFloat(e.target.value) || 0 })),
-            })}
+            {(() => {
+              const factor = draft.conversionFactor && draft.conversionFactor > 1 ? draft.conversionFactor : 1;
+              const hasFactor = factor > 1;
+              const commLabel = draft.commercialUnit ?? 'unidad comercial';
+              const techUnit  = draft.unit?.trim() || 'unidad técnica';
+
+              const technicalPrice = priceMode === 'commercial' && hasFactor
+                ? displayPrice / factor
+                : displayPrice;
+              const commercialPrice = priceMode === 'technical' && hasFactor
+                ? displayPrice * factor
+                : displayPrice;
+
+              return (
+                <>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-600">
+                      {hasFactor
+                        ? (priceMode === 'commercial'
+                            ? `Precio por ${commLabel}`
+                            : `Precio por ${techUnit}`)
+                        : 'Precio unitario'}
+                    </label>
+                    {hasFactor && (
+                      <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-[10px] font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setPriceMode('commercial')}
+                          className={`px-2 py-1 ${priceMode === 'commercial' ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:bg-slate-100'}`}
+                        >
+                          {commLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPriceMode('technical')}
+                          className={`px-2 py-1 ${priceMode === 'technical' ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:bg-slate-100'}`}
+                        >
+                          {techUnit}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {inp({
+                    type: 'number',
+                    min: 0,
+                    step: 0.01,
+                    placeholder: '0.00',
+                    value: displayPrice,
+                    onChange: e => setDisplayPrice(parseFloat(e.target.value) || 0),
+                  })}
+                  {hasFactor && (
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      {priceMode === 'commercial'
+                        ? `= $ ${technicalPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })} por ${techUnit}`
+                        : `= $ ${commercialPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })} por ${commLabel}`}
+                    </p>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
 
@@ -587,8 +687,15 @@ export const MasterMaterialsPanel: React.FC<Props> = ({ onNavigateToResources })
                     </td>
                     <td className="px-4 py-3 text-slate-500">{m.category || '—'}</td>
                     <td className="px-4 py-3 text-slate-600">{m.unit}</td>
-                    <td className="px-4 py-3 text-right font-mono font-semibold text-slate-800">
-                      {m.unitPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                    <td className="px-4 py-3 text-right font-mono text-slate-800">
+                      <div className="font-semibold">
+                        $ {technicalUnitPrice(m).toLocaleString('es-AR', { minimumFractionDigits: 2 })} <span className="text-[10px] font-normal text-slate-400">/ {m.unit}</span>
+                      </div>
+                      {m.conversionFactor && m.conversionFactor > 1 && (
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          $ {(commercialUnitPrice(m) ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })} / {m.commercialUnit ?? 'unidad comercial'}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Plus, Search, Edit2, CheckCircle2, XCircle, Loader2, AlertTriangle, Save, X, FlaskConical } from 'lucide-react';
 import { MasterMaterial } from '../types';
 import { masterMaterialsService } from '../services/masterMaterialsService';
+import { technicalUnitPrice, commercialUnitPrice, priceInputToTechnical } from '../services/pricing/technicalUnitPrice';
 
 const YIELD_UNIT_OPTIONS = [
   'm²/l', 'm²/kg', 'kg/m²', 'ml/un', 'm²/rollo',
@@ -12,6 +13,8 @@ type FormData = {
   name: string;
   code: string;
   unit: string;
+  commercialUnit: string;
+  conversionFactor: string;
   unitPrice: string;
   currency: string;
   category: string;
@@ -25,17 +28,22 @@ type FormData = {
 };
 
 const EMPTY_FORM: FormData = {
-  name: '', code: '', unit: '', unitPrice: '0', currency: 'ARS',
+  name: '', code: '', unit: '', commercialUnit: '', conversionFactor: '',
+  unitPrice: '0', currency: 'ARS',
   category: '', supplier: '', commercialFormat: '', wastePercent: '', description: '',
   technicalYield: '', technicalYieldUnit: '', technicalNotes: '',
 };
 
 function toForm(m: MasterMaterial): FormData {
+  // El form expone `displayPrice` (lo escribe el usuario) + priceMode aparte, no en el form.
+  // Acá se precargan los campos de identidad y el PRECIO TÉCNICO como punto de partida.
   return {
     name: m.name,
     code: m.code ?? '',
     unit: m.unit,
-    unitPrice: String(m.unitPrice),
+    commercialUnit: m.commercialUnit ?? '',
+    conversionFactor: m.conversionFactor != null ? String(m.conversionFactor) : '',
+    unitPrice: String(technicalUnitPrice(m)),
     currency: m.currency,
     category: m.category ?? '',
     supplier: m.supplier ?? '',
@@ -55,6 +63,8 @@ export const GlobalMaterialsAdmin: React.FC = () => {
   const [editing, setEditing] = useState<MasterMaterial | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
+  const [priceMode, setPriceMode] = useState<'commercial' | 'technical'>('commercial');
+  const [displayPrice, setDisplayPrice] = useState<number>(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toggling, setToggling] = useState<string | null>(null);
@@ -78,6 +88,8 @@ export const GlobalMaterialsAdmin: React.FC = () => {
     setEditing(null);
     setCreating(true);
     setError(null);
+    setPriceMode('commercial');       // default comercial (como vienen las listas de corralón)
+    setDisplayPrice(0);
   };
 
   const openEdit = (m: MasterMaterial) => {
@@ -85,9 +97,18 @@ export const GlobalMaterialsAdmin: React.FC = () => {
     setEditing(m);
     setCreating(false);
     setError(null);
+    const hasFactor = !!(m.conversionFactor && m.conversionFactor > 1);
+    setPriceMode(hasFactor ? 'commercial' : 'technical');
+    setDisplayPrice(hasFactor ? (commercialUnitPrice(m) ?? 0) : technicalUnitPrice(m));
   };
 
-  const closeForm = () => { setCreating(false); setEditing(null); setError(null); };
+  const closeForm = () => {
+    setCreating(false);
+    setEditing(null);
+    setError(null);
+    setPriceMode('commercial');
+    setDisplayPrice(0);
+  };
 
   const handleSave = async () => {
     if (!form.name.trim() || !form.unit.trim()) {
@@ -97,11 +118,25 @@ export const GlobalMaterialsAdmin: React.FC = () => {
     setSaving(true);
     setError(null);
     try {
+      // Factor viene del form (no de `editing`): soporta alta nueva con factor
+      // y edición. Helper puro `priceInputToTechnical` cubre ambos casos.
+      const factorRaw = form.conversionFactor.trim();
+      const factor = factorRaw ? parseFloat(factorRaw.replace(',', '.')) : NaN;
+      const hasFactor = Number.isFinite(factor) && factor > 1;
+      const { unitPrice, priceUnitBasis } = priceInputToTechnical({
+        displayPrice,
+        priceMode,
+        conversionFactor: hasFactor ? factor : null,
+      });
+
       const payload = {
         name: form.name.trim(),
         code: form.code.trim() || undefined,
         unit: form.unit.trim(),
-        unitPrice: parseFloat(form.unitPrice) || 0,
+        commercialUnit: form.commercialUnit.trim() || undefined,
+        conversionFactor: hasFactor ? factor : undefined,
+        unitPrice: Number(unitPrice) || 0,
+        priceUnitBasis,
         currency: form.currency,
         category: form.category.trim() || undefined,
         supplier: form.supplier.trim() || undefined,
@@ -199,8 +234,9 @@ export const GlobalMaterialsAdmin: React.FC = () => {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {F('name', 'Nombre *')}
             {F('code', 'Código')}
-            {F('unit', 'Unidad *')}
-            {F('unitPrice', 'Precio unitario', 'number', { min: '0', step: '0.01' })}
+            {F('unit', 'Unidad técnica *')}
+            {F('commercialUnit', 'Unidad comercial')}
+            {F('conversionFactor', 'Factor (técnica por 1 comercial)', 'number', { min: '0', step: '0.01' })}
             <div>
               <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Moneda</label>
               <select
@@ -212,6 +248,56 @@ export const GlobalMaterialsAdmin: React.FC = () => {
                 <option>USD</option>
               </select>
             </div>
+
+            {/* Precio con selector comercial / técnico (default comercial si hay factor > 1) */}
+            <div className="col-span-2 sm:col-span-3">
+              {(() => {
+                const factorRaw = form.conversionFactor.trim();
+                const factorNum = factorRaw ? parseFloat(factorRaw.replace(',', '.')) : NaN;
+                const hasFactor = Number.isFinite(factorNum) && factorNum > 1;
+                const techUnit  = form.unit?.trim() || 'unidad técnica';
+                const commLabel = form.commercialUnit?.trim() || 'unidad comercial';
+                const technical = priceMode === 'commercial' && hasFactor ? displayPrice / factorNum : displayPrice;
+                const commercial = priceMode === 'technical' && hasFactor ? displayPrice * factorNum : displayPrice;
+                return (
+                  <>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase">
+                        {hasFactor
+                          ? (priceMode === 'commercial' ? `Precio por ${commLabel}` : `Precio por ${techUnit}`)
+                          : 'Precio unitario'}
+                      </label>
+                      {hasFactor && (
+                        <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-[10px] font-semibold">
+                          <button type="button" onClick={() => setPriceMode('commercial')}
+                            className={`px-2 py-1 ${priceMode === 'commercial' ? 'bg-blue-500 text-white' : 'text-slate-500 hover:bg-slate-100'}`}>
+                            {commLabel}
+                          </button>
+                          <button type="button" onClick={() => setPriceMode('technical')}
+                            className={`px-2 py-1 ${priceMode === 'technical' ? 'bg-blue-500 text-white' : 'text-slate-500 hover:bg-slate-100'}`}>
+                            {techUnit}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      type="number" min={0} step={0.01} placeholder="0.00"
+                      value={displayPrice}
+                      onChange={e => setDisplayPrice(parseFloat(e.target.value) || 0)}
+                      className="w-full px-2.5 py-1.5 text-sm border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    {hasFactor && (
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        {priceMode === 'commercial'
+                          ? `= $ ${technical.toLocaleString('es-AR', { minimumFractionDigits: 2 })} por ${techUnit}`
+                          : `= $ ${commercial.toLocaleString('es-AR', { minimumFractionDigits: 2 })} por ${commLabel}`}
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+
             {F('category', 'Categoría')}
             {F('supplier', 'Proveedor')}
             {F('commercialFormat', 'Formato comercial')}
@@ -309,7 +395,12 @@ export const GlobalMaterialsAdmin: React.FC = () => {
                   </td>
                   <td className="px-4 py-2 text-slate-500">{m.unit}</td>
                   <td className="px-4 py-2 text-right text-slate-700 font-mono">
-                    {m.unitPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                    <div>$ {technicalUnitPrice(m).toLocaleString('es-AR', { minimumFractionDigits: 2 })} <span className="text-[10px] text-slate-400">/ {m.unit}</span></div>
+                    {m.conversionFactor && m.conversionFactor > 1 && (
+                      <div className="text-[10px] text-slate-500">
+                        $ {(commercialUnitPrice(m) ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })} / {m.commercialUnit ?? 'unidad comercial'}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-slate-400">{m.currency}</td>
                   <td className="px-4 py-2 text-slate-500">{m.category ?? '—'}</td>
