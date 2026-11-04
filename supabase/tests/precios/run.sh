@@ -66,6 +66,12 @@ echo "== aplicar migración 20261103100100 sobre fixture"
 psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$MIG_DIR/20261103100100_master_materials_precio_tecnico_unico.sql"
 echo "== test de migración (totales + idempotencia + exclusión manual)"
 psql -v ON_ERROR_STOP=1 -q -d "$DB" -f 09_master_materials_tecnico.sql
+echo "== pre-chequeo: un factor en (0,1) tiene que abortar la migración"
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -c "insert into public.master_materials (id, name, unit, conversion_factor, unit_price, is_active) values ('00000000-0000-0000-0000-0000000000f5', 'Factor 0.5 (test)', 'kg', 0.5, 100, true)"
+if psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$MIG_DIR/20261103100100_master_materials_precio_tecnico_unico.sql" >/dev/null 2>&1; then
+  echo "pre-chequeo: la migración no abortó con factor 0.5"; exit 1
+fi
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -c "delete from public.master_materials where id = '00000000-0000-0000-0000-0000000000f5'"
 
 echo "== verificación de objetos"
 psql -v ON_ERROR_STOP=1 -q -d "$DB" -f 02_verificacion.sql

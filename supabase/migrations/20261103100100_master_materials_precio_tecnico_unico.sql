@@ -38,12 +38,13 @@ BEGIN;
 DO $pre$
 DECLARE v_bad int;
 BEGIN
-  -- No debería haber filas con factor en (0,1) ni = 0 (si aparecen, hay que
-  -- clasificarlas antes de correr esta migración).
+  -- No debería haber filas con factor en (0,1) (si aparecen, hay que
+  -- clasificarlas antes de correr esta migración). Factor = 1 es válido
+  -- (unidad técnica = comercial, p. ej. arena m3) y no se convierte.
   SELECT COUNT(*) INTO v_bad FROM public.master_materials
-  WHERE conversion_factor IS NOT NULL AND conversion_factor <= 1 AND conversion_factor > 0;
+  WHERE conversion_factor IS NOT NULL AND conversion_factor < 1 AND conversion_factor > 0;
   IF v_bad > 0 THEN
-    RAISE EXCEPTION 'Hay % filas con conversion_factor en (0,1]. Revisar antes de correr esta migración.', v_bad;
+    RAISE EXCEPTION 'Hay % filas con conversion_factor en (0,1). Revisar antes de correr esta migración.', v_bad;
   END IF;
 END $pre$;
 

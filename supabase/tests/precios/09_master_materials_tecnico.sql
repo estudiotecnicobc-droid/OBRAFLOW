@@ -91,7 +91,17 @@ BEGIN
     RAISE EXCEPTION 'Pintura látex (resincronizada): esperado 142.50, obtenido %', v_pintura_lkup;
   END IF;
 
-  RAISE NOTICE 'OK: backup=80, technical=80, unit comercial→kg=5, spot checks OK, pintura resincronizada';
+  -- 8. Factor = 1: la migración no aborta y no toca precio, unidad ni marca
+  IF (SELECT COUNT(*) FROM public.master_materials
+       WHERE conversion_factor = 1
+         AND (price_unit_basis IS NOT NULL
+              OR id IN (SELECT id FROM public.master_materials_precio_comercial_backup))) <> 0
+     OR (SELECT unit_price FROM public.master_materials
+          WHERE id = '9be6574e-df44-4c5d-922f-8cce05503371') <> 42000 THEN
+    RAISE EXCEPTION 'Factor 1: la migración modificó filas que no debía tocar';
+  END IF;
+
+  RAISE NOTICE 'OK: backup=80, technical=80, unit comercial→kg=5, spot checks OK, pintura resincronizada, factor 1 intacto';
 END $test$;
 
 -- 8. Idempotencia: corremos la migración otra vez; backup y technical no deben cambiar.
