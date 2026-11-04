@@ -99,6 +99,12 @@ INSERT INTO public.master_materials (id, organization_id, code, name, unit, comm
 ('29640e03-6faf-461d-8f86-07e67f8179de', 'org_demo', NULL, 'Caño PVC 110 mm',         'm',    'caño 3 m',             3,   1250.0000, 'Sanitaria',     true),
 ('93062224-4701-45e3-83bd-9d79263ad980', 'org_demo', NULL, 'Caño PVC 63 mm',          'm',    'caño 3 m',             3,    680.0000, 'Sanitaria',     true);
 
+-- ── factor = 1 (producción tiene 9): unidad técnica = comercial, no se convierten ──
+INSERT INTO public.master_materials (id, organization_id, code, name, unit, commercial_unit, conversion_factor, unit_price, category, is_active) VALUES
+('9be6574e-df44-4c5d-922f-8cce05503371', '3e5c473d-c7fd-43ea-9cc4-00d2ec73ea8f', NULL, 'Arena', 'm3', 'm3', 1, 42000.0000, 'Aridos', true),
+('94b5761d-4fbc-4269-adaf-2b8ef1274015', 'org_demo', NULL, 'Hormigón elaborado H21', 'M3', 'm3', 1, 136600.0000, 'HORMIGON ARMADO', true),
+('3064d866-b278-4b7d-b6dc-91575d857315', 'org_demo', NULL, 'Ladrillo común 15 cm', 'Un', 'unidad', 1, 245.0000, 'MAMPOSTERIA', true);
+
 -- ── master_task_materials: muestra de los que apuntan a materiales con factor ──
 -- Incluye específicamente al componente de pintura látex con lkup=72.50 (valor manual) para
 -- validar que la migración NO lo toca.
