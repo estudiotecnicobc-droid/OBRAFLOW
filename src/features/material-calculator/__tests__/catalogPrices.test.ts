@@ -7,7 +7,7 @@ import {
   ReferencePrice, OrgMaterialLookup,
 } from '../engine/chandias';
 
-const sql = readFileSync(resolve(__dirname, '../../../../supabase/migrations/062_base_maestra_obraflow_rubros.sql'), 'utf-8');
+const sql = readFileSync(resolve(__dirname, '../../../../supabase/migrations_archive/062_base_maestra_obraflow_rubros.sql'), 'utf-8');
 const OF = new Map<string, { name: string; unit: string; cost: number }>();
 for (const m of sql.matchAll(/\('(OF-M-[A-Z0-9]+)', '((?:[^']|'')*)', '([^']*)', 'MATERIAL', ([0-9.]+)/g)) {
   OF.set(m[1], { name: m[2].replace(/''/g, "'"), unit: m[3], cost: Number(m[4]) });

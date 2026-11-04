@@ -5,7 +5,7 @@ import { DURLOCK_TEMPLATE } from '../durlockTemplate';
 import { DURLOCK_SYSTEMS } from '../durlockSystems';
 import { buildRows, defaultValues } from '../engine';
 
-const migDir = join(__dirname, '../../../../supabase/migrations');
+const migDir = join(__dirname, '../../../../supabase/migrations_archive');
 const sql065 = readFileSync(join(migDir, '065_catalogo_durlock.sql'), 'utf-8');
 const catalogSql = readdirSync(migDir)
   .filter(f => /^06[1-5]_/.test(f))

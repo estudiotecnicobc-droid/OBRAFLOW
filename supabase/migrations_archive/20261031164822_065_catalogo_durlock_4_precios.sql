@@ -1,0 +1,72 @@
+-- Migración aplicada desde el panel web de Supabase (SQL Editor).
+-- Version: 20261031164822
+-- Name:    065_catalogo_durlock_4_precios
+-- Origen:  supabase_migrations.schema_migrations (snapshot 2026-11-03)
+-- Nota:    Ya aplicada en producción. Reproducida aquí sólo como historia.
+-- Nunca re-ejecutar: está absorbida por el baseline 20261101000000.
+
+UPDATE public.resources r SET base_cost = v.cost, pricing_notes = v.notes
+FROM (VALUES
+  ('OF-DUR-M01', 25000, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'),
+  ('OF-DUR-M02', 7000, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'),
+  ('OF-DUR-M03', 6500, 'Derivado de OF-M-LV (lana de vidrio 50 mm); verificar'),
+  ('OF-DUR-M04', 8500, 'Derivado de OF-M-LVF (lana de vidrio 50 mm con foil); verificar'),
+  ('OF-DUR-M05', 150, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'),
+  ('OF-DUR-M06', 600, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'),
+  ('OF-DUR-M07', 2500, 'Derivado de OF-M-TYV (estimado); verificar'),
+  ('OF-DUR-M08', 96225, 'Promedio de Pinturería España, Punto Hogar y Bourlot, octubre 2026'),
+  ('OF-DUR-M09', 75202, 'Mercado Libre, mediana de publicaciones, octubre 2026'),
+  ('OF-DUR-M10', 15724, 'Mercado Libre, mediana de publicaciones, octubre 2026'),
+  ('OF-DUR-M11', 2535, 'Derivado de Red Materiales (cinta tramada 90 m), octubre 2026'),
+  ('OF-DUR-M12', 98.76, 'appmaestro.com.ar, mediana minorista con IVA, octubre 2026'),
+  ('OF-DUR-M13', 1300, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'),
+  ('OF-DUR-M14', 8000, 'Red Materiales (redmateriales.com.ar), precio desde, octubre 2026'),
+  ('OF-DUR-M15', 125000, 'Derivado de OF-M-MFV (estimado) × 50 m²; verificar'),
+  ('OF-DUR-M16', 45348.86, 'Corralón Aconquija, precio web con IVA, octubre 2026'),
+  ('OF-DUR-M17', 1714, 'Red Materiales (redmateriales.com.ar), Masilla Durlock balde 18 kg, octubre 2026'),
+  ('OF-DUR-M18', 1762, 'Red Materiales (redmateriales.com.ar), precio desde, octubre 2026, balde 32 kg'),
+  ('OF-DUR-M19', 2600, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor (referencia: enduido Durlock 25 kg)'),
+  ('OF-DUR-M20', 4588, 'Red Materiales (redmateriales.com.ar), promedio de corralones, octubre 2026'),
+  ('OF-DUR-M21', 6089, 'Red Materiales (redmateriales.com.ar), promedio de corralones, octubre 2026'),
+  ('OF-DUR-M22', 3575, 'Red Materiales (redmateriales.com.ar), precio desde, octubre 2026'),
+  ('OF-DUR-M23', 5348, 'Red Materiales (redmateriales.com.ar), precio desde, octubre 2026'),
+  ('OF-DUR-M24', 8113, 'Mercado Libre, mediana de publicaciones, octubre 2026'),
+  ('OF-DUR-M25', 30000, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'),
+  ('OF-DUR-M26', 24000, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'),
+  ('OF-DUR-M27', 33741.71, 'Corralón Aconquija, precio web con IVA, octubre 2026'),
+  ('OF-DUR-M28', 34000, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor (referencia: placa 4D)'),
+  ('OF-DUR-M29', 31994.88, 'Corralón Aconquija, precio web con IVA, octubre 2026'),
+  ('OF-DUR-M30', 45000, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'),
+  ('OF-DUR-M31', 15089.95, 'Corralón Aconquija, precio web con IVA, octubre 2026'),
+  ('OF-DUR-M32', 8885, 'Derivado de OF-M-PDE (appmaestro.com.ar, mediana minorista con IVA, octubre 2026), placa 61 x 61; verificar'),
+  ('OF-DUR-M33', 17770, 'Derivado de la Deco Clásica 60 x 60 × 2; verificar'),
+  ('OF-DUR-M34', 12000, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'),
+  ('OF-DUR-M35', 21769, 'Red Materiales (redmateriales.com.ar), promedio de corralones, octubre 2026'),
+  ('OF-DUR-M36', 21214, 'Red Materiales (redmateriales.com.ar), promedio de corralones, octubre 2026'),
+  ('OF-DUR-M37', 28820.51, 'Corralón Aconquija, precio web con IVA, octubre 2026'),
+  ('OF-DUR-M38', 22232.63, 'Mukdise, precio contado con IVA, octubre 2026'),
+  ('OF-DUR-M39', 26434, 'Red Materiales (redmateriales.com.ar), promedio de corralones, octubre 2026'),
+  ('OF-DUR-M40', 29924.65, 'Corralón Aconquija, precio web con IVA, octubre 2026'),
+  ('OF-DUR-M41', 33000, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor (referencia: placa RH)'),
+  ('OF-DUR-M42', 106000, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor (referencia: Superboard 8 mm × 1,5)'),
+  ('OF-DUR-M43', 53249, 'Red Materiales (redmateriales.com.ar), precio desde, octubre 2026'),
+  ('OF-DUR-M44', 70958, 'Red Materiales (redmateriales.com.ar), precio desde, octubre 2026'),
+  ('OF-DUR-M45', 14000, 'Derivado de OF-M-SEL (estimado); verificar'),
+  ('OF-DUR-M46', 35000, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'),
+  ('OF-DUR-M47', 17800, 'Mercado Libre, mediana de publicaciones, octubre 2026'),
+  ('OF-DUR-M48', 25583, 'Mercado Libre, mediana de publicaciones, octubre 2026 (Cedral color)'),
+  ('OF-DUR-M49', 3972, 'Red Materiales (redmateriales.com.ar), promedio de corralones, octubre 2026'),
+  ('OF-DUR-M50', 5457, 'Red Materiales (redmateriales.com.ar), promedio de corralones, octubre 2026'),
+  ('OF-DUR-M51', 178, 'appmaestro.com.ar, mediana minorista con IVA, octubre 2026'),
+  ('OF-DUR-M52', 90, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'),
+  ('OF-DUR-M53', 60, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'),
+  ('OF-DUR-M54', 70, 'Estimado ObraFlow octubre 2026; verificar con tu proveedor'),
+  ('OF-DUR-M55', 24.73, 'appmaestro.com.ar, mediana minorista con IVA, octubre 2026'),
+  ('OF-DUR-M56', 20.72, 'Red Materiales (redmateriales.com.ar), promedio de corralones, octubre 2026, caja x 100'),
+  ('OF-DUR-M57', 27.14, 'Corralón Aconquija, precio web con IVA, octubre 2026, caja x 100'),
+  ('OF-DUR-M58', 19.77, 'appmaestro.com.ar, mediana minorista con IVA, octubre 2026'),
+  ('OF-DUR-M59', 52.2, 'Corralón Aconquija, precio web con IVA, octubre 2026, caja x 100'),
+  ('OF-DUR-M60', 1394, 'Red Materiales (redmateriales.com.ar), precio desde, octubre 2026')
+) AS v(code, cost, notes)
+WHERE r.code = v.code
+  AND r.catalog_id = (SELECT id FROM public.catalogs WHERE name = 'Catálogo ObraFlow' AND organization_id IS NULL LIMIT 1);
