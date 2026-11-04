@@ -3,6 +3,12 @@
 # con el esquema de producción (snapshot del harness RLS) y stubs de pgmq / pg_cron / pg_net / storage.
 # Uso: PGHOST=... PGPORT=... PGUSER=postgres PGPASSWORD=... supabase/tests/precios/run.sh
 #      (sin servidor: PRECIOS_LOCAL_PG=1 supabase/tests/precios/run.sh levanta un cluster en /tmp/pg_precios, puerto 5433)
+#
+# Modo PRECIOS_REAL_SUPABASE=1: salta los stubs y el schema_snapshot y aplica directamente
+#   20261101000000_baseline_produccion.sql + las migraciones pendientes (20261102100001..10,
+#   20261103100000, 20261103100100), que es lo que hace `supabase db reset` después del baseline.
+#   Requiere las extensiones pgmq/pg_cron/pg_net disponibles en el cluster (vienen con la imagen
+#   supabase/postgres). Útil para validar que el baseline es reconstruible desde cero.
 set -euo pipefail
 cd "$(dirname "$0")"
 DB="${PRECIOS_TEST_DB:-obraflow_precios_test}"
@@ -29,17 +35,23 @@ fi
 
 psql -v ON_ERROR_STOP=1 -q -d postgres -c "drop database if exists $DB" -c "create database $DB"
 
-for f in ../rls/00_stubs.sql ../rls/01_schema_snapshot.sql 00b_stubs_precios.sql; do
-  echo "== $f"
-  psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f"
-done
+if [[ "${PRECIOS_REAL_SUPABASE:-0}" == "1" ]]; then
+  echo "== modo REAL: baseline de producción + migraciones pendientes (sin stubs ni schema_snapshot)"
+  echo "== $MIG_DIR/20261101000000_baseline_produccion.sql"
+  psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$MIG_DIR/20261101000000_baseline_produccion.sql"
+else
+  for f in ../rls/00_stubs.sql ../rls/01_schema_snapshot.sql 00b_stubs_precios.sql; do
+    echo "== $f"
+    psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f"
+  done
 
-# Prerrequisito de 20261102100009 que el snapshot RLS no incluye (sí está en producción):
-# calculate_consolidated_resources(jsonb,text,date), definición final de la 057.
-for f in "$MIG_DIR"/057_fix_resources_commercial_columns.sql; do
-  echo "== $(basename "$f") (prerrequisito)"
-  psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f"
-done
+  # Prerrequisito de 20261102100009 que el snapshot RLS no incluye (sí está en producción):
+  # calculate_consolidated_resources(jsonb,text,date), definición final de la 057.
+  for f in "$MIG_DIR"/../migrations_archive/057_fix_resources_commercial_columns.sql; do
+    echo "== $(basename "$f") (prerrequisito)"
+    psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f"
+  done
+fi
 
 for f in "$MIG_DIR"/202611021000{01,02,03,04,05,06,07,08,09,10}_*.sql \
          "$MIG_DIR"/20261103100000_*.sql \

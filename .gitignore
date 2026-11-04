@@ -34,3 +34,7 @@ tu-erp-construccion/
 *.txt
 
 .vercel
+
+# Supabase CLI — artefactos locales
+supabase/.temp/
+supabase/.branches/
