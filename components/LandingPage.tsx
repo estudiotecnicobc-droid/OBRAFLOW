@@ -3,14 +3,14 @@ import {
   HardHat, ArrowRight, Search, Check, CalendarRange, TrendingUp, LayoutGrid,
   BookOpen, ListChecks, UserPlus, FolderPlus, GanttChart,
 } from 'lucide-react';
+import { MONO, SANS, Window } from './landing/shared';
+import { QuickSimulator } from './landing/QuickSimulator';
+import { WorkedExample } from './landing/WorkedExample';
 
 interface Props {
   onLogin: () => void;
   onSignup: () => void;
 }
-
-const SANS = "font-['Archivo',ui-sans-serif,system-ui,sans-serif]";
-const MONO = "font-['IBM_Plex_Mono',ui-monospace,monospace]";
 
 const FACTS: [string, string][] = [
   ['≈ 590', 'análisis de precios unitarios cargados'],
@@ -20,18 +20,6 @@ const FACTS: [string, string][] = [
 ];
 
 /* ---------- Maquetas dibujadas (datos de ejemplo) ---------- */
-
-const Window: React.FC<{ title: string; children: React.ReactNode; className?: string }> = ({ title, children, className = '' }) => (
-  <div className={`bg-white border border-slate-200 rounded-xl shadow-[0_24px_60px_-24px_rgba(15,23,42,0.25)] overflow-hidden ${className}`}>
-    <div className="flex items-center gap-2 px-4 h-9 border-b border-slate-100 bg-slate-50/80">
-      <span className="w-2.5 h-2.5 rounded-full bg-slate-200" />
-      <span className="w-2.5 h-2.5 rounded-full bg-slate-200" />
-      <span className="w-2.5 h-2.5 rounded-full bg-slate-200" />
-      <span className={`ml-2 text-[11px] text-slate-500 truncate ${MONO}`}>{title}</span>
-    </div>
-    {children}
-  </div>
-);
 
 const BUDGET_ROWS: [string, string, number][] = [
   ['Trabajos preliminares', '1 gl', 3],
@@ -333,6 +321,8 @@ export const LandingPage: React.FC<Props> = ({ onLogin, onSignup }) => {
             <span>obraf<span className="text-blue-600">low</span></span>
           </a>
           <div className="hidden md:flex items-center gap-7 text-sm text-slate-600">
+            <a href="#demo" className="hover:text-slate-900">Probar</a>
+            <a href="#ejemplo" className="hover:text-slate-900">Ejemplo</a>
             <a href="#funciones" className="hover:text-slate-900">Funciones</a>
             <a href="#como-empezar" className="hover:text-slate-900">Cómo empezar</a>
             <a href="#beta" className="hover:text-slate-900">Beta</a>
@@ -382,12 +372,12 @@ export const LandingPage: React.FC<Props> = ({ onLogin, onSignup }) => {
               >
                 Crear cuenta gratis <ArrowRight size={17} />
               </button>
-              <button
-                onClick={onLogin}
+              <a
+                href="#demo"
                 className="inline-flex items-center gap-2 border border-slate-300 hover:border-slate-400 bg-white text-slate-800 font-semibold px-6 py-3.5 rounded-lg transition-colors"
               >
-                Ya tengo cuenta
-              </button>
+                Probar la demo
+              </a>
             </div>
             <p className="mt-4 text-xs text-slate-400">Sin tarjeta. Gratis mientras dure la beta.</p>
           </div>
@@ -409,6 +399,38 @@ export const LandingPage: React.FC<Props> = ({ onLogin, onSignup }) => {
               <p className="mt-1 text-sm text-slate-500">{label}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Demo */}
+      <section id="demo" className="pt-24 md:pt-32 scroll-mt-16">
+        <div className="max-w-6xl mx-auto px-5 md:px-8">
+          <div className="max-w-2xl mb-10">
+            <p className={`text-[11px] uppercase tracking-[0.14em] text-slate-400 ${MONO}`}>Probalo sin registrarte</p>
+            <h2 className="mt-3 text-3xl md:text-5xl font-extrabold tracking-[-0.02em] text-slate-900 leading-[1.05]">
+              Cambiá las medidas y mirá cómo se arma el cómputo.
+            </h2>
+            <p className="mt-4 text-lg text-slate-600 leading-relaxed">
+              Es el mismo cálculo del presupuesto rápido. Tocá una tarea para ver qué incluye.
+            </p>
+          </div>
+          <QuickSimulator onSignup={onSignup} />
+        </div>
+      </section>
+
+      {/* Ejemplo */}
+      <section id="ejemplo" className="pt-24 md:pt-32 scroll-mt-16">
+        <div className="max-w-6xl mx-auto px-5 md:px-8">
+          <div className="max-w-2xl mb-10">
+            <p className={`text-[11px] uppercase tracking-[0.14em] text-slate-400 ${MONO}`}>Un ejemplo completo</p>
+            <h2 className="mt-3 text-3xl md:text-5xl font-extrabold tracking-[-0.02em] text-slate-900 leading-[1.05]">
+              Una casa de 70 m², de la medición al plan de trabajos.
+            </h2>
+            <p className="mt-4 text-lg text-slate-600 leading-relaxed">
+              Vivienda en planta baja, sistema tradicional con losa. Esta misma obra la podés abrir y editar cuando creás tu cuenta.
+            </p>
+          </div>
+          <WorkedExample />
         </div>
       </section>
 
